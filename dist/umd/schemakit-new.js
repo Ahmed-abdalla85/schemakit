@@ -68,6 +68,27 @@
             return this.databaseAdapter?.isConnected() || false;
         }
         /**
+         * Check if SchemaKit is installed
+         * @returns True if installed, false otherwise
+         */
+        async isInstalled() {
+            return await this.schemaLoader.isSchemaKitInstalled();
+        }
+        /**
+         * Get SchemaKit version
+         * @returns Version string or null if not installed
+         */
+        async getVersion() {
+            return await this.schemaLoader.getSchemaKitVersion();
+        }
+        /**
+         * Force reinstall SchemaKit (useful for development/testing)
+         * This will recreate all system tables and seed data
+         */
+        async reinstall() {
+            await this.schemaLoader.reinstall();
+        }
+        /**
          * Load entity configuration from database
          * @param entityName Entity name
          * @param context User context

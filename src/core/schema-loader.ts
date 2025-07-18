@@ -1,7 +1,7 @@
 /**
  * Schema Loader - Handles entity configuration loading and caching
  */
-import { DatabaseAdapter, ColumnDefinition } from '../database/adapter';
+import { DatabaseAdapter } from '../database/adapter';
 import {
     Context,
     EntityConfiguration,
@@ -13,12 +13,24 @@ import {
     RLSDefinition
 } from '../types';
 import { SchemaKitError } from '../errors';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export interface SchemaLoaderOptions {
     cache?: {
         enabled?: boolean;
         ttl?: number;
     };
+    sqlPath?: string; // Path to SQL files directory
+    version?: string; // SchemaKit version
+}
+
+export interface InstallationInfo {
+    id: number;
+    version: string;
+    installed_at: string;
+    updated_at: string;
+    metadata?: string;
 }
 
 /**
@@ -28,6 +40,7 @@ export class SchemaLoader {
     private databaseAdapter: DatabaseAdapter;
     private options: SchemaLoaderOptions;
     private entityCache: Map<string, EntityConfiguration> = new Map();
+    private isInstalled: boolean | null = null;
 
     constructor(databaseAdapter: DatabaseAdapter, options: SchemaLoaderOptions = {}) {
         this.databaseAdapter = databaseAdapter;
@@ -36,6 +49,8 @@ export class SchemaLoader {
                 enabled: true,
                 ttl: 3600000 // 1 hour
             },
+            sqlPath: path.join(__dirname, '../../sql'),
+            version: '1.0.0',
             ...options
         };
     }
@@ -57,8 +72,8 @@ export class SchemaLoader {
                 await this.databaseAdapter.connect();
             }
 
-            // Check if system tables exist, create them if not
-            await this.ensureSystemTables();
+            // Check if SchemaKit is installed, install if not
+            await this.ensureInstallation();
 
             // Load entity definition
             const entityDef = await this.loadEntityDefinition(entityName);
@@ -124,114 +139,205 @@ export class SchemaLoader {
     }
 
     /**
-     * Ensure system tables exist
+     * Ensure SchemaKit is installed
      * @private
      */
-    private async ensureSystemTables(): Promise<void> {
-        // Check if system_entities table exists
-        const entitiesTableExists = await this.databaseAdapter.tableExists('system_entities');
-        if (!entitiesTableExists) {
-            // Create system_entities table
-            await this.databaseAdapter.createTable('system_entities', [
-                { name: 'id', type: 'TEXT', primaryKey: true, notNull: true },
-                { name: 'name', type: 'TEXT', notNull: true, unique: true },
-                { name: 'table_name', type: 'TEXT', notNull: true },
-                { name: 'display_name', type: 'TEXT', notNull: true },
-                { name: 'description', type: 'TEXT' },
-                { name: 'is_active', type: 'BOOLEAN', notNull: true, default: true },
-                { name: 'created_at', type: 'TEXT', notNull: true },
-                { name: 'updated_at', type: 'TEXT', notNull: true },
-                { name: 'metadata', type: 'TEXT' } // JSON string
-            ]);
+    private async ensureInstallation(): Promise<void> {
+        // Check if already checked in this session
+        if (this.isInstalled === true) {
+            return;
         }
 
-        // Check if system_fields table exists
-        const fieldsTableExists = await this.databaseAdapter.tableExists('system_fields');
-        if (!fieldsTableExists) {
-            // Create system_fields table
-            await this.databaseAdapter.createTable('system_fields', [
-                { name: 'id', type: 'TEXT', primaryKey: true, notNull: true },
-                { name: 'entity_id', type: 'TEXT', notNull: true, references: { table: 'system_entities', column: 'id', onDelete: 'CASCADE' } },
-                { name: 'name', type: 'TEXT', notNull: true },
-                { name: 'type', type: 'TEXT', notNull: true },
-                { name: 'is_required', type: 'BOOLEAN', notNull: true, default: false },
-                { name: 'is_unique', type: 'BOOLEAN', notNull: true, default: false },
-                { name: 'default_value', type: 'TEXT' },
-                { name: 'validation_rules', type: 'TEXT' }, // JSON string
-                { name: 'display_name', type: 'TEXT', notNull: true },
-                { name: 'description', type: 'TEXT' },
-                { name: 'order_index', type: 'INTEGER', notNull: true, default: 0 },
-                { name: 'is_active', type: 'BOOLEAN', notNull: true, default: true },
-                { name: 'reference_entity', type: 'TEXT' },
-                { name: 'metadata', type: 'TEXT' } // JSON string
-            ]);
+        try {
+            // Check if installation table exists and has data
+            const installationInfo = await this.getInstallationInfo();
+            
+            if (!installationInfo) {
+                // Not installed, run installation
+                await this.install();
+                this.isInstalled = true;
+            } else {
+                // Already installed, check if version update is needed
+                if (installationInfo.version !== this.options.version) {
+                    await this.updateVersion(installationInfo.version, this.options.version!);
+                }
+                this.isInstalled = true;
+            }
+        } catch (error) {
+            // If there's an error checking installation, try to install
+            console.warn('Error checking installation, attempting to install:', error);
+            await this.install();
+            this.isInstalled = true;
+        }
+    }
+
+    /**
+     * Get installation information
+     * @private
+     */
+    private async getInstallationInfo(): Promise<InstallationInfo | null> {
+        try {
+            // Check if installation table exists
+            const tableExists = await this.databaseAdapter.tableExists('system_installation');
+            if (!tableExists) {
+                return null;
+            }
+
+            // Get installation info
+            const results = await this.databaseAdapter.query<InstallationInfo>(
+                'SELECT * FROM system_installation WHERE id = 1'
+            );
+
+            return results.length > 0 ? results[0] : null;
+        } catch (error) {
+            // If there's an error, assume not installed
+            return null;
+        }
+    }
+
+    /**
+     * Install SchemaKit by running schema and seed SQL files
+     * @private
+     */
+    private async install(): Promise<void> {
+        try {
+            console.log('Installing SchemaKit...');
+
+            // Run schema SQL
+            await this.runSqlFile('schema.sql');
+            console.log('Schema installed successfully');
+
+            // Run seed SQL
+            await this.runSqlFile('seed.sql');
+            console.log('Seed data installed successfully');
+
+            console.log('SchemaKit installation completed');
+        } catch (error) {
+            throw new SchemaKitError(`Failed to install SchemaKit: ${error}`);
+        }
+    }
+
+    /**
+     * Update SchemaKit version
+     * @param fromVersion Current version
+     * @param toVersion Target version
+     * @private
+     */
+    private async updateVersion(fromVersion: string, toVersion: string): Promise<void> {
+        try {
+            console.log(`Updating SchemaKit from version ${fromVersion} to ${toVersion}...`);
+
+            // Update version in installation table
+            await this.databaseAdapter.execute(
+                'UPDATE system_installation SET version = ?, updated_at = datetime(\'now\') WHERE id = 1',
+                [toVersion]
+            );
+
+            console.log('SchemaKit version updated successfully');
+        } catch (error) {
+            console.warn(`Failed to update SchemaKit version: ${error}`);
+        }
+    }
+
+    /**
+     * Run SQL file
+     * @param filename SQL file name
+     * @private
+     */
+    private async runSqlFile(filename: string): Promise<void> {
+        try {
+            const sqlPath = path.join(this.options.sqlPath!, filename);
+            
+            // Check if file exists
+            if (!fs.existsSync(sqlPath)) {
+                throw new Error(`SQL file not found: ${sqlPath}`);
+            }
+
+            // Read SQL file
+            const sqlContent = fs.readFileSync(sqlPath, 'utf8');
+
+            // Split SQL content into individual statements
+            const statements = this.splitSqlStatements(sqlContent);
+
+            // Execute each statement
+            for (const statement of statements) {
+                if (statement.trim()) {
+                    await this.databaseAdapter.execute(statement);
+                }
+            }
+        } catch (error) {
+            throw new Error(`Failed to run SQL file ${filename}: ${error}`);
+        }
+    }
+
+    /**
+     * Split SQL content into individual statements
+     * @param sqlContent SQL content
+     * @private
+     */
+    private splitSqlStatements(sqlContent: string): string[] {
+        // Remove comments and split by semicolon
+        const cleanSql = sqlContent
+            .replace(/--.*$/gm, '') // Remove single-line comments
+            .replace(/\/\*[\s\S]*?\*\//g, '') // Remove multi-line comments
+            .trim();
+
+        // Split by semicolon, but be careful about semicolons in strings
+        const statements: string[] = [];
+        let currentStatement = '';
+        let inString = false;
+        let stringChar = '';
+
+        for (let i = 0; i < cleanSql.length; i++) {
+            const char = cleanSql[i];
+            const prevChar = i > 0 ? cleanSql[i - 1] : '';
+
+            if (!inString && (char === '"' || char === "'")) {
+                inString = true;
+                stringChar = char;
+            } else if (inString && char === stringChar && prevChar !== '\\') {
+                inString = false;
+                stringChar = '';
+            } else if (!inString && char === ';') {
+                statements.push(currentStatement.trim());
+                currentStatement = '';
+                continue;
+            }
+
+            currentStatement += char;
         }
 
-        // Check if system_permissions table exists
-        const permissionsTableExists = await this.databaseAdapter.tableExists('system_permissions');
-        if (!permissionsTableExists) {
-            // Create system_permissions table
-            await this.databaseAdapter.createTable('system_permissions', [
-                { name: 'id', type: 'TEXT', primaryKey: true, notNull: true },
-                { name: 'entity_id', type: 'TEXT', notNull: true, references: { table: 'system_entities', column: 'id', onDelete: 'CASCADE' } },
-                { name: 'role', type: 'TEXT', notNull: true },
-                { name: 'action', type: 'TEXT', notNull: true },
-                { name: 'conditions', type: 'TEXT' }, // JSON string
-                { name: 'is_allowed', type: 'BOOLEAN', notNull: true, default: true },
-                { name: 'created_at', type: 'TEXT', notNull: true },
-                { name: 'field_permissions', type: 'TEXT' } // JSON string
-            ]);
+        // Add the last statement if it exists
+        if (currentStatement.trim()) {
+            statements.push(currentStatement.trim());
         }
 
-        // Check if system_views table exists
-        const viewsTableExists = await this.databaseAdapter.tableExists('system_views');
-        if (!viewsTableExists) {
-            // Create system_views table
-            await this.databaseAdapter.createTable('system_views', [
-                { name: 'id', type: 'TEXT', primaryKey: true, notNull: true },
-                { name: 'entity_id', type: 'TEXT', notNull: true, references: { table: 'system_entities', column: 'id', onDelete: 'CASCADE' } },
-                { name: 'name', type: 'TEXT', notNull: true },
-                { name: 'query_config', type: 'TEXT', notNull: true }, // JSON string
-                { name: 'fields', type: 'TEXT', notNull: true }, // JSON string
-                { name: 'is_default', type: 'BOOLEAN', notNull: true, default: false },
-                { name: 'created_by', type: 'TEXT' },
-                { name: 'is_public', type: 'BOOLEAN', notNull: true, default: false },
-                { name: 'metadata', type: 'TEXT' } // JSON string
-            ]);
-        }
+        return statements.filter(stmt => stmt.length > 0);
+    }
 
-        // Check if system_workflows table exists
-        const workflowsTableExists = await this.databaseAdapter.tableExists('system_workflows');
-        if (!workflowsTableExists) {
-            // Create system_workflows table
-            await this.databaseAdapter.createTable('system_workflows', [
-                { name: 'id', type: 'TEXT', primaryKey: true, notNull: true },
-                { name: 'entity_id', type: 'TEXT', notNull: true, references: { table: 'system_entities', column: 'id', onDelete: 'CASCADE' } },
-                { name: 'name', type: 'TEXT', notNull: true },
-                { name: 'trigger_event', type: 'TEXT', notNull: true },
-                { name: 'conditions', type: 'TEXT' }, // JSON string
-                { name: 'actions', type: 'TEXT', notNull: true }, // JSON string
-                { name: 'is_active', type: 'BOOLEAN', notNull: true, default: true },
-                { name: 'order_index', type: 'INTEGER', notNull: true, default: 0 },
-                { name: 'metadata', type: 'TEXT' } // JSON string
-            ]);
-        }
+    /**
+     * Check if SchemaKit is installed
+     */
+    async isSchemaKitInstalled(): Promise<boolean> {
+        const installationInfo = await this.getInstallationInfo();
+        return installationInfo !== null;
+    }
 
-        // Check if system_rls table exists
-        const rlsTableExists = await this.databaseAdapter.tableExists('system_rls');
-        if (!rlsTableExists) {
-            // Create system_rls table
-            await this.databaseAdapter.createTable('system_rls', [
-                { name: 'id', type: 'TEXT', primaryKey: true, notNull: true },
-                { name: 'entity_id', type: 'TEXT', notNull: true, references: { table: 'system_entities', column: 'id', onDelete: 'CASCADE' } },
-                { name: 'role', type: 'TEXT', notNull: true },
-                { name: 'view_id', type: 'TEXT' },
-                { name: 'rls_config', type: 'TEXT', notNull: true }, // JSON string
-                { name: 'is_active', type: 'BOOLEAN', notNull: true, default: true },
-                { name: 'created_at', type: 'TEXT', notNull: true },
-                { name: 'updated_at', type: 'TEXT', notNull: true }
-            ]);
-        }
+    /**
+     * Get SchemaKit version
+     */
+    async getSchemaKitVersion(): Promise<string | null> {
+        const installationInfo = await this.getInstallationInfo();
+        return installationInfo?.version || null;
+    }
+
+    /**
+     * Force reinstall SchemaKit (useful for development/testing)
+     */
+    async reinstall(): Promise<void> {
+        this.isInstalled = null;
+        await this.install();
+        this.isInstalled = true;
     }
 
     /**

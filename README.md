@@ -37,14 +37,18 @@ const schemaKit = new SchemaKit({
   }
 });
 
+// Initialize (automatically installs SchemaKit if not already installed)
 await schemaKit.init();
+
+// Check installation status
+const isInstalled = await schemaKit.isInstalled();
+const version = await schemaKit.getVersion();
+console.log(`Installed: ${isInstalled}, Version: ${version}`);
 
 // Create a user entity
 const user = await schemaKit.create('user', {
   name: 'John Doe',
-  email: 'john@example.com',
-  age: 30,
-  isActive: true
+  email: 'john@example.com'
 });
 
 // Find user by ID
@@ -52,7 +56,7 @@ const foundUser = await schemaKit.findById('user', user.id);
 
 // Update user
 const updatedUser = await schemaKit.update('user', user.id, {
-  age: 31
+  name: 'John Smith'
 });
 
 // Delete user
@@ -131,11 +135,38 @@ const customResult = await schemaKit.query('user', query =>
 );
 ```
 
+## 🛠️ Installation System
+
+SchemaKit uses a professional SQL-based installation system:
+
+### Automatic Installation
+```typescript
+// SchemaKit automatically installs itself on first use
+const schemaKit = new SchemaKit({ /* config */ });
+await schemaKit.init(); // Installs if not already installed
+```
+
+### Installation Management
+```typescript
+// Check installation status
+const isInstalled = await schemaKit.isInstalled();
+const version = await schemaKit.getVersion();
+
+// Force reinstall (useful for development)
+await schemaKit.reinstall();
+```
+
+### SQL Schema Files
+- **`sql/schema.sql`** - Defines system tables structure
+- **`sql/seed.sql`** - Initial data and default entities
+- **Version tracking** - Automatic version management
+- **Migration support** - Ready for future schema updates
+
 ## 🏗️ Architecture
 
 SchemaKit uses a modular architecture with focused components:
 
-- **SchemaLoader** - Entity configuration loading and caching
+- **SchemaLoader** - Entity configuration loading, caching, and installation
 - **ValidationManager** - Data validation and type conversion
 - **EntityManager** - CRUD operations
 - **PermissionManager** - Security and permissions

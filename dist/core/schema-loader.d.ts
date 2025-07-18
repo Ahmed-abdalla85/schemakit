@@ -8,6 +8,15 @@ export interface SchemaLoaderOptions {
         enabled?: boolean;
         ttl?: number;
     };
+    sqlPath?: string;
+    version?: string;
+}
+export interface InstallationInfo {
+    id: number;
+    version: string;
+    installed_at: string;
+    updated_at: string;
+    metadata?: string;
 }
 /**
  * Schema Loader class
@@ -16,6 +25,7 @@ export declare class SchemaLoader {
     private databaseAdapter;
     private options;
     private entityCache;
+    private isInstalled;
     constructor(databaseAdapter: DatabaseAdapter, options?: SchemaLoaderOptions);
     /**
      * Load entity configuration from database
@@ -33,10 +43,51 @@ export declare class SchemaLoader {
      */
     getLoadedEntities(): string[];
     /**
-     * Ensure system tables exist
+     * Ensure SchemaKit is installed
      * @private
      */
-    private ensureSystemTables;
+    private ensureInstallation;
+    /**
+     * Get installation information
+     * @private
+     */
+    private getInstallationInfo;
+    /**
+     * Install SchemaKit by running schema and seed SQL files
+     * @private
+     */
+    private install;
+    /**
+     * Update SchemaKit version
+     * @param fromVersion Current version
+     * @param toVersion Target version
+     * @private
+     */
+    private updateVersion;
+    /**
+     * Run SQL file
+     * @param filename SQL file name
+     * @private
+     */
+    private runSqlFile;
+    /**
+     * Split SQL content into individual statements
+     * @param sqlContent SQL content
+     * @private
+     */
+    private splitSqlStatements;
+    /**
+     * Check if SchemaKit is installed
+     */
+    isSchemaKitInstalled(): Promise<boolean>;
+    /**
+     * Get SchemaKit version
+     */
+    getSchemaKitVersion(): Promise<string | null>;
+    /**
+     * Force reinstall SchemaKit (useful for development/testing)
+     */
+    reinstall(): Promise<void>;
     /**
      * Load entity definition from database
      * @param entityName Entity name

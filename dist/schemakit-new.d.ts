@@ -40,6 +40,21 @@ export declare class SchemaKit {
      */
     isConnected(): boolean;
     /**
+     * Check if SchemaKit is installed
+     * @returns True if installed, false otherwise
+     */
+    isInstalled(): Promise<boolean>;
+    /**
+     * Get SchemaKit version
+     * @returns Version string or null if not installed
+     */
+    getVersion(): Promise<string | null>;
+    /**
+     * Force reinstall SchemaKit (useful for development/testing)
+     * This will recreate all system tables and seed data
+     */
+    reinstall(): Promise<void>;
+    /**
      * Load entity configuration from database
      * @param entityName Entity name
      * @param context User context
