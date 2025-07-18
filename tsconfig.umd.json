@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "UMD",
+    "outDir": "./dist/umd",
+    "declaration": true,
+    "declarationDir": "./dist/umd/types"
+  }
+}
