@@ -87,6 +87,30 @@ export class SchemaKit {
   }
 
   /**
+   * Check if SchemaKit is installed
+   * @returns True if installed, false otherwise
+   */
+  async isInstalled(): Promise<boolean> {
+    return await this.schemaLoader.isSchemaKitInstalled();
+  }
+
+  /**
+   * Get SchemaKit version
+   * @returns Version string or null if not installed
+   */
+  async getVersion(): Promise<string | null> {
+    return await this.schemaLoader.getSchemaKitVersion();
+  }
+
+  /**
+   * Force reinstall SchemaKit (useful for development/testing)
+   * This will recreate all system tables and seed data
+   */
+  async reinstall(): Promise<void> {
+    await this.schemaLoader.reinstall();
+  }
+
+  /**
    * Load entity configuration from database
    * @param entityName Entity name
    * @param context User context
