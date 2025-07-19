@@ -1,475 +1,453 @@
-import { SchemaKitError } from '../errors';
-import * as fs from 'fs';
-import * as path from 'path';
+import { safeJsonParse } from '../utils/json-helpers';
 /**
- * Schema Loader class
+ * SchemaLoader class
+ * Single responsibility: Load and cache entity configurations from database
  */
 export class SchemaLoader {
-    constructor(databaseAdapter, options = {}) {
+    /**
+     * Create a new SchemaLoader instance
+     * @param databaseAdapter Database adapter
+     * @param options Options
+     */
+    constructor(databaseAdapter, options) {
         this.entityCache = new Map();
-        this.isInstalled = null;
+        this.cacheEnabled = true;
+        this.cacheHits = 0;
+        this.cacheMisses = 0;
         this.databaseAdapter = databaseAdapter;
-        this.options = {
-            cache: {
-                enabled: true,
-                ttl: 3600000 // 1 hour
-            },
-            sqlPath: path.join(__dirname, '../../sql'),
-            version: '1.0.0',
-            ...options
-        };
+        this.cacheEnabled = options?.cacheEnabled !== false;
     }
     /**
-     * Load entity configuration from database
+     * Load entity configuration
      * @param entityName Entity name
      * @param context User context
+     * @returns Entity configuration
      */
     async loadEntity(entityName, context = {}) {
         // Check if entity is already in cache
-        if (this.options.cache?.enabled && this.entityCache.has(entityName)) {
+        if (this.cacheEnabled && this.entityCache.has(entityName)) {
+            this.cacheHits++;
             return this.entityCache.get(entityName);
         }
-        try {
-            // Ensure database connection
-            if (!this.databaseAdapter.isConnected()) {
-                await this.databaseAdapter.connect();
-            }
-            // Check if SchemaKit is installed, install if not
-            await this.ensureInstallation();
-            // Load entity definition
-            const entityDef = await this.loadEntityDefinition(entityName);
-            if (!entityDef) {
-                throw new SchemaKitError(`Entity '${entityName}' not found`);
-            }
-            // Load fields
-            const fields = await this.loadEntityFields(entityDef.id);
-            // Load permissions
-            const permissions = await this.loadEntityPermissions(entityDef.id, context);
-            // Load views
-            const views = await this.loadEntityViews(entityDef.id);
-            // Load workflows
-            const workflows = await this.loadEntityWorkflows(entityDef.id);
-            // Load RLS (Row Level Security)
-            const rls = await this.loadEntityRLS(entityDef.id, context);
-            // Create entity configuration
-            const entityConfig = {
-                entity: entityDef,
-                fields,
-                permissions,
-                views,
-                workflows,
-                rls
-            };
-            // Store in cache if enabled
-            if (this.options.cache?.enabled) {
-                this.entityCache.set(entityName, entityConfig);
-            }
-            return entityConfig;
+        this.cacheMisses++;
+        // Load entity definition
+        const entityDefinition = await this.loadEntityDefinition(entityName);
+        if (!entityDefinition) {
+            throw new Error(`Entity '${entityName}' not found`);
         }
-        catch (error) {
-            throw new SchemaKitError(`Failed to load entity '${entityName}': ${error}`);
+        // Load entity fields
+        const fields = await this.loadEntityFields(entityDefinition.id);
+        // Load entity permissions
+        const permissions = await this.loadEntityPermissions(entityDefinition.id, context);
+        // Load entity views
+        const views = await this.loadEntityViews(entityDefinition.id);
+        // Load entity workflows
+        const workflows = await this.loadEntityWorkflows(entityDefinition.id);
+        // Load entity RLS
+        const rls = await this.loadEntityRLS(entityDefinition.id, context);
+        // Create entity configuration
+        const entityConfig = {
+            entity: entityDefinition,
+            fields,
+            permissions,
+            views,
+            workflows,
+            rls
+        };
+        // Cache entity configuration
+        if (this.cacheEnabled) {
+            this.entityCache.set(entityName, entityConfig);
+        }
+        return entityConfig;
+    }
+    /**
+     * Reload entity configuration (bypass cache)
+     * @param entityName Entity name
+     * @param context User context
+     * @returns Entity configuration
+     */
+    async reloadEntity(entityName, context = {}) {
+        // Remove from cache if exists
+        this.clearEntityCache(entityName);
+        // Load entity configuration
+        return this.loadEntity(entityName, context);
+    }
+    /**
+     * Check if SchemaKit is installed
+     * @returns True if installed
+     */
+    async isSchemaKitInstalled() {
+        try {
+            const result = await this.databaseAdapter.query('SELECT COUNT(*) as count FROM sqlite_master WHERE type = ? AND name = ?', ['table', 'system_entities']);
+            return result.length > 0 && result[0].count > 0;
+        }
+        catch (e) {
+            return false;
         }
     }
     /**
-     * Reload entity configuration from database
-     * @param entityName Entity name
+     * Get SchemaKit version
+     * @returns Version string
      */
-    async reloadEntity(entityName) {
-        // Remove from cache if present
-        if (this.entityCache.has(entityName)) {
+    async getVersion() {
+        try {
+            const result = await this.databaseAdapter.query('SELECT value FROM system_settings WHERE key = ?', ['version']);
+            return result.length > 0 ? result[0].value : 'unknown';
+        }
+        catch (e) {
+            return 'unknown';
+        }
+    }
+    /**
+     * Ensure system tables exist
+     */
+    async ensureSystemTables() {
+        const systemTables = [
+            'system_entities',
+            'system_fields',
+            'system_permissions',
+            'system_views',
+            'system_workflows',
+            'system_rls',
+            'system_settings'
+        ];
+        for (const table of systemTables) {
+            const exists = await this.tableExists(table);
+            if (!exists) {
+                await this.createSystemTable(table);
+            }
+        }
+    }
+    /**
+     * Reinstall SchemaKit
+     * WARNING: This will delete all system tables and recreate them
+     */
+    async reinstall() {
+        const systemTables = [
+            'system_entities',
+            'system_fields',
+            'system_permissions',
+            'system_views',
+            'system_workflows',
+            'system_rls',
+            'system_settings'
+        ];
+        // Drop all system tables
+        for (const table of systemTables) {
+            try {
+                await this.databaseAdapter.execute(`DROP TABLE IF EXISTS ${table}`);
+            }
+            catch (e) {
+                console.error(`Error dropping table ${table}:`, e);
+            }
+        }
+        // Recreate system tables
+        await this.ensureSystemTables();
+        // Set version
+        await this.databaseAdapter.execute('INSERT INTO system_settings (key, value) VALUES (?, ?)', ['version', '1.0.0']);
+        // Clear cache
+        this.clearAllCache();
+    }
+    /**
+     * Clear entity cache for a specific entity or all entities
+     * @param entityName Optional entity name to clear
+     */
+    clearEntityCache(entityName) {
+        if (entityName) {
             this.entityCache.delete(entityName);
         }
-        // Load fresh entity configuration
-        return this.loadEntity(entityName);
+        else {
+            this.entityCache.clear();
+        }
     }
     /**
-     * Get loaded entity names
+     * Clear all caches
+     */
+    clearAllCache() {
+        this.entityCache.clear();
+        this.cacheHits = 0;
+        this.cacheMisses = 0;
+    }
+    /**
+     * Get cache statistics
+     * @returns Cache statistics
+     */
+    getCacheStats() {
+        const total = this.cacheHits + this.cacheMisses;
+        return {
+            entityCacheSize: this.entityCache.size,
+            entities: Array.from(this.entityCache.keys()),
+            hitRate: total > 0 ? this.cacheHits / total : undefined,
+            missRate: total > 0 ? this.cacheMisses / total : undefined
+        };
+    }
+    /**
+     * Get all loaded entities
+     * @returns Array of entity names
      */
     getLoadedEntities() {
         return Array.from(this.entityCache.keys());
     }
     /**
-     * Ensure SchemaKit is installed
-     * @private
-     */
-    async ensureInstallation() {
-        // Check if already checked in this session
-        if (this.isInstalled === true) {
-            return;
-        }
-        try {
-            // Check if installation table exists and has data
-            const installationInfo = await this.getInstallationInfo();
-            if (!installationInfo) {
-                // Not installed, run installation
-                await this.install();
-                this.isInstalled = true;
-            }
-            else {
-                // Already installed, check if version update is needed
-                if (installationInfo.version !== this.options.version) {
-                    await this.updateVersion(installationInfo.version, this.options.version);
-                }
-                this.isInstalled = true;
-            }
-        }
-        catch (error) {
-            // If there's an error checking installation, try to install
-            console.warn('Error checking installation, attempting to install:', error);
-            await this.install();
-            this.isInstalled = true;
-        }
-    }
-    /**
-     * Get installation information
-     * @private
-     */
-    async getInstallationInfo() {
-        try {
-            // Check if installation table exists
-            const tableExists = await this.databaseAdapter.tableExists('system_installation');
-            if (!tableExists) {
-                return null;
-            }
-            // Get installation info
-            const results = await this.databaseAdapter.query('SELECT * FROM system_installation WHERE id = 1');
-            return results.length > 0 ? results[0] : null;
-        }
-        catch (error) {
-            // If there's an error, assume not installed
-            return null;
-        }
-    }
-    /**
-     * Install SchemaKit by running schema and seed SQL files
-     * @private
-     */
-    async install() {
-        try {
-            console.log('Installing SchemaKit...');
-            // Run schema SQL
-            await this.runSqlFile('schema.sql');
-            console.log('Schema installed successfully');
-            // Run seed SQL
-            await this.runSqlFile('seed.sql');
-            console.log('Seed data installed successfully');
-            console.log('SchemaKit installation completed');
-        }
-        catch (error) {
-            throw new SchemaKitError(`Failed to install SchemaKit: ${error}`);
-        }
-    }
-    /**
-     * Update SchemaKit version
-     * @param fromVersion Current version
-     * @param toVersion Target version
-     * @private
-     */
-    async updateVersion(fromVersion, toVersion) {
-        try {
-            console.log(`Updating SchemaKit from version ${fromVersion} to ${toVersion}...`);
-            // Update version in installation table
-            await this.databaseAdapter.execute('UPDATE system_installation SET version = ?, updated_at = datetime(\'now\') WHERE id = 1', [toVersion]);
-            console.log('SchemaKit version updated successfully');
-        }
-        catch (error) {
-            console.warn(`Failed to update SchemaKit version: ${error}`);
-        }
-    }
-    /**
-     * Run SQL file
-     * @param filename SQL file name
-     * @private
-     */
-    async runSqlFile(filename) {
-        try {
-            const sqlPath = path.join(this.options.sqlPath, filename);
-            // Check if file exists
-            if (!fs.existsSync(sqlPath)) {
-                throw new Error(`SQL file not found: ${sqlPath}`);
-            }
-            // Read SQL file
-            const sqlContent = fs.readFileSync(sqlPath, 'utf8');
-            // Split SQL content into individual statements
-            const statements = this.splitSqlStatements(sqlContent);
-            // Execute each statement
-            for (const statement of statements) {
-                if (statement.trim()) {
-                    await this.databaseAdapter.execute(statement);
-                }
-            }
-        }
-        catch (error) {
-            throw new Error(`Failed to run SQL file ${filename}: ${error}`);
-        }
-    }
-    /**
-     * Split SQL content into individual statements
-     * @param sqlContent SQL content
-     * @private
-     */
-    splitSqlStatements(sqlContent) {
-        // Remove comments and split by semicolon
-        const cleanSql = sqlContent
-            .replace(/--.*$/gm, '') // Remove single-line comments
-            .replace(/\/\*[\s\S]*?\*\//g, '') // Remove multi-line comments
-            .trim();
-        // Split by semicolon, but be careful about semicolons in strings
-        const statements = [];
-        let currentStatement = '';
-        let inString = false;
-        let stringChar = '';
-        for (let i = 0; i < cleanSql.length; i++) {
-            const char = cleanSql[i];
-            const prevChar = i > 0 ? cleanSql[i - 1] : '';
-            if (!inString && (char === '"' || char === "'")) {
-                inString = true;
-                stringChar = char;
-            }
-            else if (inString && char === stringChar && prevChar !== '\\') {
-                inString = false;
-                stringChar = '';
-            }
-            else if (!inString && char === ';') {
-                statements.push(currentStatement.trim());
-                currentStatement = '';
-                continue;
-            }
-            currentStatement += char;
-        }
-        // Add the last statement if it exists
-        if (currentStatement.trim()) {
-            statements.push(currentStatement.trim());
-        }
-        return statements.filter(stmt => stmt.length > 0);
-    }
-    /**
-     * Check if SchemaKit is installed
-     */
-    async isSchemaKitInstalled() {
-        const installationInfo = await this.getInstallationInfo();
-        return installationInfo !== null;
-    }
-    /**
-     * Get SchemaKit version
-     */
-    async getSchemaKitVersion() {
-        const installationInfo = await this.getInstallationInfo();
-        return installationInfo?.version || null;
-    }
-    /**
-     * Force reinstall SchemaKit (useful for development/testing)
-     */
-    async reinstall() {
-        this.isInstalled = null;
-        await this.install();
-        this.isInstalled = true;
-    }
-    /**
-     * Load entity definition from database
+     * Load entity definition
      * @param entityName Entity name
+     * @returns Entity definition or null if not found
      * @private
      */
     async loadEntityDefinition(entityName) {
-        const entities = await this.databaseAdapter.query('SELECT * FROM system_entities WHERE name = ? AND is_active = ?', [entityName, true]);
+        const entities = await this.databaseAdapter.query('SELECT * FROM system_entities WHERE name = ? AND is_active = ?', [entityName, 1]);
         if (entities.length === 0) {
             return null;
         }
         const entity = entities[0];
-        // Parse metadata JSON if present
+        // Parse metadata if it's a string
         if (entity.metadata && typeof entity.metadata === 'string') {
-            try {
-                entity.metadata = JSON.parse(entity.metadata);
-            }
-            catch (e) {
-                // If JSON parsing fails, keep as string
-            }
+            entity.metadata = safeJsonParse(entity.metadata, {});
         }
         return entity;
     }
     /**
-     * Load entity fields from database
+     * Load entity fields
      * @param entityId Entity ID
+     * @returns Array of field definitions
      * @private
      */
     async loadEntityFields(entityId) {
-        const fields = await this.databaseAdapter.query('SELECT * FROM system_fields WHERE entity_id = ? AND is_active = ? ORDER BY order_index ASC', [entityId, true]);
-        // Parse JSON fields
-        return fields.map(field => {
-            // Parse validation_rules JSON if present
-            if (field.validation_rules && typeof field.validation_rules === 'string') {
-                try {
-                    field.validation_rules = JSON.parse(field.validation_rules);
-                }
-                catch (e) {
-                    // If JSON parsing fails, keep as string
-                }
-            }
-            // Parse metadata JSON if present
+        const fields = await this.databaseAdapter.query('SELECT * FROM system_fields WHERE entity_id = ? AND is_active = ? ORDER BY order_index ASC', [entityId, 1]);
+        // Parse metadata for each field
+        for (const field of fields) {
             if (field.metadata && typeof field.metadata === 'string') {
-                try {
-                    field.metadata = JSON.parse(field.metadata);
-                }
-                catch (e) {
-                    // If JSON parsing fails, keep as string
-                }
+                field.metadata = safeJsonParse(field.metadata, {});
             }
-            return field;
-        });
+            if (field.validation_rules && typeof field.validation_rules === 'string') {
+                field.validation_rules = safeJsonParse(field.validation_rules, {});
+            }
+        }
+        return fields;
     }
     /**
-     * Load entity permissions from database
+     * Load entity permissions
      * @param entityId Entity ID
      * @param context User context
+     * @returns Array of permission definitions
      * @private
      */
     async loadEntityPermissions(entityId, context) {
         // Get user roles from context
         const userRoles = context.user?.roles || [];
-        // If no roles specified, load all permissions
-        const params = [entityId];
-        let roleCondition = '';
-        if (userRoles.length > 0) {
-            roleCondition = `AND role IN (${userRoles.map(() => '?').join(', ')})`;
-            params.push(...userRoles);
-        }
-        const permissions = await this.databaseAdapter.query(`SELECT * FROM system_permissions WHERE entity_id = ? ${roleCondition}`, params);
-        // Parse JSON fields
-        return permissions.map(permission => {
-            // Parse conditions JSON if present
+        // If no roles, use 'public' role
+        const roles = userRoles.length > 0 ? userRoles : ['public'];
+        // Load permissions for entity and roles
+        const permissions = await this.databaseAdapter.query('SELECT * FROM system_permissions WHERE entity_id = ? AND role IN (?) AND is_active = ?', [entityId, roles.join(','), 1]);
+        // Parse conditions for each permission
+        for (const permission of permissions) {
             if (permission.conditions && typeof permission.conditions === 'string') {
-                try {
-                    permission.conditions = JSON.parse(permission.conditions);
-                }
-                catch (e) {
-                    // If JSON parsing fails, keep as string
-                }
+                permission.conditions = safeJsonParse(permission.conditions, {});
             }
-            // Parse field_permissions JSON if present
-            if (permission.field_permissions && typeof permission.field_permissions === 'string') {
-                try {
-                    permission.field_permissions = JSON.parse(permission.field_permissions);
-                }
-                catch (e) {
-                    // If JSON parsing fails, keep as string
-                }
-            }
-            return permission;
-        });
+        }
+        return permissions;
     }
     /**
-     * Load entity views from database
+     * Load entity views
      * @param entityId Entity ID
+     * @returns Array of view definitions
      * @private
      */
     async loadEntityViews(entityId) {
         const views = await this.databaseAdapter.query('SELECT * FROM system_views WHERE entity_id = ?', [entityId]);
-        // Parse JSON fields
-        return views.map(view => {
-            // Parse query_config JSON
+        // Parse query and params for each view
+        for (const view of views) {
             if (view.query_config && typeof view.query_config === 'string') {
-                try {
-                    view.query_config = JSON.parse(view.query_config);
-                }
-                catch (e) {
-                    // If JSON parsing fails, keep as string
-                }
+                view.query_config = safeJsonParse(view.query_config, {});
             }
-            // Parse fields JSON
-            if (view.fields && typeof view.fields === 'string') {
-                try {
-                    view.fields = JSON.parse(view.fields);
-                }
-                catch (e) {
-                    // If JSON parsing fails, keep as string
-                }
-            }
-            // Parse metadata JSON if present
-            if (view.metadata && typeof view.metadata === 'string') {
-                try {
-                    view.metadata = JSON.parse(view.metadata);
-                }
-                catch (e) {
-                    // If JSON parsing fails, keep as string
-                }
-            }
-            return view;
-        });
+        }
+        return views;
     }
     /**
-     * Load entity workflows from database
+     * Load entity workflows
      * @param entityId Entity ID
+     * @returns Array of workflow definitions
      * @private
      */
     async loadEntityWorkflows(entityId) {
-        const workflows = await this.databaseAdapter.query('SELECT * FROM system_workflows WHERE entity_id = ? AND is_active = ? ORDER BY order_index ASC', [entityId, true]);
-        // Parse JSON fields
-        return workflows.map(workflow => {
-            // Parse conditions JSON if present
+        const workflows = await this.databaseAdapter.query('SELECT * FROM system_workflows WHERE entity_id = ? AND is_active = ? ORDER BY order_index ASC', [entityId, 1]);
+        // Parse triggers, conditions, and actions for each workflow
+        for (const workflow of workflows) {
+            // Note: trigger_event is already a string, no need to parse
             if (workflow.conditions && typeof workflow.conditions === 'string') {
-                try {
-                    workflow.conditions = JSON.parse(workflow.conditions);
-                }
-                catch (e) {
-                    // If JSON parsing fails, keep as string
-                }
+                workflow.conditions = safeJsonParse(workflow.conditions, {});
             }
-            // Parse actions JSON
             if (workflow.actions && typeof workflow.actions === 'string') {
-                try {
-                    workflow.actions = JSON.parse(workflow.actions);
-                }
-                catch (e) {
-                    // If JSON parsing fails, keep as string or empty array
-                    workflow.actions = [];
-                }
+                workflow.actions = safeJsonParse(workflow.actions, []);
             }
-            // Parse metadata JSON if present
-            if (workflow.metadata && typeof workflow.metadata === 'string') {
-                try {
-                    workflow.metadata = JSON.parse(workflow.metadata);
-                }
-                catch (e) {
-                    // If JSON parsing fails, keep as string
-                }
-            }
-            return workflow;
-        });
+        }
+        return workflows;
     }
     /**
-     * Load entity RLS (Row Level Security) from database
+     * Load entity RLS (Row-Level Security)
      * @param entityId Entity ID
      * @param context User context
+     * @returns Array of RLS definitions
      * @private
      */
     async loadEntityRLS(entityId, context) {
         // Get user roles from context
         const userRoles = context.user?.roles || [];
-        // If no roles specified, load all RLS rules
-        const params = [entityId, true];
-        let roleCondition = '';
-        if (userRoles.length > 0) {
-            roleCondition = `AND role IN (${userRoles.map(() => '?').join(', ')})`;
-            params.push(...userRoles);
-        }
-        const rlsRules = await this.databaseAdapter.query(`SELECT * FROM system_rls WHERE entity_id = ? AND is_active = ? ${roleCondition}`, params);
-        // Parse JSON fields
-        return rlsRules.map(rls => {
-            // Parse rls_config JSON
-            if (rls.rls_config && typeof rls.rls_config === 'string') {
-                try {
-                    rls.rls_config = JSON.parse(rls.rls_config);
-                }
-                catch (e) {
-                    // If JSON parsing fails, use default structure
-                    rls.rls_config = {
-                        relationbetweenconditions: 'and',
-                        conditions: []
-                    };
-                }
+        // If no roles, use 'public' role
+        const roles = userRoles.length > 0 ? userRoles : ['public'];
+        // Load RLS for entity and roles
+        const rlsRules = await this.databaseAdapter.query('SELECT * FROM system_rls WHERE entity_id = ? AND role IN (?) AND is_active = ?', [entityId, roles.join(','), 1]);
+        // Parse rls_config for each RLS rule
+        for (const rule of rlsRules) {
+            if (rule.rls_config && typeof rule.rls_config === 'string') {
+                rule.rls_config = safeJsonParse(rule.rls_config, {
+                    relationbetweenconditions: 'and',
+                    conditions: []
+                });
             }
-            return rls;
-        });
+        }
+        return rlsRules;
+    }
+    /**
+     * Check if a table exists
+     * @param tableName Table name
+     * @returns True if table exists
+     * @private
+     */
+    async tableExists(tableName) {
+        try {
+            const result = await this.databaseAdapter.query('SELECT COUNT(*) as count FROM sqlite_master WHERE type = ? AND name = ?', ['table', tableName]);
+            return result.length > 0 && result[0].count > 0;
+        }
+        catch (e) {
+            return false;
+        }
+    }
+    /**
+     * Create a system table
+     * @param tableName Table name
+     * @private
+     */
+    async createSystemTable(tableName) {
+        let sql = '';
+        switch (tableName) {
+            case 'system_entities':
+                sql = `
+          CREATE TABLE system_entities (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            display_name TEXT,
+            description TEXT,
+            metadata TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT,
+            updated_at TEXT
+          )
+        `;
+                break;
+            case 'system_fields':
+                sql = `
+          CREATE TABLE system_fields (
+            id TEXT PRIMARY KEY,
+            entity_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            display_name TEXT,
+            description TEXT,
+            type TEXT NOT NULL,
+            is_required INTEGER DEFAULT 0,
+            is_unique INTEGER DEFAULT 0,
+            is_primary_key INTEGER DEFAULT 0,
+            is_system INTEGER DEFAULT 0,
+            default_value TEXT,
+            validation TEXT,
+            metadata TEXT,
+            order_index INTEGER,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT,
+            updated_at TEXT,
+            FOREIGN KEY (entity_id) REFERENCES system_entities (id)
+          )
+        `;
+                break;
+            case 'system_permissions':
+                sql = `
+          CREATE TABLE system_permissions (
+            id TEXT PRIMARY KEY,
+            entity_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            action TEXT NOT NULL,
+            conditions TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT,
+            updated_at TEXT,
+            FOREIGN KEY (entity_id) REFERENCES system_entities (id)
+          )
+        `;
+                break;
+            case 'system_views':
+                sql = `
+          CREATE TABLE system_views (
+            id TEXT PRIMARY KEY,
+            entity_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            display_name TEXT,
+            description TEXT,
+            query TEXT,
+            params TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT,
+            updated_at TEXT,
+            FOREIGN KEY (entity_id) REFERENCES system_entities (id)
+          )
+        `;
+                break;
+            case 'system_workflows':
+                sql = `
+          CREATE TABLE system_workflows (
+            id TEXT PRIMARY KEY,
+            entity_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            display_name TEXT,
+            description TEXT,
+            triggers TEXT,
+            conditions TEXT,
+            actions TEXT,
+            order_index INTEGER,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT,
+            updated_at TEXT,
+            FOREIGN KEY (entity_id) REFERENCES system_entities (id)
+          )
+        `;
+                break;
+            case 'system_rls':
+                sql = `
+          CREATE TABLE system_rls (
+            id TEXT PRIMARY KEY,
+            entity_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            conditions TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT,
+            updated_at TEXT,
+            FOREIGN KEY (entity_id) REFERENCES system_entities (id)
+          )
+        `;
+                break;
+            case 'system_settings':
+                sql = `
+          CREATE TABLE system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT,
+            created_at TEXT,
+            updated_at TEXT
+          )
+        `;
+                break;
+            default:
+                throw new Error(`Unknown system table: ${tableName}`);
+        }
+        await this.databaseAdapter.execute(sql);
     }
 }
 //# sourceMappingURL=schema-loader.js.map

@@ -76,8 +76,8 @@ export class QueryManager {
             queryParams.push(perPage, (page - 1) * perPage);
             // Execute query
             const results = await this.databaseAdapter.query(sql, queryParams);
-            // Process results
-            const processedResults = results.map(result => this.validationManager.processEntityResult(entityConfig, result));
+            // Process results (no processing needed for now)
+            const processedResults = results;
             // Check permissions for actions
             const permissions = await this.permissionManager.getEntityPermissions(entityConfig, context);
             return {
@@ -175,8 +175,8 @@ export class QueryManager {
             const total = countResult[0]?.total || 0;
             // Execute query
             const results = await this.databaseAdapter.query(sql, params);
-            // Process results
-            const processedResults = results.map(result => this.validationManager.processEntityResult(entityConfig, result));
+            // Process results (no processing needed for now)
+            const processedResults = results;
             // Check permissions for actions
             const permissions = await this.permissionManager.getEntityPermissions(entityConfig, context);
             return {

@@ -3,6 +3,7 @@
  */
 import { DatabaseAdapter } from '../adapter';
 import { DatabaseError } from '../../errors';
+import { QueryBuilderService } from '../../core/query-builder-service';
 /**
  * SQLite adapter implementation
  * Uses native SQLite implementation with no external dependencies
@@ -283,6 +284,257 @@ export class SQLiteAdapter extends DatabaseAdapter {
         }
         catch (error) {
             throw new DatabaseError('getTableColumns', error);
+        }
+    }
+    // ===== EntityKit-style multi-tenant methods =====
+    // Note: SQLite doesn't have native schema support like PostgreSQL
+    // We simulate multi-tenancy using table prefixes (tenantId_tableName)
+    /**
+     * Select records with tenant-aware filtering (EntityKit pattern)
+     */
+    async select(table, filters, options, tenantId) {
+        if (!this.isConnected()) {
+            await this.connect();
+        }
+        try {
+            // For SQLite, we use table prefixes instead of schemas
+            const prefixedTable = `${tenantId}_${table}`;
+            // Process filter values for special operators
+            const processedFilters = filters.map(filter => ({
+                ...filter,
+                value: QueryBuilderService.processFilterValue(filter.operator || 'eq', filter.value)
+            }));
+            // Build query using SQLite syntax (? instead of $1, $2, etc.)
+            const { query, params } = this.buildSQLiteSelectQuery(prefixedTable, processedFilters, options);
+            return await this.query(query, params);
+        }
+        catch (error) {
+            throw new DatabaseError('select', error);
+        }
+    }
+    /**
+     * Insert a record with tenant context (EntityKit pattern)
+     */
+    async insert(table, data, tenantId) {
+        if (!this.isConnected()) {
+            await this.connect();
+        }
+        try {
+            if (tenantId) {
+                // For SQLite, use table prefixes
+                const prefixedTable = `${tenantId}_${table}`;
+                const { query, params } = this.buildSQLiteInsertQuery(prefixedTable, data);
+                const result = await this.execute(query, params);
+                // Return the inserted record with the generated ID
+                return { ...data, id: result.lastInsertId };
+            }
+            else {
+                // Fallback to non-tenant insert for backward compatibility
+                const keys = Object.keys(data);
+                const values = Object.values(data);
+                const placeholders = keys.map(() => '?').join(', ');
+                const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
+                const result = await this.execute(query, values);
+                return { ...data, id: result.lastInsertId };
+            }
+        }
+        catch (error) {
+            throw new DatabaseError('insert', error);
+        }
+    }
+    /**
+     * Update a record with tenant context (EntityKit pattern)
+     */
+    async update(table, id, data, tenantId) {
+        if (!this.isConnected()) {
+            await this.connect();
+        }
+        try {
+            const prefixedTable = `${tenantId}_${table}`;
+            const { query, params } = this.buildSQLiteUpdateQuery(prefixedTable, id, data);
+            await this.execute(query, params);
+            // Return the updated record
+            return { ...data, id };
+        }
+        catch (error) {
+            throw new DatabaseError('update', error);
+        }
+    }
+    /**
+     * Delete a record with tenant context (EntityKit pattern)
+     */
+    async delete(table, id, tenantId) {
+        if (!this.isConnected()) {
+            await this.connect();
+        }
+        try {
+            const prefixedTable = `${tenantId}_${table}`;
+            const query = `DELETE FROM ${prefixedTable} WHERE id = ?`;
+            await this.execute(query, [id]);
+        }
+        catch (error) {
+            throw new DatabaseError('delete', error);
+        }
+    }
+    /**
+     * Count records with tenant-aware filtering (EntityKit pattern)
+     */
+    async count(table, filters, tenantId) {
+        if (!this.isConnected()) {
+            await this.connect();
+        }
+        try {
+            const prefixedTable = `${tenantId}_${table}`;
+            // Process filter values for special operators
+            const processedFilters = filters.map(filter => ({
+                ...filter,
+                value: QueryBuilderService.processFilterValue(filter.operator || 'eq', filter.value)
+            }));
+            const { query, params } = this.buildSQLiteCountQuery(prefixedTable, processedFilters);
+            const result = await this.query(query, params);
+            return result[0]?.count || 0;
+        }
+        catch (error) {
+            throw new DatabaseError('count', error);
+        }
+    }
+    /**
+     * Find a record by ID with tenant context (EntityKit pattern)
+     */
+    async findById(table, id, tenantId) {
+        if (!this.isConnected()) {
+            await this.connect();
+        }
+        try {
+            const prefixedTable = `${tenantId}_${table}`;
+            const query = `SELECT * FROM ${prefixedTable} WHERE id = ?`;
+            const result = await this.query(query, [id]);
+            return result[0] || null;
+        }
+        catch (error) {
+            throw new DatabaseError('findById', error);
+        }
+    }
+    // ===== Schema management methods =====
+    // SQLite doesn't have schemas, so we simulate with table prefixes
+    /**
+     * Create a database schema (simulated with table prefix validation)
+     */
+    async createSchema(schemaName) {
+        // SQLite doesn't have schemas, but we can validate the schema name
+        if (!schemaName || schemaName.includes(' ') || schemaName.includes('.')) {
+            throw new DatabaseError('createSchema', new Error('Invalid schema name for SQLite'));
+        }
+        // Schema creation is implicit in SQLite when we create prefixed tables
+    }
+    /**
+     * Drop a database schema (simulated by dropping all prefixed tables)
+     */
+    async dropSchema(schemaName) {
+        if (!this.isConnected()) {
+            await this.connect();
+        }
+        try {
+            // Get all tables with the schema prefix
+            const tables = await this.query("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?", [`${schemaName}_%`]);
+            // Drop each prefixed table
+            for (const table of tables) {
+                await this.execute(`DROP TABLE IF EXISTS ${table.name}`);
+            }
+        }
+        catch (error) {
+            throw new DatabaseError('dropSchema', error);
+        }
+    }
+    /**
+     * List all database schemas (simulated by extracting prefixes from table names)
+     */
+    async listSchemas() {
+        if (!this.isConnected()) {
+            await this.connect();
+        }
+        try {
+            const tables = await this.query("SELECT name FROM sqlite_master WHERE type='table'");
+            // Extract unique prefixes (schema names)
+            const schemas = new Set();
+            tables.forEach(table => {
+                const parts = table.name.split('_');
+                if (parts.length > 1) {
+                    schemas.add(parts[0]);
+                }
+            });
+            return Array.from(schemas).sort();
+        }
+        catch (error) {
+            throw new DatabaseError('listSchemas', error);
+        }
+    }
+    // ===== SQLite-specific query builders =====
+    buildSQLiteSelectQuery(table, filters, options) {
+        let query = `SELECT * FROM ${table}`;
+        const params = [];
+        if (filters.length) {
+            const whereClauses = filters.map(f => {
+                params.push(f.value);
+                const operator = this.mapSQLiteOperator(f.operator || 'eq');
+                return `${f.field} ${operator} ?`;
+            });
+            query += ` WHERE ${whereClauses.join(' AND ')}`;
+        }
+        if (options.orderBy && options.orderBy.length > 0) {
+            const orders = options.orderBy.map(o => `${o.field} ${o.direction}`).join(', ');
+            query += ` ORDER BY ${orders}`;
+        }
+        if (options.limit) {
+            query += ` LIMIT ${options.limit}`;
+            if (options.offset) {
+                query += ` OFFSET ${options.offset}`;
+            }
+        }
+        return { query, params };
+    }
+    buildSQLiteInsertQuery(table, data) {
+        const keys = Object.keys(data);
+        const values = Object.values(data);
+        const placeholders = keys.map(() => '?').join(', ');
+        const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
+        return { query, params: values };
+    }
+    buildSQLiteUpdateQuery(table, id, data) {
+        const keys = Object.keys(data);
+        const values = Object.values(data);
+        const setClause = keys.map(key => `${key} = ?`).join(', ');
+        const query = `UPDATE ${table} SET ${setClause} WHERE id = ?`;
+        return { query, params: [...values, id] };
+    }
+    buildSQLiteCountQuery(table, filters) {
+        let query = `SELECT COUNT(*) as count FROM ${table}`;
+        const params = [];
+        if (filters.length) {
+            const whereClauses = filters.map(f => {
+                params.push(f.value);
+                const operator = this.mapSQLiteOperator(f.operator || 'eq');
+                return `${f.field} ${operator} ?`;
+            });
+            query += ` WHERE ${whereClauses.join(' AND ')}`;
+        }
+        return { query, params };
+    }
+    mapSQLiteOperator(operator) {
+        switch (operator) {
+            case 'eq': return '=';
+            case 'neq': return '!=';
+            case 'gt': return '>';
+            case 'gte': return '>=';
+            case 'lt': return '<';
+            case 'lte': return '<=';
+            case 'like': return 'LIKE';
+            case 'in': return 'IN';
+            case 'nin': return 'NOT IN';
+            case 'contains': return 'LIKE';
+            case 'startswith': return 'LIKE';
+            case 'endswith': return 'LIKE';
+            default: return '=';
         }
     }
 }

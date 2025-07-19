@@ -1,57 +1,215 @@
+import { validateEmail, validateUrl, validatePattern } from '../utils/validation-helpers';
+import { safeJsonParse } from '../utils/json-helpers';
+import { parseDate } from '../utils/date-helpers';
 /**
- * Validation Manager class
+ * ValidationManager class
+ * Single responsibility: Validate entity data against schemas
  */
 export class ValidationManager {
+    constructor() {
+        this.customValidators = new Map();
+    }
     /**
      * Validate entity data against schema
      * @param entityConfig Entity configuration
      * @param data Data to validate
      * @param operation Operation type (create, update)
+     * @returns Validation result
      */
-    validateEntityData(entityConfig, data, operation) {
+    async validate(entityConfig, data, operation) {
         const errors = [];
+        const warnings = [];
         // Validate each field
         for (const field of entityConfig.fields) {
-            const value = data[field.name];
-            // Check required fields (only for create operation or if field is present in update)
-            if (field.is_required && (operation === 'create' || data.hasOwnProperty(field.name))) {
-                if (value === undefined || value === null || value === '') {
-                    errors.push({
-                        field: field.name,
-                        code: 'required',
-                        message: `Field '${field.name}' is required`,
-                        value
-                    });
-                    continue;
-                }
-            }
-            // Skip validation if value is not provided
-            if (value === undefined || value === null) {
-                continue;
-            }
-            // Type validation
-            const typeErrors = this.validateFieldType(field, value);
-            errors.push(...typeErrors);
-            // Check uniqueness if required
-            if (field.is_unique && value !== undefined && value !== null) {
-                // This would require a database check, which we'll skip for now
-                // In a real implementation, we would check if the value already exists
-            }
-            // Custom validation rules
-            if (field.validation_rules && field.validation_rules.custom) {
-                // In a real implementation, we would execute custom validation functions
-                // This is a placeholder for custom validation
+            const fieldResult = await this.validateField(field, data[field.name], operation, data);
+            errors.push(...fieldResult.errors);
+            if (fieldResult.warnings) {
+                warnings.push(...fieldResult.warnings);
             }
         }
         return {
             isValid: errors.length === 0,
-            errors
+            errors,
+            warnings: warnings.length > 0 ? warnings : undefined
         };
+    }
+    /**
+     * Validate a single field
+     * @param fieldConfig Field configuration
+     * @param value Field value
+     * @param operation Operation type (create, update)
+     * @param allData All entity data for context
+     * @returns Field validation result
+     */
+    async validateField(fieldConfig, value, operation = 'create', allData = {}) {
+        const errors = [];
+        const warnings = [];
+        // Check required fields (only for create operation or if field is present in update)
+        if (fieldConfig.is_required && (operation === 'create' || allData.hasOwnProperty(fieldConfig.name))) {
+            if (value === undefined || value === null || value === '') {
+                errors.push({
+                    field: fieldConfig.name,
+                    code: 'required',
+                    message: `Field '${fieldConfig.name}' is required`,
+                    value
+                });
+                return { isValid: false, errors, warnings };
+            }
+        }
+        // Skip further validation if value is not provided
+        if (value === undefined || value === null) {
+            return { isValid: true, errors: [], warnings };
+        }
+        // Type validation
+        const typeErrors = this.validateFieldType(fieldConfig, value);
+        errors.push(...typeErrors);
+        // Custom validation rules
+        if (fieldConfig.validation_rules && typeof fieldConfig.validation_rules === 'object') {
+            const customErrors = this.validateCustomRules(fieldConfig, value, allData);
+            errors.push(...customErrors);
+        }
+        // Custom validators
+        if (fieldConfig.validation_rules && fieldConfig.validation_rules.custom) {
+            const validatorName = fieldConfig.validation_rules.custom;
+            const validator = this.customValidators.get(validatorName);
+            if (validator) {
+                const customErrors = validator(value, fieldConfig, allData);
+                errors.push(...customErrors);
+            }
+        }
+        return {
+            isValid: errors.length === 0,
+            errors,
+            warnings: warnings.length > 0 ? warnings : undefined
+        };
+    }
+    /**
+     * Register a custom validator
+     * @param name Validator name
+     * @param validator Validator function
+     */
+    registerValidator(name, validator) {
+        this.customValidators.set(name, validator);
+    }
+    /**
+     * Get a custom validator
+     * @param name Validator name
+     * @returns Validator function or undefined
+     */
+    getValidator(name) {
+        return this.customValidators.get(name);
+    }
+    /**
+     * Validate custom rules
+     * @param field Field definition
+     * @param value Value to validate
+     * @param allData All entity data for context
+     * @returns Array of validation errors
+     * @private
+     */
+    validateCustomRules(field, value, allData) {
+        const errors = [];
+        const rules = field.validation_rules;
+        if (!rules || typeof rules !== 'object') {
+            return errors;
+        }
+        // Email validation
+        if (rules.email && typeof value === 'string') {
+            if (!validateEmail(value)) {
+                errors.push({
+                    field: field.name,
+                    code: 'email',
+                    message: `Field '${field.name}' must be a valid email address`,
+                    value
+                });
+            }
+        }
+        // URL validation
+        if (rules.url && typeof value === 'string') {
+            if (!validateUrl(value)) {
+                errors.push({
+                    field: field.name,
+                    code: 'url',
+                    message: `Field '${field.name}' must be a valid URL`,
+                    value
+                });
+            }
+        }
+        // Pattern validation
+        if (rules.pattern && typeof value === 'string') {
+            if (!validatePattern(value, rules.pattern)) {
+                errors.push({
+                    field: field.name,
+                    code: 'pattern',
+                    message: `Field '${field.name}' does not match required pattern`,
+                    value
+                });
+            }
+        }
+        // Length validations for strings
+        if (typeof value === 'string') {
+            if (rules.minLength && value.length < rules.minLength) {
+                errors.push({
+                    field: field.name,
+                    code: 'minLength',
+                    message: `Field '${field.name}' must be at least ${rules.minLength} characters`,
+                    value
+                });
+            }
+            if (rules.maxLength && value.length > rules.maxLength) {
+                errors.push({
+                    field: field.name,
+                    code: 'maxLength',
+                    message: `Field '${field.name}' must be at most ${rules.maxLength} characters`,
+                    value
+                });
+            }
+        }
+        // Numeric validations
+        if (typeof value === 'number') {
+            if (rules.min !== undefined && value < rules.min) {
+                errors.push({
+                    field: field.name,
+                    code: 'min',
+                    message: `Field '${field.name}' must be at least ${rules.min}`,
+                    value
+                });
+            }
+            if (rules.max !== undefined && value > rules.max) {
+                errors.push({
+                    field: field.name,
+                    code: 'max',
+                    message: `Field '${field.name}' must be at most ${rules.max}`,
+                    value
+                });
+            }
+        }
+        // Array validations
+        if (Array.isArray(value)) {
+            if (rules.minItems && value.length < rules.minItems) {
+                errors.push({
+                    field: field.name,
+                    code: 'minItems',
+                    message: `Field '${field.name}' must have at least ${rules.minItems} items`,
+                    value
+                });
+            }
+            if (rules.maxItems && value.length > rules.maxItems) {
+                errors.push({
+                    field: field.name,
+                    code: 'maxItems',
+                    message: `Field '${field.name}' must have at most ${rules.maxItems} items`,
+                    value
+                });
+            }
+        }
+        return errors;
     }
     /**
      * Validate field type and constraints
      * @param field Field definition
      * @param value Value to validate
+     * @returns Array of validation errors
      * @private
      */
     validateFieldType(field, value) {
@@ -66,36 +224,6 @@ export class ValidationManager {
                         value
                     });
                 }
-                else if (field.validation_rules) {
-                    // String-specific validations
-                    if (field.validation_rules.minLength && value.length < field.validation_rules.minLength) {
-                        errors.push({
-                            field: field.name,
-                            code: 'minLength',
-                            message: `Field '${field.name}' must be at least ${field.validation_rules.minLength} characters`,
-                            value
-                        });
-                    }
-                    if (field.validation_rules.maxLength && value.length > field.validation_rules.maxLength) {
-                        errors.push({
-                            field: field.name,
-                            code: 'maxLength',
-                            message: `Field '${field.name}' must be at most ${field.validation_rules.maxLength} characters`,
-                            value
-                        });
-                    }
-                    if (field.validation_rules.pattern) {
-                        const regex = new RegExp(field.validation_rules.pattern);
-                        if (!regex.test(value)) {
-                            errors.push({
-                                field: field.name,
-                                code: 'pattern',
-                                message: `Field '${field.name}' does not match required pattern`,
-                                value
-                            });
-                        }
-                    }
-                }
                 break;
             case 'number':
                 if (typeof value !== 'number' || isNaN(value)) {
@@ -106,24 +234,15 @@ export class ValidationManager {
                         value
                     });
                 }
-                else if (field.validation_rules) {
-                    // Number-specific validations
-                    if (field.validation_rules.min !== undefined && value < field.validation_rules.min) {
-                        errors.push({
-                            field: field.name,
-                            code: 'min',
-                            message: `Field '${field.name}' must be at least ${field.validation_rules.min}`,
-                            value
-                        });
-                    }
-                    if (field.validation_rules.max !== undefined && value > field.validation_rules.max) {
-                        errors.push({
-                            field: field.name,
-                            code: 'max',
-                            message: `Field '${field.name}' must be at most ${field.validation_rules.max}`,
-                            value
-                        });
-                    }
+                break;
+            case 'integer':
+                if (!Number.isInteger(value)) {
+                    errors.push({
+                        field: field.name,
+                        code: 'type',
+                        message: `Field '${field.name}' must be an integer`,
+                        value
+                    });
                 }
                 break;
             case 'boolean':
@@ -137,7 +256,9 @@ export class ValidationManager {
                 }
                 break;
             case 'date':
-                if (!(value instanceof Date) && isNaN(Date.parse(value))) {
+            case 'datetime':
+                const parsedDate = parseDate(value);
+                if (!parsedDate) {
                     errors.push({
                         field: field.name,
                         code: 'type',
@@ -155,47 +276,30 @@ export class ValidationManager {
                         value
                     });
                 }
-                else if (field.validation_rules) {
-                    // Array-specific validations
-                    if (field.validation_rules.minItems && value.length < field.validation_rules.minItems) {
-                        errors.push({
-                            field: field.name,
-                            code: 'minItems',
-                            message: `Field '${field.name}' must have at least ${field.validation_rules.minItems} items`,
-                            value
-                        });
-                    }
-                    if (field.validation_rules.maxItems && value.length > field.validation_rules.maxItems) {
-                        errors.push({
-                            field: field.name,
-                            code: 'maxItems',
-                            message: `Field '${field.name}' must have at most ${field.validation_rules.maxItems} items`,
-                            value
-                        });
-                    }
-                }
                 break;
             case 'json':
-                try {
-                    if (typeof value === 'string') {
-                        JSON.parse(value);
-                    }
-                    else if (typeof value !== 'object') {
-                        throw new Error('Not an object');
+            case 'object':
+                if (typeof value === 'string') {
+                    const parsed = safeJsonParse(value, null);
+                    if (parsed === null && value !== 'null') {
+                        errors.push({
+                            field: field.name,
+                            code: 'type',
+                            message: `Field '${field.name}' must be valid JSON`,
+                            value
+                        });
                     }
                 }
-                catch (e) {
+                else if (typeof value !== 'object' || value === null) {
                     errors.push({
                         field: field.name,
                         code: 'type',
-                        message: `Field '${field.name}' must be valid JSON`,
+                        message: `Field '${field.name}' must be an object`,
                         value
                     });
                 }
                 break;
             case 'reference':
-                // Reference validation would require checking if the referenced entity exists
-                // This is a simplified version
                 if (typeof value !== 'string' && typeof value !== 'number') {
                     errors.push({
                         field: field.name,
@@ -207,128 +311,6 @@ export class ValidationManager {
                 break;
         }
         return errors;
-    }
-    /**
-     * Prepare data for insertion
-     * @param entityConfig Entity configuration
-     * @param data Data to prepare
-     */
-    prepareDataForInsert(entityConfig, data) {
-        const result = {};
-        // Process each field
-        for (const field of entityConfig.fields) {
-            let value = data[field.name];
-            // Apply default value if not provided
-            if ((value === undefined || value === null) && field.default_value !== undefined) {
-                value = field.default_value;
-            }
-            // Skip undefined values
-            if (value === undefined) {
-                continue;
-            }
-            // Convert values based on field type
-            result[field.name] = this.convertValueForStorage(field, value);
-        }
-        return result;
-    }
-    /**
-     * Prepare data for update
-     * @param entityConfig Entity configuration
-     * @param data Data to prepare
-     */
-    prepareDataForUpdate(entityConfig, data) {
-        const result = {};
-        // Process each field
-        for (const field of entityConfig.fields) {
-            // Skip fields that are not in the update data
-            if (!data.hasOwnProperty(field.name)) {
-                continue;
-            }
-            const value = data[field.name];
-            // Skip undefined values
-            if (value === undefined) {
-                continue;
-            }
-            // Convert values based on field type
-            result[field.name] = this.convertValueForStorage(field, value);
-        }
-        return result;
-    }
-    /**
-     * Process entity result from database
-     * @param entityConfig Entity configuration
-     * @param data Data from database
-     */
-    processEntityResult(entityConfig, data) {
-        const result = { ...data };
-        // Process each field
-        for (const field of entityConfig.fields) {
-            const value = data[field.name];
-            // Skip null or undefined values
-            if (value === null || value === undefined) {
-                continue;
-            }
-            // Convert values based on field type
-            result[field.name] = this.convertValueFromStorage(field, value);
-        }
-        return result;
-    }
-    /**
-     * Convert value for storage in database
-     * @param field Field definition
-     * @param value Value to convert
-     * @private
-     */
-    convertValueForStorage(field, value) {
-        switch (field.type) {
-            case 'date':
-                if (value instanceof Date) {
-                    return value.toISOString();
-                }
-                break;
-            case 'json':
-            case 'array':
-                if (typeof value === 'object') {
-                    return JSON.stringify(value);
-                }
-                break;
-        }
-        return value;
-    }
-    /**
-     * Convert value from storage format
-     * @param field Field definition
-     * @param value Value to convert
-     * @private
-     */
-    convertValueFromStorage(field, value) {
-        switch (field.type) {
-            case 'date':
-                return new Date(value);
-            case 'json':
-            case 'array':
-                if (typeof value === 'string') {
-                    try {
-                        return JSON.parse(value);
-                    }
-                    catch (e) {
-                        // If parsing fails, keep original value
-                    }
-                }
-                break;
-            case 'number':
-                return Number(value);
-            case 'boolean':
-                // Convert various boolean representations
-                if (value === 'true' || value === '1' || value === 1) {
-                    return true;
-                }
-                else if (value === 'false' || value === '0' || value === 0) {
-                    return false;
-                }
-                break;
-        }
-        return value;
     }
 }
 //# sourceMappingURL=validation-manager.js.map

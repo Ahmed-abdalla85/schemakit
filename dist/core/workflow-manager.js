@@ -1,9 +1,17 @@
 /**
- * Workflow Manager class
+ * WorkflowManager class
+ * Single responsibility: Handle workflow execution
  */
 export class WorkflowManager {
     /**
-     * Execute workflows for an entity
+     * Create a new WorkflowManager instance
+     * @param databaseAdapter Database adapter
+     */
+    constructor(databaseAdapter) {
+        this.databaseAdapter = databaseAdapter;
+    }
+    /**
+     * Execute workflows for an entity event
      * @param entityConfig Entity configuration
      * @param event Trigger event
      * @param oldData Old data (for update/delete)
@@ -11,10 +19,17 @@ export class WorkflowManager {
      * @param context User context
      */
     async executeWorkflows(entityConfig, event, oldData, newData, context) {
-        // Get workflows for this event
-        const workflows = entityConfig.workflows.filter(w => w.trigger_event === event && w.is_active);
-        // Execute each workflow
-        for (const workflow of workflows) {
+        // Get workflows that match the event and are active
+        const matchingWorkflows = entityConfig.workflows.filter(workflow => {
+            // Check if workflow is active
+            if (!workflow.is_active) {
+                return false;
+            }
+            // Check if workflow trigger matches the event
+            return workflow.trigger_event === event;
+        });
+        // Execute each matching workflow
+        for (const workflow of matchingWorkflows) {
             try {
                 await this.executeWorkflow(workflow, event, oldData, newData, context);
             }
@@ -36,12 +51,12 @@ export class WorkflowManager {
      */
     async executeWorkflow(workflow, event, oldData, newData, context) {
         // Check conditions
-        if (workflow.conditions && !this.evaluateConditions(workflow.conditions, oldData, newData, context)) {
+        if (workflow.conditions && !this.evaluateWorkflowConditions(workflow.conditions, oldData, newData, context)) {
             return; // Conditions not met, skip workflow
         }
         // Execute actions
-        for (const action of workflow.actions) {
-            await this.executeAction(action, event, oldData, newData, context);
+        if (workflow.actions && Array.isArray(workflow.actions)) {
+            await this.executeWorkflowActions(workflow.actions, event, oldData, newData, context);
         }
     }
     /**
@@ -50,21 +65,60 @@ export class WorkflowManager {
      * @param oldData Old data
      * @param newData New data
      * @param context User context
+     * @returns True if conditions are met
      * @private
      */
-    evaluateConditions(_conditions, _oldData, _newData, _context) {
-        // This is a simplified condition evaluation
-        // In a real implementation, you would have a more sophisticated condition engine
-        // For now, we'll just return true to execute all workflows
-        // You can extend this to support various condition types like:
-        // - Field value comparisons
-        // - User role checks
-        // - Time-based conditions
-        // - Complex logical expressions
-        return true;
+    evaluateWorkflowConditions(conditions, oldData, newData, context) {
+        if (!conditions || typeof conditions !== 'object') {
+            return true; // No conditions means workflow should execute
+        }
+        // Handle different condition formats
+        if (Array.isArray(conditions)) {
+            // Array of conditions - all must be true (AND logic)
+            return conditions.every(condition => this.evaluateSingleCondition(condition, oldData, newData, context));
+        }
+        else if (conditions.operator) {
+            // Object with operator and conditions
+            const { operator, conditions: conditionList } = conditions;
+            if (!Array.isArray(conditionList)) {
+                return this.evaluateSingleCondition(conditions, oldData, newData, context);
+            }
+            switch (operator?.toLowerCase()) {
+                case 'and':
+                    return conditionList.every(condition => this.evaluateSingleCondition(condition, oldData, newData, context));
+                case 'or':
+                    return conditionList.some(condition => this.evaluateSingleCondition(condition, oldData, newData, context));
+                default:
+                    return conditionList.every(condition => this.evaluateSingleCondition(condition, oldData, newData, context));
+            }
+        }
+        else {
+            // Single condition object
+            return this.evaluateSingleCondition(conditions, oldData, newData, context);
+        }
     }
     /**
-     * Execute a workflow action
+     * Execute workflow actions
+     * @param actions Array of workflow actions
+     * @param event Trigger event
+     * @param oldData Old data
+     * @param newData New data
+     * @param context User context
+     * @private
+     */
+    async executeWorkflowActions(actions, event, oldData, newData, context) {
+        for (const action of actions) {
+            try {
+                await this.executeWorkflowAction(action, event, oldData, newData, context);
+            }
+            catch (error) {
+                console.error(`Error executing workflow action: ${error}`);
+                // Continue with other actions even if one fails
+            }
+        }
+    }
+    /**
+     * Execute a single workflow action
      * @param action Workflow action
      * @param event Trigger event
      * @param oldData Old data
@@ -72,8 +126,12 @@ export class WorkflowManager {
      * @param context User context
      * @private
      */
-    async executeAction(action, event, oldData, newData, context) {
-        switch (action.type) {
+    async executeWorkflowAction(action, event, oldData, newData, context) {
+        if (!action || typeof action !== 'object' || !action.type) {
+            console.warn('Invalid workflow action:', action);
+            return;
+        }
+        switch (action.type.toLowerCase()) {
             case 'log':
                 await this.executeLogAction(action, event, oldData, newData, context);
                 break;
@@ -94,6 +152,103 @@ export class WorkflowManager {
         }
     }
     /**
+     * Evaluate a single condition
+     * @param condition Single condition object
+     * @param oldData Old data
+     * @param newData New data
+     * @param context User context
+     * @returns True if condition is met
+     * @private
+     */
+    evaluateSingleCondition(condition, oldData, newData, context) {
+        if (!condition || typeof condition !== 'object') {
+            return true;
+        }
+        const { field, operator, value } = condition;
+        if (!field || !operator) {
+            return true; // Invalid condition, default to allow
+        }
+        // Get the actual value to compare
+        let actualValue;
+        // Determine which data to use for comparison
+        const data = newData || oldData;
+        if (field.startsWith('$context.')) {
+            const path = field.substring(9).split('.');
+            actualValue = context;
+            for (const key of path) {
+                if (actualValue === undefined || actualValue === null) {
+                    break;
+                }
+                actualValue = actualValue[key];
+            }
+        }
+        else if (field.startsWith('$user.')) {
+            const path = field.substring(6).split('.');
+            actualValue = context.user;
+            for (const key of path) {
+                if (actualValue === undefined || actualValue === null) {
+                    break;
+                }
+                actualValue = actualValue[key];
+            }
+        }
+        else if (field.startsWith('$old.')) {
+            const fieldName = field.substring(5);
+            actualValue = oldData?.[fieldName];
+        }
+        else if (field.startsWith('$new.')) {
+            const fieldName = field.substring(5);
+            actualValue = newData?.[fieldName];
+        }
+        else {
+            // Direct field access from current data
+            actualValue = data?.[field];
+        }
+        // Evaluate condition based on operator
+        switch (operator.toLowerCase()) {
+            case 'eq':
+            case '=':
+            case '==':
+                return actualValue === value;
+            case 'neq':
+            case '!=':
+            case '<>':
+                return actualValue !== value;
+            case 'gt':
+            case '>':
+                return actualValue > value;
+            case 'gte':
+            case '>=':
+                return actualValue >= value;
+            case 'lt':
+            case '<':
+                return actualValue < value;
+            case 'lte':
+            case '<=':
+                return actualValue <= value;
+            case 'in':
+                return Array.isArray(value) ? value.includes(actualValue) : actualValue === value;
+            case 'nin':
+            case 'not_in':
+                return Array.isArray(value) ? !value.includes(actualValue) : actualValue !== value;
+            case 'like':
+                if (typeof actualValue === 'string' && typeof value === 'string') {
+                    const regex = new RegExp(value.replace(/%/g, '.*'), 'i');
+                    return regex.test(actualValue);
+                }
+                return false;
+            case 'exists':
+                return actualValue !== undefined && actualValue !== null;
+            case 'not_exists':
+                return actualValue === undefined || actualValue === null;
+            case 'changed':
+                // Check if field value changed between old and new data
+                return !!(oldData && newData && oldData[field] !== newData[field]);
+            default:
+                return true; // Unknown operator, default to allow
+        }
+    }
+    /**
      * Execute log action
      * @param action Action configuration
      * @param event Trigger event
@@ -103,8 +258,9 @@ export class WorkflowManager {
      * @private
      */
     async executeLogAction(action, event, oldData, newData, context) {
-        const message = action.config.message || `Workflow action executed for event: ${event}`;
-        const level = action.config.level || 'info';
+        const config = action.config || {};
+        const message = config.message || `Workflow action executed for event: ${event}`;
+        const level = config.level || 'info';
         // In a real implementation, you would use a proper logging system
         console.log(`[${level.toUpperCase()}] ${message}`, {
             event,
@@ -123,12 +279,13 @@ export class WorkflowManager {
      * @private
      */
     async executeEmailAction(action, event, oldData, newData, _context) {
+        const config = action.config || {};
         // This is a placeholder for email sending functionality
         // In a real implementation, you would integrate with an email service
         console.log('Email action executed:', {
-            to: action.config.to,
-            subject: action.config.subject,
-            template: action.config.template,
+            to: config.to,
+            subject: config.subject,
+            template: config.template,
             event,
             data: newData || oldData
         });
@@ -143,11 +300,12 @@ export class WorkflowManager {
      * @private
      */
     async executeWebhookAction(action, event, oldData, newData, context) {
+        const config = action.config || {};
         // This is a placeholder for webhook functionality
         // In a real implementation, you would make HTTP requests to external services
         console.log('Webhook action executed:', {
-            url: action.config.url,
-            method: action.config.method || 'POST',
+            url: config.url,
+            method: config.method || 'POST',
             payload: {
                 event,
                 oldData,
@@ -166,12 +324,13 @@ export class WorkflowManager {
      * @private
      */
     async executeUpdateFieldAction(action, _event, _oldData, _newData, _context) {
+        const config = action.config || {};
         // This is a placeholder for field update functionality
         // In a real implementation, you would update specific fields based on the action configuration
         console.log('Update field action executed:', {
-            field: action.config.field,
-            value: action.config.value,
-            condition: action.config.condition
+            field: config.field,
+            value: config.value,
+            condition: config.condition
         });
     }
     /**
@@ -184,12 +343,13 @@ export class WorkflowManager {
      * @private
      */
     async executeCreateRecordAction(action, _event, _oldData, _newData, _context) {
+        const config = action.config || {};
         // This is a placeholder for record creation functionality
         // In a real implementation, you would create new records in other entities
         console.log('Create record action executed:', {
-            entity: action.config.entity,
-            data: action.config.data,
-            template: action.config.template
+            entity: config.entity,
+            data: config.data,
+            template: config.template
         });
     }
 }

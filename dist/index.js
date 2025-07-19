@@ -10,15 +10,21 @@ export * from './errors';
 export * from './types';
 // Export database adapters
 export * from './database/adapter';
-// Export main SchemaKit class (new modular version)
-export * from './schemakit-new';
+// Export main SchemaKit class with static factory methods (EntityKit pattern)
+export { SchemaKit } from './schemakit';
+// Export UnifiedEntityHandler for EntityKit-style operations
+export { UnifiedEntityHandler } from './unified-entity-handler';
 // Export core modules for advanced usage
 export { SchemaLoader } from './core/schema-loader';
 export { EntityManager } from './core/entity-manager';
 export { ValidationManager } from './core/validation-manager';
 export { PermissionManager } from './core/permission-manager';
-export { QueryManager } from './core/query-builder';
+export { QueryManager } from './core/query-manager';
 export { WorkflowManager } from './core/workflow-manager';
-// Keep the old SchemaKit class for backward compatibility
-export { SchemaKit as SchemaKitLegacy } from './schemakit';
+// Export utilities for advanced usage
+export * from './utils/id-generation';
+export * from './utils/date-helpers';
+export * from './utils/json-helpers';
+export * from './utils/validation-helpers';
+export * from './utils/query-helpers';
 //# sourceMappingURL=index.js.map

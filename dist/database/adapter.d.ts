@@ -33,6 +33,25 @@ export interface ColumnDefinition {
  */
 export type TransactionCallback<T> = (transaction: DatabaseAdapter) => Promise<T>;
 /**
+ * Query filter interface (from EntityKit pattern)
+ */
+export interface QueryFilter {
+    field: string;
+    value: any;
+    operator?: 'eq' | 'neq' | 'gt' | 'lt' | 'gte' | 'lte' | 'like' | 'in' | 'nin' | 'contains' | 'startswith' | 'endswith';
+}
+/**
+ * Query options interface (from EntityKit pattern)
+ */
+export interface QueryOptions {
+    orderBy?: {
+        field: string;
+        direction: 'ASC' | 'DESC';
+    }[];
+    limit?: number;
+    offset?: number;
+}
+/**
  * Abstract database adapter class
  */
 export declare abstract class DatabaseAdapter {
@@ -91,14 +110,72 @@ export declare abstract class DatabaseAdapter {
      */
     abstract getTableColumns(tableName: string): Promise<ColumnDefinition[]>;
     /**
+     * Select records with tenant-aware filtering (EntityKit pattern)
+     * @param table Table name
+     * @param filters Query filters
+     * @param options Query options
+     * @param tenantId Tenant identifier (schema name)
+     */
+    abstract select(table: string, filters: QueryFilter[], options: QueryOptions, tenantId: string): Promise<any[]>;
+    /**
+     * Insert a record with tenant context (EntityKit pattern)
+     * @param table Table name
+     * @param data Data to insert
+     * @param tenantId Tenant identifier (schema name)
+     */
+    abstract insert(table: string, data: Record<string, any>, tenantId?: string): Promise<any>;
+    /**
+     * Update a record with tenant context (EntityKit pattern)
+     * @param table Table name
+     * @param id Record ID
+     * @param data Data to update
+     * @param tenantId Tenant identifier (schema name)
+     */
+    abstract update(table: string, id: string, data: Record<string, any>, tenantId: string): Promise<any>;
+    /**
+     * Delete a record with tenant context (EntityKit pattern)
+     * @param table Table name
+     * @param id Record ID
+     * @param tenantId Tenant identifier (schema name)
+     */
+    abstract delete(table: string, id: string, tenantId: string): Promise<void>;
+    /**
+     * Count records with tenant-aware filtering (EntityKit pattern)
+     * @param table Table name
+     * @param filters Query filters
+     * @param tenantId Tenant identifier (schema name)
+     */
+    abstract count(table: string, filters: QueryFilter[], tenantId: string): Promise<number>;
+    /**
+     * Find a record by ID with tenant context (EntityKit pattern)
+     * @param table Table name
+     * @param id Record ID
+     * @param tenantId Tenant identifier (schema name)
+     */
+    abstract findById(table: string, id: string, tenantId: string): Promise<any | null>;
+    /**
+     * Create a database schema (for multi-tenancy)
+     * @param schemaName Schema name
+     */
+    abstract createSchema(schemaName: string): Promise<void>;
+    /**
+     * Drop a database schema
+     * @param schemaName Schema name
+     */
+    abstract dropSchema(schemaName: string): Promise<void>;
+    /**
+     * List all database schemas
+     */
+    abstract listSchemas(): Promise<string[]>;
+    /**
      * Create a database adapter instance
-     * @param type Adapter type ('sqlite' or 'postgres')
+     * @param type Adapter type ('sqlite', 'postgres', or 'inmemory')
      * @param config Configuration options
      */
     static create(type?: string, config?: DatabaseAdapterConfig): Promise<DatabaseAdapter>;
     /**
      * Create a database adapter instance synchronously (for backward compatibility)
-     * @param type Adapter type ('sqlite' or 'postgres')
+     * @param type Adapter type ('sqlite', 'postgres', or 'inmemory')
      * @param config Configuration options
      */
     static createSync(type?: string, config?: DatabaseAdapterConfig): DatabaseAdapter;

@@ -1,66 +1,113 @@
 /**
- * Entity Manager - Handles CRUD operations for entities
+ * EntityManager
+ * Responsible for CRUD operations on entities
  */
 import { DatabaseAdapter } from '../database/adapter';
-import { Context, EntityConfiguration } from '../types';
+import { EntityConfiguration, Context, RLSConditions } from '../types';
+import { QueryCondition } from '../utils/query-helpers';
 /**
- * Entity Manager class
+ * EntityManager class
+ * Single responsibility: Handle CRUD operations on entities
  */
 export declare class EntityManager {
     private databaseAdapter;
-    private validationManager;
-    private workflowManager;
+    /**
+     * Create a new EntityManager instance
+     * @param databaseAdapter Database adapter
+     */
     constructor(databaseAdapter: DatabaseAdapter);
     /**
-     * Create a new entity instance
+     * Create a new entity record
      * @param entityConfig Entity configuration
      * @param data Entity data
      * @param context User context
+     * @returns Created entity record
      */
     create(entityConfig: EntityConfiguration, data: Record<string, any>, context?: Context): Promise<Record<string, any>>;
     /**
-     * Find entity instance by ID
+     * Find entity record by ID
      * @param entityConfig Entity configuration
-     * @param id Entity ID
+     * @param id Record ID
      * @param context User context
-     * @param rlsConditions RLS conditions to apply
+     * @param rlsConditions RLS conditions (optional)
+     * @returns Entity record or null if not found
      */
-    findById(entityConfig: EntityConfiguration, id: string | number, context?: Context, rlsConditions?: {
-        sql: string;
-        params: any[];
-    }): Promise<Record<string, any> | null>;
+    findById(entityConfig: EntityConfiguration, id: string | number, context?: Context, rlsConditions?: RLSConditions): Promise<Record<string, any> | null>;
     /**
-     * Update entity instance
+     * Update entity record
      * @param entityConfig Entity configuration
-     * @param id Entity ID
-     * @param data Entity data
+     * @param id Record ID
+     * @param data Update data
      * @param context User context
-     * @param rlsConditions RLS conditions to apply
+     * @param rlsConditions RLS conditions (optional)
+     * @returns Updated entity record
      */
-    update(entityConfig: EntityConfiguration, id: string | number, data: Record<string, any>, context?: Context, rlsConditions?: {
-        sql: string;
-        params: any[];
-    }): Promise<Record<string, any>>;
+    update(entityConfig: EntityConfiguration, id: string | number, data: Record<string, any>, context?: Context, rlsConditions?: RLSConditions): Promise<Record<string, any>>;
     /**
-     * Delete entity instance
+     * Delete entity record
      * @param entityConfig Entity configuration
-     * @param id Entity ID
+     * @param id Record ID
      * @param context User context
-     * @param rlsConditions RLS conditions to apply
+     * @param rlsConditions RLS conditions (optional)
+     * @returns True if record was deleted
      */
-    delete(entityConfig: EntityConfiguration, id: string | number, context?: Context, rlsConditions?: {
-        sql: string;
-        params: any[];
-    }): Promise<boolean>;
+    delete(entityConfig: EntityConfiguration, id: string | number, context?: Context, rlsConditions?: RLSConditions): Promise<boolean>;
+    /**
+     * Find multiple entity records
+     * @param entityConfig Entity configuration
+     * @param conditions Query conditions
+     * @param options Query options
+     * @param context User context
+     * @param rlsConditions RLS conditions (optional)
+     * @returns Array of entity records
+     */
+    find(entityConfig: EntityConfiguration, conditions?: QueryCondition[], options?: {
+        fields?: string[];
+        sort?: {
+            field: string;
+            direction: 'ASC' | 'DESC';
+        }[];
+        limit?: number;
+        offset?: number;
+    }, context?: Context, rlsConditions?: RLSConditions): Promise<Record<string, any>[]>;
+    /**
+     * Count entity records
+     * @param entityConfig Entity configuration
+     * @param conditions Query conditions
+     * @param context User context
+     * @param rlsConditions RLS conditions (optional)
+     * @returns Count of matching records
+     */
+    count(entityConfig: EntityConfiguration, conditions?: QueryCondition[], context?: Context, rlsConditions?: RLSConditions): Promise<number>;
     /**
      * Ensure entity table exists
      * @param entityConfig Entity configuration
-     * @private
      */
-    private ensureEntityTable;
+    ensureEntityTable(entityConfig: EntityConfiguration): Promise<void>;
     /**
-     * Generate a unique ID
+     * Create entity table
+     * @param entityConfig Entity configuration
      * @private
      */
-    private generateId;
+    private createEntityTable;
+    /**
+     * Update entity table
+     * @param entityConfig Entity configuration
+     * @private
+     */
+    private updateEntityTable;
+    /**
+     * Get SQL type for field type
+     * @param fieldType Field type
+     * @returns SQL type
+     * @private
+     */
+    private getSqlType;
+    /**
+     * Get SQL value for field value
+     * @param value Field value
+     * @returns SQL value
+     * @private
+     */
+    private getSqlValue;
 }

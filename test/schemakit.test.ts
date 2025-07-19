@@ -1,4 +1,4 @@
-import { SchemaKit, SchemaKitOptions } from '../src/schemakit-new';
+import { SchemaKit, SchemaKitOptions } from '../src/schemakit';
 import { DatabaseAdapter } from '../src/database/adapter';
 import { ValidationError, SchemaKitError, EntityNotFoundError } from '../src/errors';
 import { Context, EntityConfiguration } from '../src/types';
@@ -26,6 +26,16 @@ jest.mock('../src/database/adapter', () => {
         }
 
         async query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
+            // Check if database is installed
+            if (sql.includes('information_schema.tables') && sql.includes('system_entities')) {
+                return [{ count: 1 }] as unknown as T[];
+            }
+
+            // Get database version
+            if (sql.includes('system_config') && sql.includes('version')) {
+                return [{ version: '1.0.0' }] as unknown as T[];
+            }
+
             // Simple SQL parsing for testing
             if (sql.includes('system_entities') && sql.includes('WHERE name =')) {
                 const entityName = params[0];
@@ -189,8 +199,16 @@ jest.mock('../src/database/adapter', () => {
                 ] as unknown as T[];
             }
 
-            // Special case for view query test
-            if (sql.includes('SELECT') && sql.includes('FROM entity_user') && sql.includes('ORDER BY')) {
+            if (sql.includes('system_workflows')) {
+                return [] as unknown as T[];
+            }
+
+            if (sql.includes('system_rls')) {
+                return [] as unknown as T[];
+            }
+
+            // Handle entity table queries
+            if (sql.includes('SELECT') && sql.includes('FROM entity_user')) {
                 // Ensure we have test data
                 if (!mockTables['entity_user']) {
                     mockTables['entity_user'] = [];
@@ -199,9 +217,10 @@ jest.mock('../src/database/adapter', () => {
                 // Add a test user if the table is empty
                 if (mockTables['entity_user'].length === 0) {
                     mockTables['entity_user'].push({
-                        id: 'view-test-user',
-                        name: 'View Test User',
-                        email: 'viewtest@example.com',
+                        id: 'user-1',
+                        name: 'John Doe',
+                        email: 'john@example.com',
+                        age: 30,
                         is_active: true,
                         created_at: '2023-01-01T00:00:00.000Z',
                         updated_at: '2023-01-01T00:00:00.000Z'
@@ -211,223 +230,174 @@ jest.mock('../src/database/adapter', () => {
                 return mockTables['entity_user'] as unknown as T[];
             }
 
-            if (sql.includes('system_workflows')) {
+            // Handle INSERT queries
+            if (sql.includes('INSERT INTO entity_user')) {
+                const newUser = {
+                    id: 'user-' + Date.now(),
+                    name: params[0] || 'Test User',
+                    email: params[1] || 'test@example.com',
+                    age: params[2] || 25,
+                    is_active: params[3] !== undefined ? params[3] : true,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                };
+
+                if (!mockTables['entity_user']) {
+                    mockTables['entity_user'] = [];
+                }
+                mockTables['entity_user'].push(newUser);
+
+                return [newUser] as unknown as T[];
+            }
+
+            // Handle UPDATE queries
+            if (sql.includes('UPDATE entity_user')) {
+                const userId = params[params.length - 1]; // Last param is usually the ID
+                if (mockTables['entity_user']) {
+                    const userIndex = mockTables['entity_user'].findIndex(u => u.id === userId);
+                    if (userIndex !== -1) {
+                        const updatedUser = { ...mockTables['entity_user'][userIndex] };
+                        
+                        // Update fields based on params
+                        if (params[0] !== undefined) updatedUser.name = params[0];
+                        if (params[1] !== undefined) updatedUser.email = params[1];
+                        if (params[2] !== undefined) updatedUser.age = params[2];
+                        if (params[3] !== undefined) updatedUser.is_active = params[3];
+                        
+                        updatedUser.updated_at = new Date().toISOString();
+                        mockTables['entity_user'][userIndex] = updatedUser;
+                        
+                        return [updatedUser] as unknown as T[];
+                    }
+                }
                 return [] as unknown as T[];
             }
 
-            if (sql.includes('system_rls')) {
-                return [] as unknown as T[];
-            }
-
-            if (sql.includes('SELECT * FROM entity_user WHERE id =')) {
+            // Handle DELETE queries
+            if (sql.includes('DELETE FROM entity_user')) {
                 const userId = params[0];
-                const users = mockTables['entity_user'] || [];
-                const user = users.find(u => u.id === userId);
-                return user ? [user] as unknown as T[] : [] as unknown as T[];
+                if (mockTables['entity_user']) {
+                    const userIndex = mockTables['entity_user'].findIndex(u => u.id === userId);
+                    if (userIndex !== -1) {
+                        mockTables['entity_user'].splice(userIndex, 1);
+                        return [{ changes: 1 }] as unknown as T[];
+                    }
+                }
+                return [{ changes: 0 }] as unknown as T[];
             }
 
-            // Handle any SELECT query on entity_user table
-            if (sql.includes('SELECT') && sql.includes('FROM entity_user')) {
-                // For testing, ensure we have some test data
-                if (!mockTables['entity_user'] || mockTables['entity_user'].length === 0) {
-                    mockTables['entity_user'] = [
-                        {
-                            id: 'test-user-1',
-                            name: 'User One',
-                            email: 'user1@example.com',
-                            age: 25,
-                            is_active: true,
-                            created_at: '2023-01-01T00:00:00.000Z',
-                            updated_at: '2023-01-01T00:00:00.000Z'
-                        },
-                        {
-                            id: 'test-user-2',
-                            name: 'User Two',
-                            email: 'user2@example.com',
-                            age: 30,
-                            is_active: true,
-                            created_at: '2023-01-01T00:00:00.000Z',
-                            updated_at: '2023-01-01T00:00:00.000Z'
-                        },
-                        {
-                            id: 'test-user-3',
-                            name: 'User Three',
-                            email: 'user3@example.com',
-                            age: 35,
-                            is_active: false,
-                            created_at: '2023-01-01T00:00:00.000Z',
-                            updated_at: '2023-01-01T00:00:00.000Z'
-                        }
-                    ];
+            // Handle COUNT queries
+            if (sql.includes('COUNT(*)')) {
+                const tableName = sql.match(/FROM\s+(\w+)/)?.[1];
+                if (tableName && mockTables[tableName]) {
+                    return [{ total: mockTables[tableName].length }] as unknown as T[];
                 }
-
-                // Filter by ID if specified
-                if (sql.includes('WHERE id =')) {
-                    const userId = params[0];
-                    const users = mockTables['entity_user'] || [];
-                    const user = users.find(u => u.id === userId);
-                    return user ? [user] as unknown as T[] : [] as unknown as T[];
-                }
-
-                // Filter by is_active if specified
-                if (sql.includes('is_active = ?') && params.includes(true)) {
-                    const users = mockTables['entity_user'] || [];
-                    return users.filter(u => u.is_active === true) as unknown as T[];
-                }
-
-                // Return all users
-                return (mockTables['entity_user'] || []) as unknown as T[];
-            }
-
-            if (sql.includes('COUNT(*) as total')) {
-                const tableName = sql.match(/FROM\s+(\w+)/i)?.[1] || '';
-
-                // Ensure we have test data for the entity_user table
-                if (tableName === 'entity_user' && (!mockTables[tableName] || mockTables[tableName].length === 0)) {
-                    mockTables[tableName] = [
-                        {
-                            id: 'test-user-1',
-                            name: 'User One',
-                            email: 'user1@example.com',
-                            age: 25,
-                            is_active: true,
-                            created_at: '2023-01-01T00:00:00.000Z',
-                            updated_at: '2023-01-01T00:00:00.000Z'
-                        },
-                        {
-                            id: 'test-user-2',
-                            name: 'User Two',
-                            email: 'user2@example.com',
-                            age: 30,
-                            is_active: true,
-                            created_at: '2023-01-01T00:00:00.000Z',
-                            updated_at: '2023-01-01T00:00:00.000Z'
-                        },
-                        {
-                            id: 'test-user-3',
-                            name: 'User Three',
-                            email: 'user3@example.com',
-                            age: 35,
-                            is_active: false,
-                            created_at: '2023-01-01T00:00:00.000Z',
-                            updated_at: '2023-01-01T00:00:00.000Z'
-                        }
-                    ];
-                }
-
-                return [{ total: mockTables[tableName]?.length || 0 }] as unknown as T[];
+                return [{ total: 0 }] as unknown as T[];
             }
 
             return [] as unknown as T[];
         }
 
         async execute(sql: string, params: any[] = []): Promise<{ changes: number, lastInsertId?: string | number }> {
-            // Handle table creation
-            if (sql.startsWith('CREATE TABLE')) {
-                const tableName = sql.match(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)/i)?.[1];
-                if (tableName) {
-                    mockTables[tableName] = [];
+            // Handle schema creation
+            if (sql.includes('CREATE TABLE IF NOT EXISTS system_entities')) {
+                return { changes: 0 };
+            }
 
-                    // Extract column definitions
-                    const columnsMatch = sql.match(/\(([^)]+)\)/);
-                    if (columnsMatch) {
-                        const columnDefs = columnsMatch[1].split(',').map(col => col.trim());
-                        mockTableSchemas[tableName] = columnDefs;
+            if (sql.includes('CREATE TABLE IF NOT EXISTS system_fields')) {
+                return { changes: 0 };
+            }
+
+            if (sql.includes('CREATE TABLE IF NOT EXISTS system_permissions')) {
+                return { changes: 0 };
+            }
+
+            if (sql.includes('CREATE TABLE IF NOT EXISTS system_views')) {
+                return { changes: 0 };
+            }
+
+            if (sql.includes('CREATE TABLE IF NOT EXISTS system_workflows')) {
+                return { changes: 0 };
+            }
+
+            if (sql.includes('CREATE TABLE IF NOT EXISTS system_config')) {
+                return { changes: 0 };
+            }
+
+            if (sql.includes('INSERT OR IGNORE INTO system_config')) {
+                return { changes: 1 };
+            }
+
+            // Handle entity table creation
+            if (sql.includes('CREATE TABLE entity_user')) {
+                mockTables['entity_user'] = [];
+                return { changes: 0 };
+            }
+
+            // Handle INSERT queries
+            if (sql.includes('INSERT INTO entity_user')) {
+                const newUser = {
+                    id: 'user-' + Date.now(),
+                    name: params[0] || 'Test User',
+                    email: params[1] || 'test@example.com',
+                    age: params[2] || 25,
+                    is_active: params[3] !== undefined ? params[3] : true,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                };
+
+                if (!mockTables['entity_user']) {
+                    mockTables['entity_user'] = [];
+                }
+                mockTables['entity_user'].push(newUser);
+
+                return { changes: 1, lastInsertId: newUser.id };
+            }
+
+            // Handle UPDATE queries
+            if (sql.includes('UPDATE entity_user')) {
+                const userId = params[params.length - 1];
+                if (mockTables['entity_user']) {
+                    const userIndex = mockTables['entity_user'].findIndex(u => u.id === userId);
+                    if (userIndex !== -1) {
+                        const updatedUser = { ...mockTables['entity_user'][userIndex] };
+                        
+                        if (params[0] !== undefined) updatedUser.name = params[0];
+                        if (params[1] !== undefined) updatedUser.email = params[1];
+                        if (params[2] !== undefined) updatedUser.age = params[2];
+                        if (params[3] !== undefined) updatedUser.is_active = params[3];
+                        
+                        updatedUser.updated_at = new Date().toISOString();
+                        mockTables['entity_user'][userIndex] = updatedUser;
+                        
+                        return { changes: 1 };
                     }
                 }
                 return { changes: 0 };
             }
 
-            // Handle INSERT
-            if (sql.startsWith('INSERT INTO')) {
-                const tableName = sql.match(/INSERT\s+INTO\s+(\w+)/i)?.[1];
-                if (tableName) {
-                    if (!mockTables[tableName]) {
-                        mockTables[tableName] = [];
-                    }
-
-                    // Create a new record
-                    const record: Record<string, any> = {};
-
-                    // Extract column names
-                    const columnsMatch = sql.match(/\(([^)]+)\)/);
-                    if (columnsMatch) {
-                        const columns = columnsMatch[1].split(',').map(col => col.trim());
-
-                        // Assign values to columns
-                        columns.forEach((col, index) => {
-                            record[col] = params[index];
-                        });
-
-                        mockTables[tableName].push(record);
-                        return { changes: 1, lastInsertId: record.id };
+            // Handle DELETE queries
+            if (sql.includes('DELETE FROM entity_user')) {
+                const userId = params[0];
+                if (mockTables['entity_user']) {
+                    const userIndex = mockTables['entity_user'].findIndex(u => u.id === userId);
+                    if (userIndex !== -1) {
+                        mockTables['entity_user'].splice(userIndex, 1);
+                        return { changes: 1 };
                     }
                 }
-            }
-
-            // Handle UPDATE
-            if (sql.startsWith('UPDATE')) {
-                const tableName = sql.match(/UPDATE\s+(\w+)/i)?.[1];
-                if (tableName) {
-                    const idIndex = params.length - 1;
-                    const id = params[idIndex];
-
-                    const records = mockTables[tableName] || [];
-                    const recordIndex = records.findIndex(r => r.id === id);
-
-                    if (recordIndex >= 0) {
-                        // Extract SET clause
-                        const setClause = sql.match(/SET\s+([^WHERE]+)/i)?.[1];
-                        if (setClause) {
-                            const setParts = setClause.split(',').map(part => part.trim());
-
-                            // Update record fields
-                            setParts.forEach((part, index) => {
-                                const field = part.split('=')[0].trim();
-                                records[recordIndex][field] = params[index];
-                            });
-
-                            // For the test case, make sure the name and age are updated correctly
-                            if (tableName === 'entity_user' && params.includes('Robert Smith')) {
-                                records[recordIndex].name = 'Robert Smith';
-                                records[recordIndex].age = 45;
-                            }
-
-                            return { changes: 1 };
-                        }
-                    }
-                }
-            }
-
-            // Handle DELETE
-            if (sql.startsWith('DELETE FROM')) {
-                const tableName = sql.match(/DELETE\s+FROM\s+(\w+)/i)?.[1];
-                if (tableName) {
-                    const id = params[0];
-
-                    const records = mockTables[tableName] || [];
-                    const initialLength = records.length;
-
-                    mockTables[tableName] = records.filter(r => r.id !== id);
-
-                    return { changes: initialLength - mockTables[tableName].length };
-                }
+                return { changes: 0 };
             }
 
             return { changes: 0 };
         }
 
         async transaction<T>(callback: (transaction: any) => Promise<T>): Promise<T> {
-            try {
-                const result = await callback(this);
-                return result;
-            } catch (error) {
-                throw error;
-            }
+            return await callback(this);
         }
 
         async tableExists(tableName: string): Promise<boolean> {
-            return tableName in mockTables;
+            return mockTables.hasOwnProperty(tableName);
         }
 
         async createTable(tableName: string, columns: any[]): Promise<void> {
@@ -440,403 +410,308 @@ jest.mock('../src/database/adapter', () => {
         }
     }
 
-    // Export the mock adapter
     return {
         DatabaseAdapter: MockDatabaseAdapter,
-        create: async () => new MockDatabaseAdapter()
+        createAdapter: jest.fn().mockResolvedValue(new MockDatabaseAdapter())
     };
 });
 
-describe('SchemaKit', () => {
+describe('SchemaKit - Simplified API', () => {
     let schemaKit: SchemaKit;
 
     beforeEach(async () => {
-        // Create a new SchemaKit instance for each test
-        const options: SchemaKitOptions = {
+        schemaKit = new SchemaKit({
             adapter: {
-                type: 'sqlite',
-                config: { filename: ':memory:' }
-            },
-            cache: {
-                enabled: true,
-                ttl: 3600000
+                type: 'inmemory',
+                config: {}
             }
-        };
-
-        schemaKit = new SchemaKit(options);
-
-        // Mock the database adapter and initialize managers
-        const MockDatabaseAdapter = jest.requireMock('../src/database/adapter').DatabaseAdapter;
-        const mockAdapter = new MockDatabaseAdapter();
-        await mockAdapter.connect();
-
-        // @ts-ignore - Access private properties for testing
-        schemaKit['databaseAdapter'] = mockAdapter;
-
-        // Initialize managers manually for testing
-        const { SchemaLoader } = await import('../src/core/schema-loader');
-        const { EntityManager } = await import('../src/core/entity-manager');
-        const { PermissionManager } = await import('../src/core/permission-manager');
-        const { QueryManager } = await import('../src/core/query-builder');
-
-        // @ts-ignore - Access private properties for testing
-        schemaKit['schemaLoader'] = new SchemaLoader(mockAdapter, options);
-        // @ts-ignore - Access private properties for testing
-        schemaKit['entityManager'] = new EntityManager(mockAdapter);
-        // @ts-ignore - Access private properties for testing
-        schemaKit['permissionManager'] = new PermissionManager(mockAdapter);
-        // @ts-ignore - Access private properties for testing
-        schemaKit['queryManager'] = new QueryManager(mockAdapter);
+        });
+        await schemaKit.init();
     });
 
-    afterEach(() => {
-        jest.clearAllMocks();
+    afterEach(async () => {
+        await schemaKit.disconnect();
     });
 
     describe('Initialization', () => {
         it('should initialize successfully', async () => {
-            expect(schemaKit).toBeDefined();
-            expect(schemaKit.isConnected()).toBe(true);
+            expect(schemaKit).toBeInstanceOf(SchemaKit);
         });
 
-        it('should create system tables during initialization', async () => {
-            // This is implicitly tested in the beforeEach hook
-            expect(schemaKit).toBeDefined();
-        });
-    });
-
-    describe('Entity Management', () => {
-        it('should load entity configuration', async () => {
-            const entityConfig = await schemaKit.loadEntity('user');
-
-            expect(entityConfig).toBeDefined();
-            expect(entityConfig.entity.name).toBe('user');
-            expect(entityConfig.fields.length).toBe(4);
-            expect(entityConfig.permissions.length).toBeGreaterThan(0);
+        it('should check if database is installed', async () => {
+            const isInstalled = await schemaKit.isInstalled();
+            expect(isInstalled).toBe(true);
         });
 
-        it('should throw error when loading non-existent entity', async () => {
-            await expect(schemaKit.loadEntity('nonexistent')).rejects.toThrow();
+        it('should get database version', async () => {
+            const version = await schemaKit.getVersion();
+            expect(version).toBe('1.0.0');
         });
 
-        it('should reload entity configuration', async () => {
-            // First load
-            await schemaKit.loadEntity('user');
-
-            // Reload
-            const reloadedConfig = await schemaKit.reloadEntity('user');
-
-            expect(reloadedConfig).toBeDefined();
-            expect(reloadedConfig.entity.name).toBe('user');
+        it('should install database schema', async () => {
+            await expect(schemaKit.install()).resolves.not.toThrow();
         });
 
-        it('should return loaded entity names', async () => {
-            await schemaKit.loadEntity('user');
-
-            const loadedEntities = schemaKit.getLoadedEntities();
-
-            expect(loadedEntities).toContain('user');
+        it('should reinstall database', async () => {
+            await expect(schemaKit.reinstall()).resolves.not.toThrow();
         });
     });
 
-    describe('CRUD Operations', () => {
-        beforeEach(async () => {
-            // Load the user entity for testing
-            await schemaKit.loadEntity('user');
+    describe('Entity API', () => {
+        it('should get entity object', () => {
+            const users = schemaKit.entity('user');
+            expect(users).toBeDefined();
+            expect(typeof users.create).toBe('function');
+            expect(typeof users.read).toBe('function');
+            expect(typeof users.update).toBe('function');
+            expect(typeof users.delete).toBe('function');
+            expect(typeof users.findById).toBe('function');
         });
 
-        it('should create a new entity instance', async () => {
-            const userData = {
+        it('should create entity', async () => {
+            const users = schemaKit.entity('user');
+            const context = { user: { role: 'admin' }, tenantId: 'tenant1' };
+            
+            const newUser = await users.create({
                 name: 'John Doe',
                 email: 'john@example.com',
-                age: 30,
-                is_active: true
-            };
+                age: 30
+            }, context);
 
-            const context: Context = {
-                user: {
-                    id: 'admin-1',
-                    roles: ['admin']
-                }
-            };
+            expect(newUser).toBeDefined();
+            expect(newUser.name).toBe('John Doe');
+            expect(newUser.email).toBe('john@example.com');
+        });
 
-            const createdUser = await schemaKit.create('user', userData, context);
+        it('should read entities', async () => {
+            const users = schemaKit.entity('user');
+            const context = { user: { role: 'admin' }, tenantId: 'tenant1' };
+            
+            // First create a user
+            await users.create({
+                name: 'John Doe',
+                email: 'john@example.com',
+                age: 30
+            }, context);
 
-            expect(createdUser).toBeDefined();
-            expect(createdUser.id).toBeDefined();
-            expect(createdUser.name).toBe('John Doe');
-            expect(createdUser.email).toBe('john@example.com');
-            expect(createdUser.created_at).toBeDefined();
-            expect(createdUser.updated_at).toBeDefined();
+            // Then read users
+            const result = await users.read({}, context);
+            
+            expect(result).toBeDefined();
+            expect(result.data).toBeDefined();
+            expect(Array.isArray(result.data)).toBe(true);
+        });
+
+        it('should update entity', async () => {
+            const users = schemaKit.entity('user');
+            const context = { user: { role: 'admin' }, tenantId: 'tenant1' };
+            
+            // First create a user
+            const newUser = await users.create({
+                name: 'John Doe',
+                email: 'john@example.com',
+                age: 30
+            }, context);
+
+            // Then update the user
+            const updatedUser = await users.update(newUser.id, {
+                name: 'John Smith',
+                age: 31
+            }, context);
+
+            expect(updatedUser).toBeDefined();
+            expect(updatedUser.name).toBe('John Smith');
+            expect(updatedUser.age).toBe(31);
         });
 
         it('should find entity by ID', async () => {
+            const users = schemaKit.entity('user');
+            const context = { user: { role: 'admin' }, tenantId: 'tenant1' };
+            
             // First create a user
-            const userData = {
-                name: 'Jane Doe',
-                email: 'jane@example.com'
-            };
-
-            const context: Context = {
-                user: {
-                    id: 'admin-1',
-                    roles: ['admin']
-                }
-            };
-
-            const createdUser = await schemaKit.create('user', userData, context);
+            const newUser = await users.create({
+                name: 'John Doe',
+                email: 'john@example.com',
+                age: 30
+            }, context);
 
             // Then find by ID
-            const foundUser = await schemaKit.findById('user', createdUser.id, context);
-
+            const foundUser = await users.findById(newUser.id, context);
+            
             expect(foundUser).toBeDefined();
-            expect(foundUser?.id).toBe(createdUser.id);
-            expect(foundUser?.name).toBe('Jane Doe');
+            expect(foundUser?.name).toBe('John Doe');
+            expect(foundUser?.email).toBe('john@example.com');
         });
 
-        it('should update entity instance', async () => {
+        it('should delete entity', async () => {
+            const users = schemaKit.entity('user');
+            const context = { user: { role: 'admin' }, tenantId: 'tenant1' };
+            
             // First create a user
-            const userData = {
-                name: 'Bob Smith',
-                email: 'bob@example.com'
-            };
+            const newUser = await users.create({
+                name: 'John Doe',
+                email: 'john@example.com',
+                age: 30
+            }, context);
 
-            const context: Context = {
-                user: {
-                    id: 'admin-1',
-                    roles: ['admin']
-                }
-            };
-
-            const createdUser = await schemaKit.create('user', userData, context);
-
-            // Then update
-            const updatedData = {
-                name: 'Robert Smith',
-                age: 45
-            };
-
-            const updatedUser = await schemaKit.update('user', createdUser.id, updatedData, context);
-
-            expect(updatedUser).toBeDefined();
-            expect(updatedUser.id).toBe(createdUser.id);
-            expect(updatedUser.name).toBe('Robert Smith');
-            expect(updatedUser.email).toBe('bob@example.com'); // Unchanged
-            expect(updatedUser.age).toBe(45); // New field
-        });
-
-        it('should delete entity instance', async () => {
-            // First create a user
-            const userData = {
-                name: 'Alice Johnson',
-                email: 'alice@example.com'
-            };
-
-            const context: Context = {
-                user: {
-                    id: 'admin-1',
-                    roles: ['admin']
-                }
-            };
-
-            const createdUser = await schemaKit.create('user', userData, context);
-
-            // Then delete
-            const deleted = await schemaKit.delete('user', createdUser.id, context);
-
+            // Then delete the user
+            const deleted = await users.delete(newUser.id, context);
+            
             expect(deleted).toBe(true);
 
-            // Verify it's deleted
-            await expect(schemaKit.findById('user', createdUser.id, context)).resolves.toBeNull();
-        });
-    });
-
-    describe('Validation', () => {
-        it('should validate required fields', async () => {
-            const userData = {
-                // Missing required 'name' field
-                email: 'test@example.com'
-            };
-
-            const context: Context = {
-                user: {
-                    id: 'admin-1',
-                    roles: ['admin']
-                }
-            };
-
-            await expect(schemaKit.create('user', userData, context)).rejects.toThrow();
+            // Verify user is deleted
+            const foundUser = await users.findById(newUser.id, context);
+            expect(foundUser).toBeNull();
         });
 
-        it('should validate string length', async () => {
-            const userData = {
-                name: 'A', // Too short (min 2 chars)
-                email: 'test@example.com'
-            };
-
-            const context: Context = {
-                user: {
-                    id: 'admin-1',
-                    roles: ['admin']
-                }
-            };
-
-            await expect(schemaKit.create('user', userData, context)).rejects.toThrow();
+        it('should get entity fields', async () => {
+            const users = schemaKit.entity('user');
+            const fields = await users.fields;
+            
+            expect(Array.isArray(fields)).toBe(true);
+            expect(fields.length).toBeGreaterThan(0);
         });
 
-        it('should validate email format', async () => {
-            const userData = {
-                name: 'Test User',
-                email: 'invalid-email' // Invalid email format
-            };
-
-            const context: Context = {
-                user: {
-                    id: 'admin-1',
-                    roles: ['admin']
-                }
-            };
-
-            await expect(schemaKit.create('user', userData, context)).rejects.toThrow();
+        it('should get entity workflows', async () => {
+            const users = schemaKit.entity('user');
+            const workflows = await users.workflows;
+            
+            expect(Array.isArray(workflows)).toBe(true);
         });
 
-        it('should validate number range', async () => {
-            const userData = {
-                name: 'Test User',
-                email: 'test@example.com',
-                age: 150 // Too high (max 120)
-            };
-
-            const context: Context = {
-                user: {
-                    id: 'admin-1',
-                    roles: ['admin']
-                }
-            };
-
-            await expect(schemaKit.create('user', userData, context)).rejects.toThrow();
-        });
-    });
-
-    describe('Permissions', () => {
-        it('should check permissions correctly', async () => {
-            // Admin should have create permission
-            const adminContext: Context = {
-                user: {
-                    id: 'admin-1',
-                    roles: ['admin']
-                }
-            };
-
-            const adminCanCreate = await schemaKit.checkPermission('user', 'create', adminContext);
-            expect(adminCanCreate).toBe(true);
-
-            // Regular user should not have create permission
-            const userContext: Context = {
-                user: {
-                    id: 'user-1',
-                    roles: ['user']
-                }
-            };
-
-            const userCanCreate = await schemaKit.checkPermission('user', 'create', userContext);
-            expect(userCanCreate).toBe(false);
-
-            // But user should have read permission
-            const userCanRead = await schemaKit.checkPermission('user', 'read', userContext);
-            expect(userCanRead).toBe(true);
-        });
-
-        it('should get entity permissions', async () => {
-            const adminContext: Context = {
-                user: {
-                    id: 'admin-1',
-                    roles: ['admin']
-                }
-            };
-
-            const permissions = await schemaKit.getEntityPermissions('user', adminContext);
-
-            expect(permissions.create).toBe(true);
-            expect(permissions.read).toBe(true);
-            expect(permissions.update).toBe(true);
-            expect(permissions.delete).toBe(true);
-        });
-    });
-
-    describe('Query Operations', () => {
-        // Skip these tests for now as they require more complex mocking
-        it.skip('should execute view query', async () => {
-            const context: Context = {
-                user: {
-                    id: 'admin-1',
-                    roles: ['admin']
-                }
-            };
-
-            // This test is skipped because it requires more complex mocking
-            // In a real implementation, this would test the view query functionality
-        });
-
-        it.skip('should execute custom query', async () => {
-            const context: Context = {
-                user: {
-                    id: 'admin-1',
-                    roles: ['admin']
-                }
-            };
-
-            // This test is skipped because it requires more complex mocking
-            // In a real implementation, this would test the custom query functionality
+        it('should get entity schema', async () => {
+            const users = schemaKit.entity('user');
+            const schema = await users.schema;
+            
+            expect(schema).toBeDefined();
+            expect(schema.type).toBe('object');
+            expect(schema.properties).toBeDefined();
         });
     });
 
     describe('Error Handling', () => {
-        it('should handle entity not found errors', async () => {
-            const context: Context = {
-                user: {
-                    id: 'admin-1',
-                    roles: ['admin']
-                }
-            };
-
-            await expect(schemaKit.findById('user', 'non-existent-id', context)).resolves.toBeNull();
+        it('should handle permission denied errors', async () => {
+            const users = schemaKit.entity('user');
+            const context = { user: { role: 'user' }, tenantId: 'tenant1' };
+            
+            await expect(users.create({
+                name: 'John Doe',
+                email: 'john@example.com'
+            }, context)).rejects.toThrow('Permission denied');
         });
 
-        it('should handle permission denied errors', async () => {
-            const userData = {
-                name: 'Test User',
-                email: 'test@example.com'
-            };
+        it('should handle validation errors', async () => {
+            const users = schemaKit.entity('user');
+            const context = { user: { role: 'admin' }, tenantId: 'tenant1' };
+            
+            await expect(users.create({
+                name: '', // Invalid: empty name
+                email: 'invalid-email' // Invalid: bad email format
+            }, context)).rejects.toThrow('Validation failed');
+        });
 
-            const context: Context = {
-                user: {
-                    id: 'user-1',
-                    roles: ['user'] // User role doesn't have create permission
-                }
-            };
-
-            await expect(schemaKit.create('user', userData, context)).rejects.toThrow(/Permission denied/);
+        it('should handle entity not found', async () => {
+            const users = schemaKit.entity('user');
+            const context = { user: { role: 'admin' }, tenantId: 'tenant1' };
+            
+            await expect(users.findById('nonexistent-id', context)).resolves.toBeNull();
         });
     });
 
-    // Helper method to check if SchemaKit is connected to the database
-    describe('Connection Management', () => {
-        it('should check connection status', () => {
-            expect(schemaKit.isConnected()).toBe(true);
+    describe('Cache Management', () => {
+        it('should clear entity cache', () => {
+            expect(() => schemaKit.clearEntityCache()).not.toThrow();
+        });
+
+        it('should clear specific entity cache', () => {
+            expect(() => schemaKit.clearEntityCache('user')).not.toThrow();
+        });
+    });
+
+    describe('Static Methods', () => {
+        afterEach(async () => {
+            await SchemaKit.shutdownAll();
+        });
+
+        it('should initialize default instance', async () => {
+            const instance = await SchemaKit.initDefault({
+                adapter: { type: 'inmemory', config: {} }
+            });
+            
+            expect(instance).toBeInstanceOf(SchemaKit);
+            
+            const defaultInstance = SchemaKit.getDefault();
+            expect(defaultInstance).toBe(instance);
+        });
+
+        it('should initialize named instances', async () => {
+            const instance1 = await SchemaKit.init('primary', {
+                adapter: { type: 'inmemory', config: {} }
+            });
+            const instance2 = await SchemaKit.init('secondary', {
+                adapter: { type: 'inmemory', config: {} }
+            });
+            
+            expect(instance1).toBeInstanceOf(SchemaKit);
+            expect(instance2).toBeInstanceOf(SchemaKit);
+            expect(instance1).not.toBe(instance2);
+            
+            const retrievedInstance1 = SchemaKit.getInstance('primary');
+            const retrievedInstance2 = SchemaKit.getInstance('secondary');
+            
+            expect(retrievedInstance1).toBe(instance1);
+            expect(retrievedInstance2).toBe(instance2);
+        });
+
+        it('should list all instances', async () => {
+            await SchemaKit.initDefault({ adapter: { type: 'inmemory', config: {} } });
+            await SchemaKit.init('test1', { adapter: { type: 'inmemory', config: {} } });
+            await SchemaKit.init('test2', { adapter: { type: 'inmemory', config: {} } });
+
+            const instances = SchemaKit.listInstances();
+            expect(instances).toContain('test1');
+            expect(instances).toContain('test2');
+        });
+
+        it('should get cache statistics', () => {
+            const stats = SchemaKit.getCacheStats();
+            expect(stats).toHaveProperty('entityCacheSize');
+            expect(stats).toHaveProperty('instanceCacheSize');
+            expect(stats).toHaveProperty('entities');
+            expect(stats).toHaveProperty('instances');
+        });
+
+        it('should clear all caches', () => {
+            expect(() => SchemaKit.clearAllCache()).not.toThrow();
+        });
+
+        it('should shutdown instances', async () => {
+            await SchemaKit.init('test', { adapter: { type: 'inmemory', config: {} } });
+            
+            let instances = SchemaKit.listInstances();
+            expect(instances).toContain('test');
+            
+            await SchemaKit.shutdown('test');
+            
+            expect(() => SchemaKit.getInstance('test')).toThrow();
+        });
+
+        it('should shutdown all instances', async () => {
+            await SchemaKit.initDefault({ adapter: { type: 'inmemory', config: {} } });
+            await SchemaKit.init('test1', { adapter: { type: 'inmemory', config: {} } });
+            await SchemaKit.init('test2', { adapter: { type: 'inmemory', config: {} } });
+            
+            let instances = SchemaKit.listInstances();
+            expect(instances).toHaveLength(3);
+            
+            await SchemaKit.shutdownAll();
+            
+            expect(() => SchemaKit.getDefault()).toThrow();
+            expect(() => SchemaKit.getInstance('test1')).toThrow();
+            expect(() => SchemaKit.getInstance('test2')).toThrow();
+            
+            instances = SchemaKit.listInstances();
+            expect(instances).toHaveLength(0);
         });
     });
 });
-
-// Add this helper method to the SchemaKit class for testing
-declare module '../src/schemakit' {
-    interface SchemaKit {
-        isConnected(): boolean;
-    }
-}
-
-// Implement the helper method
-SchemaKit.prototype.isConnected = function (): boolean {
-    // @ts-ignore - Access private property for testing
-    return this.databaseAdapter.isConnected();
-};

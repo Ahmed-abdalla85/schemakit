@@ -101,6 +101,7 @@ jspm_packages/
 *.sqlite
 *.sqlite3
 
+*.md
 # Temporary files
 tmp/
 temp/

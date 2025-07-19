@@ -4,7 +4,7 @@
 /**
  * Field types supported by SchemaKit
  */
-export type FieldType = 'string' | 'number' | 'boolean' | 'date' | 'json' | 'array' | 'reference' | 'computed';
+export type FieldType = 'string' | 'number' | 'integer' | 'boolean' | 'date' | 'datetime' | 'json' | 'object' | 'array' | 'reference' | 'computed';
 /**
  * CRUD operation types
  */
@@ -56,6 +56,7 @@ export interface FieldDefinition {
     type: FieldType;
     is_required: boolean;
     is_unique: boolean;
+    is_primary_key?: boolean;
     default_value?: string;
     validation_rules?: Record<string, any>;
     display_name: string;
@@ -75,6 +76,7 @@ export interface PermissionDefinition {
     action: OperationType;
     conditions?: Record<string, any>;
     is_allowed: boolean;
+    is_active?: boolean;
     created_at: string;
     field_permissions?: Record<string, boolean>;
 }
@@ -164,6 +166,13 @@ export interface RLSCondition {
     field: string;
     op: string;
     value: any;
+}
+/**
+ * Built RLS conditions for query execution
+ */
+export interface RLSConditions {
+    sql: string;
+    params: any[];
 }
 /**
  * Complete entity configuration loaded from all system tables

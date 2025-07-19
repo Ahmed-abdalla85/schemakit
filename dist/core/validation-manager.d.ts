@@ -1,7 +1,8 @@
 /**
- * Validation Manager - Handles data validation against entity schemas
+ * ValidationManager
+ * Responsible for validating entity data against schemas
  */
-import { EntityConfiguration } from '../types';
+import { EntityConfiguration, FieldDefinition } from '../types';
 export interface ValidationResult {
     isValid: boolean;
     errors: ValidationError[];
@@ -18,54 +19,62 @@ export interface ValidationWarning {
     message: string;
     value?: any;
 }
+export interface FieldValidationResult {
+    isValid: boolean;
+    errors: ValidationError[];
+    warnings?: ValidationWarning[];
+}
+export type ValidatorFunction = (value: any, field: FieldDefinition, data: Record<string, any>) => ValidationError[];
 /**
- * Validation Manager class
+ * ValidationManager class
+ * Single responsibility: Validate entity data against schemas
  */
 export declare class ValidationManager {
+    private customValidators;
     /**
      * Validate entity data against schema
      * @param entityConfig Entity configuration
      * @param data Data to validate
      * @param operation Operation type (create, update)
+     * @returns Validation result
      */
-    validateEntityData(entityConfig: EntityConfiguration, data: Record<string, any>, operation: 'create' | 'update'): ValidationResult;
+    validate(entityConfig: EntityConfiguration, data: Record<string, any>, operation: 'create' | 'update'): Promise<ValidationResult>;
+    /**
+     * Validate a single field
+     * @param fieldConfig Field configuration
+     * @param value Field value
+     * @param operation Operation type (create, update)
+     * @param allData All entity data for context
+     * @returns Field validation result
+     */
+    validateField(fieldConfig: FieldDefinition, value: any, operation?: 'create' | 'update', allData?: Record<string, any>): Promise<FieldValidationResult>;
+    /**
+     * Register a custom validator
+     * @param name Validator name
+     * @param validator Validator function
+     */
+    registerValidator(name: string, validator: ValidatorFunction): void;
+    /**
+     * Get a custom validator
+     * @param name Validator name
+     * @returns Validator function or undefined
+     */
+    getValidator(name: string): ValidatorFunction | undefined;
+    /**
+     * Validate custom rules
+     * @param field Field definition
+     * @param value Value to validate
+     * @param allData All entity data for context
+     * @returns Array of validation errors
+     * @private
+     */
+    private validateCustomRules;
     /**
      * Validate field type and constraints
      * @param field Field definition
      * @param value Value to validate
+     * @returns Array of validation errors
      * @private
      */
     private validateFieldType;
-    /**
-     * Prepare data for insertion
-     * @param entityConfig Entity configuration
-     * @param data Data to prepare
-     */
-    prepareDataForInsert(entityConfig: EntityConfiguration, data: Record<string, any>): Record<string, any>;
-    /**
-     * Prepare data for update
-     * @param entityConfig Entity configuration
-     * @param data Data to prepare
-     */
-    prepareDataForUpdate(entityConfig: EntityConfiguration, data: Record<string, any>): Record<string, any>;
-    /**
-     * Process entity result from database
-     * @param entityConfig Entity configuration
-     * @param data Data from database
-     */
-    processEntityResult(entityConfig: EntityConfiguration, data: Record<string, any>): Record<string, any>;
-    /**
-     * Convert value for storage in database
-     * @param field Field definition
-     * @param value Value to convert
-     * @private
-     */
-    private convertValueForStorage;
-    /**
-     * Convert value from storage format
-     * @param field Field definition
-     * @param value Value to convert
-     * @private
-     */
-    private convertValueFromStorage;
 }

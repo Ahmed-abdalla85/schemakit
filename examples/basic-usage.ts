@@ -1,78 +1,83 @@
 /**
- * Basic SchemaKit Usage Example
+ * Basic Usage Example - SchemaKit Simplified API
  * 
- * This example demonstrates how to use SchemaKit with the new SQL-based installation system.
+ * This example shows how to use the simplified SchemaKit API
+ * with the entity() method for clean, focused CRUD operations.
  */
 
-import { SchemaKit } from '../src/schemakit-new';
+import { SchemaKit } from '../src/schemakit';
 
-async function basicExample() {
-    console.log('🚀 SchemaKit Basic Usage Example');
-    console.log('================================');
+async function basicUsageExample() {
+  // 1. Initialize SchemaKit
+  const schemaKit = new SchemaKit({
+    adapter: {
+      type: 'inmemory',
+      config: {}
+    }
+  });
 
-    // Initialize SchemaKit
-    const schemaKit = new SchemaKit({
-        adapter: {
-            type: 'sqlite',
-            config: { filename: 'example.db' }
-        }
-    });
+  // 2. Initialize (this will install database if needed)
+  await schemaKit.init();
 
-    // Initialize (this will automatically install SchemaKit if not already installed)
-    await schemaKit.init();
-    console.log('✅ SchemaKit initialized');
+  // 3. Get entity object for CRUD operations
+  const users = schemaKit.entity('users');
 
-    // Check installation status
-    const isInstalled = await schemaKit.isInstalled();
-    const version = await schemaKit.getVersion();
-    console.log(`📦 Installation Status: ${isInstalled ? 'Installed' : 'Not Installed'}`);
-    console.log(`📋 Version: ${version}`);
+  // 4. Create a user
+  const newUser = await users.create({
+    name: 'John Doe',
+    email: 'john@example.com',
+    age: 30
+  }, {
+    user: { role: 'admin' },
+    tenantId: 'tenant1'
+  });
 
-    // Create a user entity (using the default user entity from seed data)
-    console.log('\n👤 Creating a user...');
-    const user = await schemaKit.create('user', {
-        name: 'John Doe',
-        email: 'john@example.com'
-    });
-    console.log('✅ User created:', user);
+  console.log('Created user:', newUser);
 
-    // Find the user by ID
-    console.log('\n🔍 Finding user by ID...');
-    const foundUser = await schemaKit.findById('user', user.id);
-    console.log('✅ User found:', foundUser);
+  // 5. Read users with filters
+  const userList = await users.read({
+    page: 1,
+    pageSize: 10,
+    filters: { age: { $gte: 25 } }
+  }, {
+    user: { role: 'admin' },
+    tenantId: 'tenant1'
+  });
 
-    // Update the user
-    console.log('\n✏️ Updating user...');
-    const updatedUser = await schemaKit.update('user', user.id, {
-        name: 'John Smith'
-    });
-    console.log('✅ User updated:', updatedUser);
+  console.log('User list:', userList);
 
-    // Check permissions
-    console.log('\n🔐 Checking permissions...');
-    const adminContext = {
-        user: {
-            id: 'admin-1',
-            roles: ['admin']
-        }
-    };
-    
-    const canCreate = await schemaKit.checkPermission('user', 'create', adminContext);
-    const permissions = await schemaKit.getEntityPermissions('user', adminContext);
-    console.log('✅ Admin can create users:', canCreate);
-    console.log('✅ Admin permissions:', permissions);
+  // 6. Update a user
+  const updatedUser = await users.update(newUser.id, {
+    age: 31,
+    email: 'john.updated@example.com'
+  }, {
+    user: { role: 'admin' },
+    tenantId: 'tenant1'
+  });
 
-    // Delete the user
-    console.log('\n🗑️ Deleting user...');
-    const deleted = await schemaKit.delete('user', user.id);
-    console.log('✅ User deleted:', deleted);
+  console.log('Updated user:', updatedUser);
 
-    console.log('\n🎉 Example completed successfully!');
+  // 7. Find user by ID
+  const foundUser = await users.findById(newUser.id, {
+    user: { role: 'admin' },
+    tenantId: 'tenant1'
+  });
+
+  console.log('Found user:', foundUser);
+
+  // 8. Delete a user
+  await users.delete(newUser.id, {
+    user: { role: 'admin' },
+    tenantId: 'tenant1'
+  });
+
+  console.log('User deleted');
+
+  // 9. Access entity properties
+  console.log('User fields:', await users.fields);
+  console.log('User workflows:', await users.workflows);
+  console.log('User schema:', await users.schema);
 }
 
 // Run the example
-if (require.main === module) {
-    basicExample().catch(console.error);
-}
-
-export { basicExample };
+basicUsageExample().catch(console.error);

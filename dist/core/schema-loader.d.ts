@@ -1,129 +1,143 @@
 /**
- * Schema Loader - Handles entity configuration loading and caching
+ * SchemaLoader
+ * Responsible for loading and caching entity configurations from the database
  */
 import { DatabaseAdapter } from '../database/adapter';
-import { Context, EntityConfiguration } from '../types';
-export interface SchemaLoaderOptions {
-    cache?: {
-        enabled?: boolean;
-        ttl?: number;
-    };
-    sqlPath?: string;
-    version?: string;
-}
-export interface InstallationInfo {
-    id: number;
-    version: string;
-    installed_at: string;
-    updated_at: string;
-    metadata?: string;
+import { EntityConfiguration, Context } from '../types';
+/**
+ * Cache statistics interface
+ */
+export interface CacheStats {
+    entityCacheSize: number;
+    entities: string[];
+    hitRate?: number;
+    missRate?: number;
 }
 /**
- * Schema Loader class
+ * SchemaLoader class
+ * Single responsibility: Load and cache entity configurations from database
  */
 export declare class SchemaLoader {
     private databaseAdapter;
-    private options;
     private entityCache;
-    private isInstalled;
-    constructor(databaseAdapter: DatabaseAdapter, options?: SchemaLoaderOptions);
+    private cacheEnabled;
+    private cacheHits;
+    private cacheMisses;
     /**
-     * Load entity configuration from database
+     * Create a new SchemaLoader instance
+     * @param databaseAdapter Database adapter
+     * @param options Options
+     */
+    constructor(databaseAdapter: DatabaseAdapter, options?: {
+        cacheEnabled?: boolean;
+    });
+    /**
+     * Load entity configuration
      * @param entityName Entity name
      * @param context User context
+     * @returns Entity configuration
      */
     loadEntity(entityName: string, context?: Context): Promise<EntityConfiguration>;
     /**
-     * Reload entity configuration from database
+     * Reload entity configuration (bypass cache)
      * @param entityName Entity name
+     * @param context User context
+     * @returns Entity configuration
      */
-    reloadEntity(entityName: string): Promise<EntityConfiguration>;
-    /**
-     * Get loaded entity names
-     */
-    getLoadedEntities(): string[];
-    /**
-     * Ensure SchemaKit is installed
-     * @private
-     */
-    private ensureInstallation;
-    /**
-     * Get installation information
-     * @private
-     */
-    private getInstallationInfo;
-    /**
-     * Install SchemaKit by running schema and seed SQL files
-     * @private
-     */
-    private install;
-    /**
-     * Update SchemaKit version
-     * @param fromVersion Current version
-     * @param toVersion Target version
-     * @private
-     */
-    private updateVersion;
-    /**
-     * Run SQL file
-     * @param filename SQL file name
-     * @private
-     */
-    private runSqlFile;
-    /**
-     * Split SQL content into individual statements
-     * @param sqlContent SQL content
-     * @private
-     */
-    private splitSqlStatements;
+    reloadEntity(entityName: string, context?: Context): Promise<EntityConfiguration>;
     /**
      * Check if SchemaKit is installed
+     * @returns True if installed
      */
     isSchemaKitInstalled(): Promise<boolean>;
     /**
      * Get SchemaKit version
+     * @returns Version string
      */
-    getSchemaKitVersion(): Promise<string | null>;
+    getVersion(): Promise<string>;
     /**
-     * Force reinstall SchemaKit (useful for development/testing)
+     * Ensure system tables exist
+     */
+    ensureSystemTables(): Promise<void>;
+    /**
+     * Reinstall SchemaKit
+     * WARNING: This will delete all system tables and recreate them
      */
     reinstall(): Promise<void>;
     /**
-     * Load entity definition from database
+     * Clear entity cache for a specific entity or all entities
+     * @param entityName Optional entity name to clear
+     */
+    clearEntityCache(entityName?: string): void;
+    /**
+     * Clear all caches
+     */
+    clearAllCache(): void;
+    /**
+     * Get cache statistics
+     * @returns Cache statistics
+     */
+    getCacheStats(): CacheStats;
+    /**
+     * Get all loaded entities
+     * @returns Array of entity names
+     */
+    getLoadedEntities(): string[];
+    /**
+     * Load entity definition
      * @param entityName Entity name
+     * @returns Entity definition or null if not found
      * @private
      */
     private loadEntityDefinition;
     /**
-     * Load entity fields from database
+     * Load entity fields
      * @param entityId Entity ID
+     * @returns Array of field definitions
      * @private
      */
     private loadEntityFields;
     /**
-     * Load entity permissions from database
+     * Load entity permissions
      * @param entityId Entity ID
      * @param context User context
+     * @returns Array of permission definitions
      * @private
      */
     private loadEntityPermissions;
     /**
-     * Load entity views from database
+     * Load entity views
      * @param entityId Entity ID
+     * @returns Array of view definitions
      * @private
      */
     private loadEntityViews;
     /**
-     * Load entity workflows from database
+     * Load entity workflows
      * @param entityId Entity ID
+     * @returns Array of workflow definitions
      * @private
      */
     private loadEntityWorkflows;
     /**
-     * Load entity RLS (Row Level Security) from database
+     * Load entity RLS (Row-Level Security)
      * @param entityId Entity ID
      * @param context User context
+     * @returns Array of RLS definitions
      * @private
      */
     private loadEntityRLS;
+    /**
+     * Check if a table exists
+     * @param tableName Table name
+     * @returns True if table exists
+     * @private
+     */
+    private tableExists;
+    /**
+     * Create a system table
+     * @param tableName Table name
+     * @private
+     */
+    private createSystemTable;
 }
