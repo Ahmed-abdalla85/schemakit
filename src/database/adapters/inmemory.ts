@@ -35,7 +35,7 @@ export class InMemoryAdapter extends DatabaseAdapter {
     async disconnect(): Promise<void> {
         this.connected = false;
         // Optionally clear data on disconnect
-        if (this.config.clearOnDisconnect) {
+        if (this.config?.clearOnDisconnect) {
             this.tenantData.clear();
             this.tenantSchemas.clear();
             this.lastInsertIds.clear();

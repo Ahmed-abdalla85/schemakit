@@ -3,6 +3,239 @@ import { DatabaseAdapter } from '../src/database/adapter';
 import { ValidationError, SchemaKitError, EntityNotFoundError } from '../src/errors';
 import { Context, EntityConfiguration } from '../src/types';
 
+// Mock database adapter with user entity
+const mockDatabaseAdapter = {
+  query: jest.fn(),
+  execute: jest.fn(),
+  connect: jest.fn(),
+  disconnect: jest.fn(),
+  isConnected: jest.fn().mockReturnValue(true),
+  transaction: jest.fn(),
+  config: { clearOnDisconnect: false }
+} as unknown as DatabaseAdapter;
+
+// Mock query responses
+const mockQueryResponses = {
+  // Installation check
+  'SELECT COUNT(*) as count FROM information_schema.tables WHERE table_name = \'system_entities\'': [{ count: 1 }],
+  
+  // Version check
+  'SELECT version FROM system_config WHERE key = \'version\'': [{ version: '1.0.0' }],
+  
+  // Entity lookup
+  'SELECT * FROM system_entities WHERE name = ? AND is_active = ?': [
+    {
+      id: 'user-entity-1',
+      name: 'user',
+      display_name: 'User',
+      table_name: 'users',
+      created_at: '2023-01-01T00:00:00.000Z',
+      updated_at: '2023-01-01T00:00:00.000Z',
+      is_active: 1
+    }
+  ],
+  
+  // Fields lookup
+  'SELECT * FROM system_fields WHERE entity_id = ? AND is_active = ? ORDER BY order_index': [
+    {
+      id: 'field-1',
+      entity_id: 'user-entity-1',
+      name: 'name',
+      type: 'string',
+      is_required: 1,
+      is_unique: 0,
+      default_value: null,
+      validation_rules: '{}',
+      order_index: 0,
+      is_active: 1
+    },
+    {
+      id: 'field-2',
+      entity_id: 'user-entity-1',
+      name: 'email',
+      type: 'string',
+      is_required: 1,
+      is_unique: 1,
+      default_value: null,
+      validation_rules: '{}',
+      order_index: 1,
+      is_active: 1
+    }
+  ],
+  
+  // Permissions lookup
+  'SELECT * FROM system_permissions WHERE entity_id = ? AND is_active = ?': [],
+  
+  // Workflows lookup
+  'SELECT * FROM system_workflows WHERE entity_id = ? AND is_active = ? ORDER BY order_index': [],
+  
+  // Views lookup
+  'SELECT * FROM system_views WHERE entity_id = ? AND is_active = ?': [],
+  
+  // RLS lookup
+  'SELECT * FROM system_rls WHERE entity_id = ? AND is_active = ?': []
+};
+
+// Mock the InMemoryAdapter module
+jest.mock('../src/database/adapters/inmemory', () => {
+    return {
+        InMemoryAdapter: jest.fn().mockImplementation(() => {
+            return {
+                connect: jest.fn().mockResolvedValue(undefined),
+                disconnect: jest.fn().mockResolvedValue(undefined),
+                isConnected: jest.fn().mockReturnValue(true),
+                tableExists: jest.fn().mockResolvedValue(true),
+                createTable: jest.fn().mockResolvedValue(undefined),
+                getTableColumns: jest.fn().mockResolvedValue([]),
+                query: jest.fn().mockImplementation((sql: string, params: any[] = []) => {
+                    // Check if database is installed
+                    if (sql.includes('information_schema.tables') && sql.includes('system_entities')) {
+                        return Promise.resolve([{ count: 1 }]);
+                    }
+
+                    // Get database version
+                    if (sql.includes('system_config') && sql.includes('version')) {
+                        return Promise.resolve([{ version: '1.0.0' }]);
+                    }
+
+                    // Entity lookup
+                    if (sql.includes('system_entities') && sql.includes('WHERE name =')) {
+                        const entityName = params[0];
+                        if (entityName === 'user') {
+                            return Promise.resolve([{
+                                id: 'user-entity-1',
+                                name: 'user',
+                                table_name: 'users',
+                                display_name: 'User',
+                                description: 'User entity',
+                                is_active: true,
+                                created_at: '2023-01-01T00:00:00.000Z',
+                                updated_at: '2023-01-01T00:00:00.000Z',
+                                metadata: '{}'
+                            }]);
+                        }
+                        return Promise.resolve([]);
+                    }
+
+                    // Fields lookup
+                    if (sql.includes('system_fields') && sql.includes('WHERE entity_id =')) {
+                        const entityId = params[0];
+                        if (entityId === 'user-entity-1') {
+                            return Promise.resolve([
+                                {
+                                    id: 'field-1',
+                                    entity_id: 'user-entity-1',
+                                    name: 'name',
+                                    type: 'string',
+                                    is_required: true,
+                                    is_unique: false,
+                                    default_value: null,
+                                    validation_rules: '{}',
+                                    order_index: 0,
+                                    is_active: true
+                                },
+                                {
+                                    id: 'field-2',
+                                    entity_id: 'user-entity-1',
+                                    name: 'email',
+                                    type: 'string',
+                                    is_required: true,
+                                    is_unique: true,
+                                    default_value: null,
+                                    validation_rules: '{}',
+                                    order_index: 1,
+                                    is_active: true
+                                }
+                            ]);
+                        }
+                        return Promise.resolve([]);
+                    }
+
+                    // Permissions lookup
+                    if (sql.includes('system_permissions')) {
+                        return Promise.resolve([
+                            {
+                                id: 'perm-1',
+                                entity_id: 'user-entity-1',
+                                role: 'admin',
+                                action: 'create',
+                                is_allowed: true,
+                                conditions: null,
+                                created_at: '2023-01-01T00:00:00.000Z',
+                                field_permissions: null
+                            },
+                            {
+                                id: 'perm-2',
+                                entity_id: 'user-entity-1',
+                                role: 'admin',
+                                action: 'read',
+                                is_allowed: true,
+                                conditions: null,
+                                created_at: '2023-01-01T00:00:00.000Z',
+                                field_permissions: null
+                            },
+                            {
+                                id: 'perm-3',
+                                entity_id: 'user-entity-1',
+                                role: 'admin',
+                                action: 'update',
+                                is_allowed: true,
+                                conditions: null,
+                                created_at: '2023-01-01T00:00:00.000Z',
+                                field_permissions: null
+                            },
+                            {
+                                id: 'perm-4',
+                                entity_id: 'user-entity-1',
+                                role: 'admin',
+                                action: 'delete',
+                                is_allowed: true,
+                                conditions: null,
+                                created_at: '2023-01-01T00:00:00.000Z',
+                                field_permissions: null
+                            },
+                            {
+                                id: 'perm-5',
+                                entity_id: 'user-entity-1',
+                                role: 'user',
+                                action: 'read',
+                                is_allowed: true,
+                                conditions: null,
+                                created_at: '2023-01-01T00:00:00.000Z',
+                                field_permissions: null
+                            }
+                        ]);
+                    }
+
+                    // Handle INSERT queries for record creation
+                    if (sql.includes('INSERT INTO') && sql.includes('users')) {
+                        return Promise.resolve([{ id: 'user-123', ...params[0] }]);
+                    }
+
+                    // Handle SELECT queries for reading records
+                    if (sql.includes('SELECT') && sql.includes('FROM users')) {
+                        return Promise.resolve([
+                            {
+                                id: 'user-123',
+                                name: 'John Doe',
+                                email: 'john@example.com',
+                                age: 30,
+                                created_at: '2023-01-01T00:00:00.000Z',
+                                updated_at: '2023-01-01T00:00:00.000Z'
+                            }
+                        ]);
+                    }
+
+                    // Default response
+                    return Promise.resolve([]);
+                }),
+                execute: jest.fn().mockResolvedValue({ changes: 1, lastInsertId: 'test-id' }),
+                transaction: jest.fn().mockImplementation((callback) => callback({}))
+            };
+        })
+    };
+});
+
 // Mock the database adapter for testing
 jest.mock('../src/database/adapter', () => {
     // Store table data for our mock database
@@ -41,9 +274,9 @@ jest.mock('../src/database/adapter', () => {
                 const entityName = params[0];
                 if (entityName === 'user') {
                     return [{
-                        id: 'user-123',
+                        id: 'user-entity-1',
                         name: 'user',
-                        table_name: 'entity_user',
+                        table_name: 'users',
                         display_name: 'User',
                         description: 'User entity',
                         is_active: true,
@@ -57,11 +290,11 @@ jest.mock('../src/database/adapter', () => {
 
             if (sql.includes('system_fields') && sql.includes('WHERE entity_id =')) {
                 const entityId = params[0];
-                if (entityId === 'user-123') {
+                if (entityId === 'user-entity-1') {
                     return [
                         {
                             id: 'field-1',
-                            entity_id: 'user-123',
+                            entity_id: 'user-entity-1',
                             name: 'name',
                             type: 'string',
                             is_required: true,
@@ -77,7 +310,7 @@ jest.mock('../src/database/adapter', () => {
                         },
                         {
                             id: 'field-2',
-                            entity_id: 'user-123',
+                            entity_id: 'user-entity-1',
                             name: 'email',
                             type: 'string',
                             is_required: true,
@@ -93,7 +326,7 @@ jest.mock('../src/database/adapter', () => {
                         },
                         {
                             id: 'field-3',
-                            entity_id: 'user-123',
+                            entity_id: 'user-entity-1',
                             name: 'age',
                             type: 'number',
                             is_required: false,
@@ -109,7 +342,7 @@ jest.mock('../src/database/adapter', () => {
                         },
                         {
                             id: 'field-4',
-                            entity_id: 'user-123',
+                            entity_id: 'user-entity-1',
                             name: 'is_active',
                             type: 'boolean',
                             is_required: false,
@@ -132,7 +365,7 @@ jest.mock('../src/database/adapter', () => {
                 return [
                     {
                         id: 'perm-1',
-                        entity_id: 'user-123',
+                        entity_id: 'user-entity-1',
                         role: 'admin',
                         action: 'create',
                         conditions: null,
@@ -142,7 +375,7 @@ jest.mock('../src/database/adapter', () => {
                     },
                     {
                         id: 'perm-2',
-                        entity_id: 'user-123',
+                        entity_id: 'user-entity-1',
                         role: 'admin',
                         action: 'read',
                         conditions: null,
@@ -152,7 +385,7 @@ jest.mock('../src/database/adapter', () => {
                     },
                     {
                         id: 'perm-3',
-                        entity_id: 'user-123',
+                        entity_id: 'user-entity-1',
                         role: 'admin',
                         action: 'update',
                         conditions: null,
@@ -162,7 +395,7 @@ jest.mock('../src/database/adapter', () => {
                     },
                     {
                         id: 'perm-4',
-                        entity_id: 'user-123',
+                        entity_id: 'user-entity-1',
                         role: 'admin',
                         action: 'delete',
                         conditions: null,
@@ -172,7 +405,7 @@ jest.mock('../src/database/adapter', () => {
                     },
                     {
                         id: 'perm-5',
-                        entity_id: 'user-123',
+                        entity_id: 'user-entity-1',
                         role: 'user',
                         action: 'read',
                         conditions: null,
@@ -187,7 +420,7 @@ jest.mock('../src/database/adapter', () => {
                 return [
                     {
                         id: 'view-1',
-                        entity_id: 'user-123',
+                        entity_id: 'user-entity-1',
                         name: 'default',
                         query_config: '{"filters": {}, "sorting": [{"field": "name", "direction": "asc"}]}',
                         fields: '["id", "name", "email", "age", "is_active"]',
@@ -420,6 +653,9 @@ describe('SchemaKit - Simplified API', () => {
     let schemaKit: SchemaKit;
 
     beforeEach(async () => {
+        // Clear all mocks before each test
+        jest.clearAllMocks();
+        
         schemaKit = new SchemaKit({
             adapter: {
                 type: 'inmemory',
@@ -470,7 +706,7 @@ describe('SchemaKit - Simplified API', () => {
 
         it('should create entity', async () => {
             const users = schemaKit.entity('user');
-            const context = { user: { role: 'admin' }, tenantId: 'tenant1' };
+            const context = { user: { roles: ['admin'] }, tenantId: 'tenant1' };
             
             const newUser = await users.create({
                 name: 'John Doe',
@@ -485,7 +721,7 @@ describe('SchemaKit - Simplified API', () => {
 
         it('should read entities', async () => {
             const users = schemaKit.entity('user');
-            const context = { user: { role: 'admin' }, tenantId: 'tenant1' };
+            const context = { user: { roles: ['admin'] }, tenantId: 'tenant1' };
             
             // First create a user
             await users.create({
@@ -504,7 +740,7 @@ describe('SchemaKit - Simplified API', () => {
 
         it('should update entity', async () => {
             const users = schemaKit.entity('user');
-            const context = { user: { role: 'admin' }, tenantId: 'tenant1' };
+            const context = { user: { roles: ['admin'] }, tenantId: 'tenant1' };
             
             // First create a user
             const newUser = await users.create({
@@ -526,7 +762,7 @@ describe('SchemaKit - Simplified API', () => {
 
         it('should find entity by ID', async () => {
             const users = schemaKit.entity('user');
-            const context = { user: { role: 'admin' }, tenantId: 'tenant1' };
+            const context = { user: { roles: ['admin'] }, tenantId: 'tenant1' };
             
             // First create a user
             const newUser = await users.create({
@@ -545,7 +781,7 @@ describe('SchemaKit - Simplified API', () => {
 
         it('should delete entity', async () => {
             const users = schemaKit.entity('user');
-            const context = { user: { role: 'admin' }, tenantId: 'tenant1' };
+            const context = { user: { roles: ['admin'] }, tenantId: 'tenant1' };
             
             // First create a user
             const newUser = await users.create({
@@ -592,7 +828,7 @@ describe('SchemaKit - Simplified API', () => {
     describe('Error Handling', () => {
         it('should handle permission denied errors', async () => {
             const users = schemaKit.entity('user');
-            const context = { user: { role: 'user' }, tenantId: 'tenant1' };
+            const context = { user: { roles: ['user'] }, tenantId: 'tenant1' };
             
             await expect(users.create({
                 name: 'John Doe',
@@ -602,7 +838,7 @@ describe('SchemaKit - Simplified API', () => {
 
         it('should handle validation errors', async () => {
             const users = schemaKit.entity('user');
-            const context = { user: { role: 'admin' }, tenantId: 'tenant1' };
+            const context = { user: { roles: ['admin'] }, tenantId: 'tenant1' };
             
             await expect(users.create({
                 name: '', // Invalid: empty name
@@ -612,7 +848,7 @@ describe('SchemaKit - Simplified API', () => {
 
         it('should handle entity not found', async () => {
             const users = schemaKit.entity('user');
-            const context = { user: { role: 'admin' }, tenantId: 'tenant1' };
+            const context = { user: { roles: ['admin'] }, tenantId: 'tenant1' };
             
             await expect(users.findById('nonexistent-id', context)).resolves.toBeNull();
         });
