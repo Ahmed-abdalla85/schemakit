@@ -3,22 +3,34 @@
  *
  * Simple, focused API for entity management with enterprise architecture underneath.
  */
-// Core SchemaKit class
-export { SchemaKit } from './schemakit';
-// Core managers
+// Core SchemaKit class (optimized)
+export { SchemaKit } from './schemakit-optimized';
+// Core managers (optimized)
 export { EntityManager } from './core/entity-manager';
-export { QueryManager } from './core/query-manager';
+export { QueryManager } from './core/query-manager-simplified';
 export { ValidationManager } from './core/validation-manager';
 export { PermissionManager } from './core/permission-manager';
 export { WorkflowManager } from './core/workflow-manager';
 export { SchemaLoader } from './core/schema-loader';
-// Database adapters
+// Query components (new split)
+export { QueryBuilder } from './core/query/query-builder';
+export { PaginationManager } from './core/query/pagination-manager';
+export { QueryExecutor } from './core/query/query-executor';
+// Validators (new split)
+export { TypeValidators } from './core/validators/type-validators';
+// Workflows (new split)
+export { WorkflowActions } from './core/workflows/workflow-actions';
+// Core utilities
+export { InstanceManager } from './core/instance-manager';
+export { FileLoader } from './core/file-loader';
+// Database adapters (optimized)
 export { DatabaseAdapter } from './database/adapter';
-export { InMemoryAdapter } from './database/adapters/inmemory';
+export { BaseAdapter } from './database/base-adapter';
+export { InMemoryAdapter } from './database/adapters/inmemory-simplified';
 export { PostgresAdapter } from './database/adapters/postgres';
 export { SQLiteAdapter } from './database/adapters/sqlite';
-// Types
-export * from './types';
+// Types (simplified)
+export * from './types-simplified';
 // Errors
 export { SchemaKitError } from './errors';
 // Utilities

@@ -38,14 +38,22 @@ export class EntityManager {
             data.updated_by = context.user.id;
         }
         // Use QueryManager to build and execute insert query
-        const tableName = entityConfig.entity.name;
+        const tableName = entityConfig.entity.table_name;
         const tenantId = context.tenantId || 'default';
         const { sql, params } = this.queryManager.buildInsertQuery(tableName, tenantId, data);
-        const result = await this.databaseAdapter.query(sql, params);
-        if (result.length === 0) {
+        const result = await this.databaseAdapter.execute(sql, params);
+        if (result.changes === 0) {
             throw new Error(`Failed to create ${tableName} record`);
         }
-        return result[0];
+        // For INSERT with RETURNING, we need to get the inserted record
+        // Since execute doesn't return the inserted record, we need to query for it
+        const insertedId = result.lastInsertId;
+        if (insertedId) {
+            const insertedRecord = await this.findById(entityConfig, insertedId, context);
+            return insertedRecord || { id: insertedId, ...data };
+        }
+        // Fallback: return the data with a generated ID
+        return { id: generateId(), ...data };
     }
     /**
      * Find entity record by ID
@@ -56,7 +64,7 @@ export class EntityManager {
      * @returns Entity record or null if not found
      */
     async findById(entityConfig, id, context = {}, rlsConditions) {
-        const tableName = entityConfig.entity.name;
+        const tableName = entityConfig.entity.table_name;
         const tenantId = context.tenantId || 'default';
         // Use QueryManager to build and execute find by ID query
         const { sql, params } = this.queryManager.buildFindByIdQuery(tableName, tenantId, id);
@@ -86,7 +94,7 @@ export class EntityManager {
      * @returns Updated entity record
      */
     async update(entityConfig, id, data, context = {}, rlsConditions) {
-        const tableName = entityConfig.entity.name;
+        const tableName = entityConfig.entity.table_name;
         const tenantId = context.tenantId || 'default';
         // Add system fields
         data.updated_at = getCurrentTimestamp();
@@ -128,7 +136,7 @@ export class EntityManager {
      * @returns True if record was deleted
      */
     async delete(entityConfig, id, context = {}, rlsConditions) {
-        const tableName = entityConfig.entity.name;
+        const tableName = entityConfig.entity.table_name;
         const tenantId = context.tenantId || 'default';
         // Use QueryManager to build and execute delete query
         const { sql, params } = this.queryManager.buildDeleteQuery(tableName, tenantId, id);
@@ -176,7 +184,7 @@ export class EntityManager {
      * @returns Count of records
      */
     async count(entityConfig, conditions = [], context = {}, rlsConditions) {
-        const tableName = entityConfig.entity.name;
+        const tableName = entityConfig.entity.table_name;
         const tenantId = context.tenantId || 'default';
         // Convert conditions to QueryFilter format for QueryManager
         const filters = conditions.map(condition => ({
@@ -208,7 +216,7 @@ export class EntityManager {
      * @param entityConfig Entity configuration
      */
     async ensureEntityTable(entityConfig) {
-        const tableName = entityConfig.entity.name;
+        const tableName = entityConfig.entity.table_name;
         const exists = await this.databaseAdapter.tableExists(tableName);
         if (!exists) {
             await this.createEntityTable(entityConfig);
@@ -223,7 +231,7 @@ export class EntityManager {
      * @param entityConfig Entity configuration
      */
     async createEntityTable(entityConfig) {
-        const tableName = entityConfig.entity.name;
+        const tableName = entityConfig.entity.table_name;
         // Build column definitions
         const columns = entityConfig.fields.map((field) => ({
             name: field.name,
@@ -242,7 +250,7 @@ export class EntityManager {
      * @param entityConfig Entity configuration
      */
     async updateEntityTable(entityConfig) {
-        const tableName = entityConfig.entity.name;
+        const tableName = entityConfig.entity.table_name;
         // Get existing columns
         const existingColumns = await this.databaseAdapter.getTableColumns(tableName);
         const existingColumnNames = new Set(existingColumns.map(col => col.name));

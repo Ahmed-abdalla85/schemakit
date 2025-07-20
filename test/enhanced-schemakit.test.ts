@@ -1,8 +1,7 @@
 /**
  * Unit tests for Enhanced SchemaKit with simplified API
  */
-import { SchemaKit } from '../src/schemakit';
-import { SchemaKitOptions } from '../src/schemakit';
+import { SchemaKit, SchemaKitOptions } from '../src/schemakit-optimized';
 
 describe('Enhanced SchemaKit - Simplified API', () => {
   // Clean up after each test

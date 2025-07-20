@@ -4,7 +4,7 @@
  * This tests the UnifiedEntityHandler as an example of how to create
  * EntityKit-style entity handlers using SchemaKit's core managers.
  */
-import { SchemaKit } from '../src/schemakit';
+import { SchemaKit } from '../src/schemakit-optimized';
 import { UnifiedEntityHandler } from '../examples/unified-entity-handler';
 
 describe('UnifiedEntityHandler - Example Usage Pattern', () => {

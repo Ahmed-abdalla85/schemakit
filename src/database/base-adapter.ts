@@ -121,7 +121,12 @@ export abstract class BaseAdapter extends DatabaseAdapter {
     }
 
     try {
-      const result = await this.query<any[]>(`
+      const result = await this.query<{
+        name: string;
+        type: string;
+        is_nullable: string;
+        column_default: string;
+      }[]>(`
         SELECT 
           column_name as name,
           data_type as type,
@@ -133,7 +138,7 @@ export abstract class BaseAdapter extends DatabaseAdapter {
         ORDER BY ordinal_position
       `, [tableName]);
 
-      return result.map(row => ({
+      return result.map((row: any) => ({
         name: row.name,
         type: row.type,
         notNull: row.is_nullable === 'NO',

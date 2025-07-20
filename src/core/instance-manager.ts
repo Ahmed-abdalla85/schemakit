@@ -2,7 +2,7 @@
  * InstanceManager
  * Manages SchemaKit instances and caching
  */
-import { SchemaKit, SchemaKitOptions } from '../schemakit';
+import { SchemaKit, SchemaKitOptions } from '../schemakit-optimized';
 
 export class InstanceManager {
   private static instances: Map<string, SchemaKit> = new Map();
