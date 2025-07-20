@@ -2,7 +2,6 @@ import { DatabaseAdapter } from './database/adapter';
 import { SchemaKitOptions } from './types';
 import { InstallManager } from './core/install-manager';
 import { EntityBuilder } from './core/entity-builder';
-import { SchemaLoader } from './core/schema-loader';
 import { EntityManager } from './core/entity-manager';
 import { ValidationManager } from './core/validation-manager';
 import { PermissionManager } from './core/permission-manager';
@@ -36,16 +35,13 @@ export class SchemaKit {
     try {
       await this.databaseAdapter.connect();
 
-      const schemaLoader = new SchemaLoader(this.databaseAdapter);
       const entityManager = new EntityManager(this.databaseAdapter);
       const validationManager = new ValidationManager();
       const permissionManager = new PermissionManager(this.databaseAdapter);
       const workflowManager = new WorkflowManager(this.databaseAdapter);
-      const queryManager = new QueryManager(this.databaseAdapter); // Future use
 
       this.installManager = new InstallManager(this.databaseAdapter);
       this.entityBuilder = new EntityBuilder(
-        schemaLoader,
         entityManager,
         validationManager,
         permissionManager,

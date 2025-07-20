@@ -1,5 +1,4 @@
 import type { Context, EntityConfiguration } from '../types';
-import type { SchemaLoader } from './schema-loader';
 import type { EntityManager } from './entity-manager';
 import type { ValidationManager } from './validation-manager';
 import type { PermissionManager } from './permission-manager';
@@ -12,7 +11,6 @@ export class EntityAPI {
 
   constructor(
     private readonly entityName: string,
-    private readonly schemaLoader: SchemaLoader,
     private readonly entityManager: EntityManager,
     private readonly validationManager: ValidationManager,
     private readonly permissionManager: PermissionManager,
@@ -133,7 +131,7 @@ export class EntityAPI {
     }
 
     try {
-      this.entityCache = await this.schemaLoader.loadEntity(this.entityName, contextWithTenant);
+      this.entityCache = await this.entityManager.loadEntity(this.entityName, contextWithTenant);
       return this.entityCache;
     } catch (error) {
       throw new SchemaKitError(`Failed to load entity '${this.entityName}' for tenant '${this.tenantId}': ${error instanceof Error ? error.message : error}`);

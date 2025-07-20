@@ -1,4 +1,3 @@
-import type { SchemaLoader } from './schema-loader';
 import type { EntityManager } from './entity-manager';
 import type { ValidationManager } from './validation-manager';
 import type { PermissionManager } from './permission-manager';
@@ -10,7 +9,6 @@ export class EntityBuilder {
   private cache = new Map<string, EntityAPI>();
 
   constructor(
-    private readonly schemaLoader: SchemaLoader,
     private readonly entityManager: EntityManager,
     private readonly validationManager: ValidationManager,
     private readonly permissionManager: PermissionManager,
@@ -27,13 +25,12 @@ export class EntityBuilder {
   /**
    * Returns a fluent EntityAPI instance for the given entity name with tenant context.
    */
-  entityForTenant(entityName: string, tenantId: string = 'default'): EntityAPI {
+  entityForTenant(entityName: string, tenantId = 'default'): EntityAPI {
     const cacheKey = `${tenantId}:${entityName}`;
     
     if (!this.cache.has(cacheKey)) {
       const entityApi = new EntityAPI(
         entityName,
-        this.schemaLoader,
         this.entityManager,
         this.validationManager,
         this.permissionManager,
@@ -42,7 +39,11 @@ export class EntityBuilder {
       );
       this.cache.set(cacheKey, entityApi);
     }
-    return this.cache.get(cacheKey)!;
+    const cachedEntity = this.cache.get(cacheKey);
+    if (!cachedEntity) {
+      throw new Error(`Failed to retrieve cached entity API for ${cacheKey}`);
+    }
+    return cachedEntity;
   }
 
   /**
