@@ -4,6 +4,7 @@
  */
 import { DatabaseAdapter } from '../database/adapter';
 import { EntityConfiguration, Context } from '../types';
+import { resolveTableName } from '../utils/query-helpers';
 
 export interface BuiltQuery {
   sql: string;
@@ -22,36 +23,37 @@ export interface QueryFilter {
  */
 export class QueryManager {
   private databaseAdapter: DatabaseAdapter;
+  private databaseType: string;
 
   constructor(databaseAdapter: DatabaseAdapter) {
     this.databaseAdapter = databaseAdapter;
+    // Determine database type from adapter constructor name
+    this.databaseType = this.getDatabaseType(databaseAdapter);
+  }
+
+  private getDatabaseType(adapter: DatabaseAdapter): string {
+    const adapterName = adapter.constructor.name.toLowerCase();
+    if (adapterName.includes('postgres')) return 'postgres';
+    if (adapterName.includes('sqlite')) return 'sqlite';
+    if (adapterName.includes('inmemory')) return 'inmemory';
+    return 'sqlite'; // default
   }
 
   // ===== ESSENTIAL QUERY BUILDING =====
 
   buildSelectQuery(table: string, tenantId: string, filters: QueryFilter[] = [], options: any = {}): BuiltQuery {
-    let sql = `SELECT * FROM ${table}`;
+    const qualifiedTable = resolveTableName(table, tenantId, this.databaseType);
+    let sql = `SELECT * FROM ${qualifiedTable}`;
     const params: any[] = [];
-
-    // Add tenant filter
-    if (tenantId && tenantId !== 'default') {
-      sql += ` WHERE tenant_id = ?`;
-      params.push(tenantId);
-    }
 
     // Add custom filters
     if (filters.length > 0) {
-      const whereClause = filters.length > 0 ? ' WHERE ' : '';
       const filterConditions = filters.map((filter, index) => {
         params.push(filter.value);
         return `${filter.field} ${filter.operator} ?`;
       }).join(' AND ');
       
-      if (tenantId && tenantId !== 'default') {
-        sql += ` AND ${filterConditions}`;
-      } else {
-        sql += whereClause + filterConditions;
-      }
+      sql += ` WHERE ${filterConditions}`;
     }
 
     // Add ordering
@@ -74,25 +76,28 @@ export class QueryManager {
   }
 
   buildInsertQuery(table: string, tenantId: string, data: Record<string, any>): BuiltQuery {
+    const qualifiedTable = resolveTableName(table, tenantId, this.databaseType);
     const fields = Object.keys(data);
     const placeholders = fields.map(() => '?').join(', ');
-    const sql = `INSERT INTO ${table} (${fields.join(', ')}) VALUES (${placeholders})`;
+    const sql = `INSERT INTO ${qualifiedTable} (${fields.join(', ')}) VALUES (${placeholders})`;
     const params = Object.values(data);
     
     return { sql, params };
   }
 
   buildUpdateQuery(table: string, tenantId: string, id: string | number, data: Record<string, any>): BuiltQuery {
+    const qualifiedTable = resolveTableName(table, tenantId, this.databaseType);
     const fields = Object.keys(data);
     const setClause = fields.map(field => `${field} = ?`).join(', ');
-    const sql = `UPDATE ${table} SET ${setClause} WHERE id = ?`;
+    const sql = `UPDATE ${qualifiedTable} SET ${setClause} WHERE id = ?`;
     const params = [...Object.values(data), id];
     
     return { sql, params };
   }
 
   buildDeleteQuery(table: string, tenantId: string, id: string | number): BuiltQuery {
-    const sql = `DELETE FROM ${table} WHERE id = ?`;
+    const qualifiedTable = resolveTableName(table, tenantId, this.databaseType);
+    const sql = `DELETE FROM ${qualifiedTable} WHERE id = ?`;
     const params = [id];
     
     return { sql, params };

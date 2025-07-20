@@ -37,6 +37,31 @@ export interface BuiltQuery {
 }
 
 /**
+ * Resolve table name for multi-tenant support
+ * @param table Base table name
+ * @param tenantId Tenant identifier
+ * @param databaseType Database type ('postgres', 'sqlite', 'inmemory')
+ * @returns Qualified table name
+ */
+export function resolveTableName(table: string, tenantId: string = 'default', databaseType: string = 'sqlite'): string {
+  if (!tenantId || tenantId === 'default') {
+    return table;
+  }
+
+  switch (databaseType.toLowerCase()) {
+    case 'postgres':
+      // PostgreSQL: schema.table format
+      return `${tenantId}.${table}`;
+    case 'sqlite':
+    case 'inmemory':
+      // SQLite/InMemory: tenant_table format
+      return `${tenantId}_${table}`;
+    default:
+      return table;
+  }
+}
+
+/**
  * Build WHERE clause from query conditions
  * @param conditions Array of query conditions
  * @param startParamIndex Starting parameter index (for prepared statements)

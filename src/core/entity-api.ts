@@ -16,28 +16,31 @@ export class EntityAPI {
     private readonly entityManager: EntityManager,
     private readonly validationManager: ValidationManager,
     private readonly permissionManager: PermissionManager,
-    private readonly workflowManager: WorkflowManager
+    private readonly workflowManager: WorkflowManager,
+    private readonly tenantId: string = 'default'
   ) {}
 
   // ----- CRUD Operations -----
 
   async create(data: Record<string, any>, context: Context = {}) {
-    const entityConfig = await this.loadEntityConfig(context);
+    const contextWithTenant = { ...context, tenantId: this.tenantId };
+    const entityConfig = await this.loadEntityConfig(contextWithTenant);
 
-    await this.enforcePermission(entityConfig, 'create', context);
+    await this.enforcePermission(entityConfig, 'create', contextWithTenant);
     await this.validateData(entityConfig, data, 'create');
 
-    const result = await this.entityManager.create(entityConfig, data, context);
+    const result = await this.entityManager.create(entityConfig, data, contextWithTenant);
 
-    await this.workflowManager.executeWorkflows(entityConfig, 'create', null, result, context);
+    await this.workflowManager.executeWorkflows(entityConfig, 'create', null, result, contextWithTenant);
 
     return result;
   }
 
   async read(filters: Record<string, any> = {}, context: Context = {}) {
-    const entityConfig = await this.loadEntityConfig(context);
+    const contextWithTenant = { ...context, tenantId: this.tenantId };
+    const entityConfig = await this.loadEntityConfig(contextWithTenant);
 
-    await this.enforcePermission(entityConfig, 'read', context);
+    await this.enforcePermission(entityConfig, 'read', contextWithTenant);
 
     // Convert filters object to conditions array
     const conditions = Object.entries(filters).map(([field, value]) => ({
@@ -46,64 +49,67 @@ export class EntityAPI {
       operator: 'eq'
     }));
 
-    return this.entityManager.find(entityConfig, conditions, {}, context);
+    return this.entityManager.find(entityConfig, conditions, {}, contextWithTenant);
   }
 
   async update(id: string | number, data: Record<string, any>, context: Context = {}) {
-    const entityConfig = await this.loadEntityConfig(context);
+    const contextWithTenant = { ...context, tenantId: this.tenantId };
+    const entityConfig = await this.loadEntityConfig(contextWithTenant);
 
-    await this.enforcePermission(entityConfig, 'update', context);
+    await this.enforcePermission(entityConfig, 'update', contextWithTenant);
     await this.validateData(entityConfig, data, 'update');
 
-    const oldData = await this.entityManager.findById(entityConfig, id, context);
-    const result = await this.entityManager.update(entityConfig, id, data, context);
+    const oldData = await this.entityManager.findById(entityConfig, id, contextWithTenant);
+    const result = await this.entityManager.update(entityConfig, id, data, contextWithTenant);
 
-    await this.workflowManager.executeWorkflows(entityConfig, 'update', oldData, result, context);
+    await this.workflowManager.executeWorkflows(entityConfig, 'update', oldData, result, contextWithTenant);
 
     return result;
   }
 
   async delete(id: string | number, context: Context = {}) {
-    const entityConfig = await this.loadEntityConfig(context);
+    const contextWithTenant = { ...context, tenantId: this.tenantId };
+    const entityConfig = await this.loadEntityConfig(contextWithTenant);
 
-    await this.enforcePermission(entityConfig, 'delete', context);
+    await this.enforcePermission(entityConfig, 'delete', contextWithTenant);
 
-    const oldData = await this.entityManager.findById(entityConfig, id, context);
-    const result = await this.entityManager.delete(entityConfig, id, context);
+    const oldData = await this.entityManager.findById(entityConfig, id, contextWithTenant);
+    const result = await this.entityManager.delete(entityConfig, id, contextWithTenant);
 
-    await this.workflowManager.executeWorkflows(entityConfig, 'delete', oldData, null, context);
+    await this.workflowManager.executeWorkflows(entityConfig, 'delete', oldData, null, contextWithTenant);
 
     return result;
   }
 
   async findById(id: string | number, context: Context = {}) {
-    const entityConfig = await this.loadEntityConfig(context);
+    const contextWithTenant = { ...context, tenantId: this.tenantId };
+    const entityConfig = await this.loadEntityConfig(contextWithTenant);
 
-    await this.enforcePermission(entityConfig, 'read', context);
+    await this.enforcePermission(entityConfig, 'read', contextWithTenant);
 
-    return this.entityManager.findById(entityConfig, id, context);
+    return this.entityManager.findById(entityConfig, id, contextWithTenant);
   }
 
   // ----- Schema and Configuration getters -----
 
   get schema() {
-    return this.loadEntityConfig().then(config => this.generateJsonSchema(config));
+    return this.loadEntityConfig({ tenantId: this.tenantId }).then(config => this.generateJsonSchema(config));
   }
 
   get fields() {
-    return this.loadEntityConfig().then(config => config.fields);
+    return this.loadEntityConfig({ tenantId: this.tenantId }).then(config => config.fields);
   }
 
   get permissions() {
-    return this.loadEntityConfig().then(config => config.permissions);
+    return this.loadEntityConfig({ tenantId: this.tenantId }).then(config => config.permissions);
   }
 
   get workflows() {
-    return this.loadEntityConfig().then(config => config.workflows);
+    return this.loadEntityConfig({ tenantId: this.tenantId }).then(config => config.workflows);
   }
 
   get views() {
-    return this.loadEntityConfig().then(config => config.views);
+    return this.loadEntityConfig({ tenantId: this.tenantId }).then(config => config.views);
   }
 
   // ----- Cache management -----
@@ -117,13 +123,21 @@ export class EntityAPI {
     await this.loadEntityConfig();
   }
 
-  // ----- Private helpers -----
+  // ----- Private helper methods -----
 
   private async loadEntityConfig(context: Context = {}): Promise<EntityConfiguration> {
-    if (!this.entityCache) {
-      this.entityCache = await this.schemaLoader.loadEntity(this.entityName, context);
+    const contextWithTenant = { ...context, tenantId: this.tenantId };
+    
+    if (this.entityCache) {
+      return this.entityCache;
     }
-    return this.entityCache!;
+
+    try {
+      this.entityCache = await this.schemaLoader.loadEntity(this.entityName, contextWithTenant);
+      return this.entityCache;
+    } catch (error) {
+      throw new SchemaKitError(`Failed to load entity '${this.entityName}' for tenant '${this.tenantId}': ${error instanceof Error ? error.message : error}`);
+    }
   }
 
   private async enforcePermission(
