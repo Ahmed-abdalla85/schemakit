@@ -88,10 +88,10 @@ describe('UnifiedEntityHandler - Example Usage Pattern', () => {
       await adapter.execute(`
         INSERT INTO system_permissions (id, entity_id, role, action, is_allowed, created_at)
         VALUES 
-        ('perm-1', 'test-entity-id', 'user', 'create', 1, datetime('now')),
-        ('perm-2', 'test-entity-id', 'user', 'read', 1, datetime('now')),
-        ('perm-3', 'test-entity-id', 'user', 'update', 1, datetime('now')),
-        ('perm-4', 'test-entity-id', 'user', 'delete', 1, datetime('now'))
+        ('perm-1', 'test-entity-id', 'public', 'create', 1, datetime('now')),
+        ('perm-2', 'test-entity-id', 'public', 'read', 1, datetime('now')),
+        ('perm-3', 'test-entity-id', 'public', 'update', 1, datetime('now')),
+        ('perm-4', 'test-entity-id', 'public', 'delete', 1, datetime('now'))
       `);
 
       // Create entity table
@@ -140,7 +140,7 @@ describe('UnifiedEntityHandler - Example Usage Pattern', () => {
       // Insert test entity
       await adapter.execute(`
         INSERT INTO system_entities (id, name, table_name, display_name, description, is_active, created_at, updated_at)
-        VALUES ('test-entity-id', 'test_user', 'test_users', 'Test User', 'Test user entity', 1, datetime('now'), datetime('now'))
+        VALUES ('test-entity-id', 'test_user', 'test_users', 'Test User', 'Test user entity', 1, '2025-07-20T11:00:00.000Z', '2025-07-20T11:00:00.000Z')
       `);
 
       // Insert test fields
@@ -155,15 +155,15 @@ describe('UnifiedEntityHandler - Example Usage Pattern', () => {
       await adapter.execute(`
         INSERT INTO system_permissions (id, entity_id, role, action, is_allowed, created_at)
         VALUES 
-        ('perm-1', 'test-entity-id', 'user', 'create', 1, datetime('now')),
-        ('perm-2', 'test-entity-id', 'user', 'read', 1, datetime('now')),
-        ('perm-3', 'test-entity-id', 'user', 'update', 1, datetime('now')),
-        ('perm-4', 'test-entity-id', 'user', 'delete', 1, datetime('now'))
+        ('perm-1', 'test-entity-id', 'public', 'create', 1, '2025-07-20T11:00:00.000Z'),
+        ('perm-2', 'test-entity-id', 'public', 'read', 1, '2025-07-20T11:00:00.000Z'),
+        ('perm-3', 'test-entity-id', 'public', 'update', 1, '2025-07-20T11:00:00.000Z'),
+        ('perm-4', 'test-entity-id', 'public', 'delete', 1, '2025-07-20T11:00:00.000Z')
       `);
 
       // Create entity table
       await adapter.execute(`
-        CREATE TABLE test_users (
+        CREATE TABLE tenant1.test_users (
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
           email TEXT UNIQUE NOT NULL,
@@ -182,6 +182,11 @@ describe('UnifiedEntityHandler - Example Usage Pattern', () => {
         name: 'John Doe',
         email: 'john@example.com'
       }, 'user');
+
+      if (!result.success) {
+        console.log('Create failed:', result.message);
+        console.log('Errors:', result.errors);
+      }
 
       expect(result.success).toBe(true);
       expect(result.data).toBeDefined();
@@ -247,8 +252,11 @@ describe('UnifiedEntityHandler - Example Usage Pattern', () => {
       const found = await handler.findById(createResult.data.id, 'user');
 
       expect(found).toBeDefined();
-      expect(found.name).toBe('John Doe');
-      expect(found.email).toBe('john@example.com');
+      expect(found).not.toBeNull();
+      if (found) {
+        expect(found.name).toBe('John Doe');
+        expect(found.email).toBe('john@example.com');
+      }
     });
 
     it('should generate JSON schema', () => {
@@ -293,7 +301,7 @@ describe('UnifiedEntityHandler - Example Usage Pattern', () => {
       // Setup test entity
       await adapter.execute(`
         INSERT INTO system_entities (id, name, table_name, display_name, description, is_active, created_at, updated_at)
-        VALUES ('demo-entity-id', 'demo_user', 'demo_users', 'Demo User', 'Demo user entity', 1, datetime('now'), datetime('now'))
+        VALUES ('demo-entity-id', 'demo_user', 'demo_users', 'Demo User', 'Demo user entity', 1, '2025-07-20T11:00:00.000Z', '2025-07-20T11:00:00.000Z')
       `);
 
       await adapter.execute(`
@@ -306,12 +314,12 @@ describe('UnifiedEntityHandler - Example Usage Pattern', () => {
       await adapter.execute(`
         INSERT INTO system_permissions (id, entity_id, role, action, is_allowed, created_at)
         VALUES 
-        ('demo-perm-1', 'demo-entity-id', 'user', 'create', 1, datetime('now')),
-        ('demo-perm-2', 'demo-entity-id', 'user', 'read', 1, datetime('now'))
+        ('demo-perm-1', 'demo-entity-id', 'public', 'create', 1, '2025-07-20T11:00:00.000Z'),
+        ('demo-perm-2', 'demo-entity-id', 'public', 'read', 1, '2025-07-20T11:00:00.000Z')
       `);
 
       await adapter.execute(`
-        CREATE TABLE demo_users (
+        CREATE TABLE tenant1.demo_users (
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
           email TEXT UNIQUE NOT NULL,

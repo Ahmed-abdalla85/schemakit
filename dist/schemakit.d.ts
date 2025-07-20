@@ -1,8 +1,4 @@
-import { Context, EntityConfiguration } from './types';
-import { QueryBuilder, QueryResult } from './core/query-manager';
-/**
- * SchemaKit options
- */
+import { EntityConfiguration, Context } from './types';
 export interface SchemaKitOptions {
     adapter?: {
         type?: string;
@@ -15,7 +11,9 @@ export interface SchemaKitOptions {
     [key: string]: any;
 }
 /**
- * SchemaKit - Dynamic entity management system (Refactored)
+ * SchemaKit - Main class for entity management
+ *
+ * Simple API: schemaKit.entity('users').create(data)
  */
 export declare class SchemaKit {
     private databaseAdapter;
@@ -26,6 +24,7 @@ export declare class SchemaKit {
     private permissionManager;
     private queryManager;
     private workflowManager;
+    private entityCache;
     private static instances;
     private static defaultInstance;
     /**
@@ -35,156 +34,187 @@ export declare class SchemaKit {
     constructor(options?: SchemaKitOptions);
     /**
      * Initialize SchemaKit
-     * This method must be called before using any async methods
+     * @returns Promise<SchemaKit>
      */
     init(): Promise<SchemaKit>;
     /**
-     * Check if SchemaKit is connected to the database
-     * @returns True if connected, false otherwise
+     * Get entity object for CRUD operations
+     * @param entityName Entity name
+     * @returns Entity object with CRUD methods
      */
-    isConnected(): boolean;
+    entity(entityName: string): {
+        create(data: Record<string, any>, context?: Context): Promise<Record<string, any>>;
+        read(filters?: Record<string, any>, context?: Context): Promise<any>;
+        update(id: string | number, data: Record<string, any>, context?: Context): Promise<Record<string, any>>;
+        delete(id: string | number, context?: Context): Promise<boolean>;
+        findById(id: string | number, context?: Context): Promise<Record<string, any> | null>;
+        readonly fields: Promise<any[]>;
+        readonly workflows: Promise<any[]>;
+        readonly schema: Promise<any>;
+    };
     /**
-     * Check if SchemaKit is installed
-     * @returns True if installed, false otherwise
+     * Check if database is installed
+     * @returns Promise<boolean>
      */
     isInstalled(): Promise<boolean>;
     /**
-     * Get SchemaKit version
-     * @returns Version string or null if not installed
+     * Install database schema
+     * @returns Promise<void>
+     */
+    install(): Promise<void>;
+    /**
+     * Get database version
+     * @returns Promise<string | null>
      */
     getVersion(): Promise<string | null>;
     /**
-     * Force reinstall SchemaKit (useful for development/testing)
-     * This will recreate all system tables and seed data
+     * Reinstall database (drop and recreate)
+     * @returns Promise<void>
      */
     reinstall(): Promise<void>;
     /**
-     * Load entity configuration from database
+     * Load entity configuration
      * @param entityName Entity name
      * @param context User context
+     * @returns Promise<EntityConfiguration>
      */
     loadEntity(entityName: string, context?: Context): Promise<EntityConfiguration>;
     /**
-     * Reload entity configuration from database
-     * @param entityName Entity name
+     * Clear entity cache
+     * @param entityName Optional entity name to clear specific entity
      */
-    reloadEntity(entityName: string): Promise<EntityConfiguration>;
+    clearEntityCache(entityName?: string): void;
     /**
-     * Get loaded entity names
+     * Disconnect from database
+     * @returns Promise<void>
      */
-    getLoadedEntities(): string[];
+    disconnect(): Promise<void>;
     /**
-     * Create a new entity instance
+     * Create entity
      * @param entityName Entity name
      * @param data Entity data
      * @param context User context
+     * @returns Promise<Record<string, any>>
      */
-    create(entityName: string, data: Record<string, any>, context?: Context): Promise<Record<string, any>>;
+    private createEntity;
     /**
-     * Find entity instance by ID
+     * Read entities
      * @param entityName Entity name
-     * @param id Entity ID
+     * @param filters Query filters
      * @param context User context
+     * @returns Promise<any>
      */
-    findById(entityName: string, id: string | number, context?: Context): Promise<Record<string, any> | null>;
+    private readEntity;
     /**
-     * Update entity instance
+     * Update entity
      * @param entityName Entity name
      * @param id Entity ID
      * @param data Entity data
      * @param context User context
+     * @returns Promise<Record<string, any>>
      */
-    update(entityName: string, id: string | number, data: Record<string, any>, context?: Context): Promise<Record<string, any>>;
+    private updateEntity;
     /**
-     * Delete entity instance
+     * Delete entity
      * @param entityName Entity name
      * @param id Entity ID
      * @param context User context
+     * @returns Promise<boolean>
      */
-    delete(entityName: string, id: string | number, context?: Context): Promise<boolean>;
+    private deleteEntity;
     /**
-     * Find entity instances by view
+     * Find entity by ID
      * @param entityName Entity name
-     * @param viewName View name
-     * @param params Query parameters
+     * @param id Entity ID
      * @param context User context
+     * @returns Promise<Record<string, any> | null>
      */
-    findByView(entityName: string, viewName: string, params?: Record<string, any>, context?: Context): Promise<QueryResult>;
+    private findByIdEntity;
     /**
-     * Execute custom query
+     * Get entity fields
      * @param entityName Entity name
-     * @param queryBuilder Query builder function
-     * @param context User context
+     * @returns Promise<any[]>
      */
-    query(entityName: string, queryBuilder: (query: QueryBuilder) => QueryBuilder, context?: Context): Promise<QueryResult>;
+    private getEntityFields;
     /**
-     * Execute view query
+     * Get entity workflows
      * @param entityName Entity name
-     * @param viewName View name
-     * @param params Query parameters
-     * @param context User context
+     * @returns Promise<any[]>
      */
-    executeView(entityName: string, viewName: string, params?: Record<string, any>, context?: Context): Promise<QueryResult>;
+    private getEntityWorkflows;
     /**
-     * Check if user has permission for action
+     * Get entity schema
      * @param entityName Entity name
-     * @param action Action name
-     * @param context User context
+     * @returns Promise<any>
      */
-    checkPermission(entityName: string, action: string, context?: Context): Promise<boolean>;
+    private getEntitySchema;
     /**
-     * Get entity permissions for user
-     * @param entityName Entity name
-     * @param context User context
+     * Generate JSON schema from entity configuration
+     * @param entityConfig Entity configuration
+     * @returns JSON schema object
      */
-    getEntityPermissions(entityName: string, context?: Context): Promise<Record<string, boolean>>;
+    private generateJsonSchema;
     /**
-     * Initialize default SchemaKit instance (EntityKit pattern)
+     * Map field type to JSON schema type
+     * @param type Field type
+     * @returns JSON schema type
+     */
+    private mapFieldTypeToJsonSchema;
+    /**
+     * Create database adapter
+     * @param type Adapter type
+     * @param config Adapter configuration
+     * @returns DatabaseAdapter
+     */
+    private createDatabaseAdapter;
+    /**
+     * Load schema file
+     * @returns Promise<string>
+     */
+    private loadSchemaFile;
+    /**
+     * Load seed file
+     * @returns Promise<string | null>
+     */
+    private loadSeedFile;
+    /**
+     * Initialize default SchemaKit instance
      * @param options Configuration options
+     * @returns Promise<SchemaKit>
      */
     static initDefault(options: SchemaKitOptions): Promise<SchemaKit>;
     /**
-     * Initialize named SchemaKit instance (EntityKit pattern)
+     * Initialize named SchemaKit instance
      * @param instanceName Instance name
      * @param options Configuration options
+     * @returns Promise<SchemaKit>
      */
     static init(instanceName: string, options: SchemaKitOptions): Promise<SchemaKit>;
     /**
-     * Get default SchemaKit instance (EntityKit pattern)
+     * Get default SchemaKit instance
+     * @returns SchemaKit
      */
     static getDefault(): SchemaKit;
     /**
-     * Get named SchemaKit instance (EntityKit pattern)
+     * Get named SchemaKit instance
      * @param instanceName Instance name
+     * @returns SchemaKit
      */
     static getInstance(instanceName: string): SchemaKit;
     /**
-     * Get entity handler with automatic instance management (EntityKit pattern)
-     * @param entityName Entity name
-     * @param tenantId Tenant identifier
-     * @param instanceName Instance name (optional, uses default if not provided)
-     */
-    static getEntity(entityName: string, tenantId: string, instanceName?: string): Promise<import('./unified-entity-handler').UnifiedEntityHandler>;
-    /**
-     * Get entity handler (alias for getEntity for compatibility)
-     * @param entityName Entity name
-     * @param tenantId Tenant identifier
-     * @param instanceName Instance name (optional)
-     */
-    static getEntityHandler(entityName: string, tenantId: string, instanceName?: string): Promise<import('./unified-entity-handler').UnifiedEntityHandler>;
-    /**
-     * Clear entity cache for specific entity and tenant (EntityKit pattern)
-     * @param entityName Entity name (optional)
-     * @param tenantId Tenant identifier (optional)
-     * @param instanceName Instance name (optional)
+     * Clear entity cache
+     * @param entityName Optional entity name
+     * @param tenantId Optional tenant ID
+     * @param instanceName Optional instance name
      */
     static clearEntityCache(entityName?: string, tenantId?: string, instanceName?: string): void;
     /**
-     * Clear all caches (EntityKit pattern)
+     * Clear all caches
      */
     static clearAllCache(): void;
     /**
-     * Get cache statistics (EntityKit pattern)
+     * Get cache statistics
+     * @returns Cache statistics
      */
     static getCacheStats(): {
         entityCacheSize: number;
@@ -193,43 +223,19 @@ export declare class SchemaKit {
         instances: string[];
     };
     /**
-     * List all initialized instances
+     * List all instances
+     * @returns string[]
      */
     static listInstances(): string[];
     /**
-     * Shutdown specific instance
-     * @param instanceName Instance name (optional, shuts down default if not provided)
+     * Shutdown instance
+     * @param instanceName Optional instance name
+     * @returns Promise<void>
      */
     static shutdown(instanceName?: string): Promise<void>;
     /**
      * Shutdown all instances
+     * @returns Promise<void>
      */
     static shutdownAll(): Promise<void>;
-    /**
-     * Get entity handler for this instance
-     * @param entityName Entity name
-     * @param tenantId Tenant identifier
-     */
-    getEntityHandler(entityName: string, tenantId: string): Promise<import('./unified-entity-handler').UnifiedEntityHandler>;
-    /**
-     * Clear entity cache for this instance
-     * @param entityName Entity name (optional)
-     * @param tenantId Tenant identifier (optional)
-     */
-    clearEntityCache(entityName?: string, tenantId?: string): void;
-    /**
-     * Clear all caches for this instance
-     */
-    clearAllCache(): void;
-    /**
-     * Get cache statistics for this instance
-     */
-    getCacheStats(): {
-        entityCacheSize: number;
-        entities: string[];
-    };
-    /**
-     * Disconnect from database
-     */
-    disconnect(): Promise<void>;
 }

@@ -32,7 +32,7 @@ describe('Date Helper Utilities', () => {
 
     it('should return different timestamps when called at different times', async () => {
       const timestamp1 = getCurrentTimestamp();
-      await new Promise(resolve => setTimeout(resolve, 1));
+      await new Promise(resolve => setTimeout(resolve, 10));
       const timestamp2 = getCurrentTimestamp();
       expect(timestamp1).not.toBe(timestamp2);
     });

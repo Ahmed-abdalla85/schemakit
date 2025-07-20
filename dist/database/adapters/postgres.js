@@ -3,7 +3,8 @@
  */
 import { DatabaseAdapter } from '../adapter';
 import { DatabaseError } from '../../errors';
-import { QueryBuilderService } from '../../core/query-builder-service';
+import { processFilterValue } from '../../utils/query-helpers';
+import { QueryManager } from '../../core/query-manager';
 /**
  * PostgreSQL adapter implementation
  * Uses native PostgreSQL implementation with no external dependencies
@@ -13,10 +14,13 @@ export class PostgresAdapter extends DatabaseAdapter {
         super(config);
         this.client = null;
         this.connected = false;
+        this.queryManager = null; // Will be initialized with QueryManager
         // Set default PostgreSQL connection options
         this.config.host = this.config.host || 'localhost';
         this.config.port = this.config.port || 5432;
         this.config.database = this.config.database || 'postgres';
+        // Initialize QueryManager (will be properly initialized after connection)
+        this.queryManager = new QueryManager(this);
     }
     /**
      * Connect to PostgreSQL database
@@ -222,10 +226,10 @@ export class PostgresAdapter extends DatabaseAdapter {
             // Process filter values for special operators
             const processedFilters = filters.map(filter => ({
                 ...filter,
-                value: QueryBuilderService.processFilterValue(filter.operator || 'eq', filter.value)
+                value: processFilterValue(filter.operator || 'eq', filter.value)
             }));
-            const { query, params } = QueryBuilderService.buildSelectQuery(table, tenantId, processedFilters, options);
-            const result = await this.client.query(query, params);
+            const { sql, params } = this.queryManager.buildSelectQuery(table, tenantId, processedFilters, options);
+            const result = await this.client.query(sql, params);
             return result.rows;
         }
         catch (error) {
@@ -241,8 +245,8 @@ export class PostgresAdapter extends DatabaseAdapter {
         }
         try {
             if (tenantId) {
-                const { query, params } = QueryBuilderService.buildInsertQuery(table, tenantId, data);
-                const result = await this.client.query(query, params);
+                const { sql, params } = this.queryManager.buildInsertQuery(table, tenantId, data);
+                const result = await this.client.query(sql, params);
                 return result.rows[0];
             }
             else {
@@ -267,8 +271,8 @@ export class PostgresAdapter extends DatabaseAdapter {
             await this.connect();
         }
         try {
-            const { query, params } = QueryBuilderService.buildUpdateQuery(table, tenantId, id, data);
-            const result = await this.client.query(query, params);
+            const { sql, params } = this.queryManager.buildUpdateQuery(table, tenantId, id, data);
+            const result = await this.client.query(sql, params);
             return result.rows[0];
         }
         catch (error) {
@@ -283,8 +287,8 @@ export class PostgresAdapter extends DatabaseAdapter {
             await this.connect();
         }
         try {
-            const { query, params } = QueryBuilderService.buildDeleteQuery(table, tenantId, id);
-            await this.client.query(query, params);
+            const { sql, params } = this.queryManager.buildDeleteQuery(table, tenantId, id);
+            await this.client.query(sql, params);
         }
         catch (error) {
             throw new DatabaseError('delete', error);
@@ -301,10 +305,10 @@ export class PostgresAdapter extends DatabaseAdapter {
             // Process filter values for special operators
             const processedFilters = filters.map(filter => ({
                 ...filter,
-                value: QueryBuilderService.processFilterValue(filter.operator || 'eq', filter.value)
+                value: processFilterValue(filter.operator || 'eq', filter.value)
             }));
-            const { query, params } = QueryBuilderService.buildCountQuery(table, tenantId, processedFilters);
-            const result = await this.client.query(query, params);
+            const { sql, params } = this.queryManager.buildCountQuery(table, tenantId, processedFilters);
+            const result = await this.client.query(sql, params);
             return parseInt(result.rows[0].count, 10);
         }
         catch (error) {
@@ -319,8 +323,8 @@ export class PostgresAdapter extends DatabaseAdapter {
             await this.connect();
         }
         try {
-            const { query, params } = QueryBuilderService.buildFindByIdQuery(table, tenantId, id);
-            const result = await this.client.query(query, params);
+            const { sql, params } = this.queryManager.buildFindByIdQuery(table, tenantId, id);
+            const result = await this.client.query(sql, params);
             return result.rows[0] || null;
         }
         catch (error) {
@@ -336,8 +340,8 @@ export class PostgresAdapter extends DatabaseAdapter {
             await this.connect();
         }
         try {
-            const { query, params } = QueryBuilderService.buildCreateSchemaQuery(schemaName);
-            await this.client.query(query, params);
+            const { sql, params } = this.queryManager.buildCreateSchemaQuery(schemaName);
+            await this.client.query(sql, params);
         }
         catch (error) {
             throw new DatabaseError('createSchema', error);
@@ -351,8 +355,8 @@ export class PostgresAdapter extends DatabaseAdapter {
             await this.connect();
         }
         try {
-            const { query, params } = QueryBuilderService.buildDropSchemaQuery(schemaName);
-            await this.client.query(query, params);
+            const { sql, params } = this.queryManager.buildDropSchemaQuery(schemaName);
+            await this.client.query(sql, params);
         }
         catch (error) {
             throw new DatabaseError('dropSchema', error);
@@ -366,8 +370,8 @@ export class PostgresAdapter extends DatabaseAdapter {
             await this.connect();
         }
         try {
-            const { query, params } = QueryBuilderService.buildListSchemasQuery();
-            const result = await this.client.query(query, params);
+            const { sql, params } = this.queryManager.buildListSchemasQuery();
+            const result = await this.client.query(sql, params);
             return result.rows.map((row) => row.schema_name);
         }
         catch (error) {

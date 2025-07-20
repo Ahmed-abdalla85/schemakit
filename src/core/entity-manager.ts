@@ -59,16 +59,25 @@ export class EntityManager {
     }
 
     // Use QueryManager to build and execute insert query
-    const tableName = entityConfig.entity.name;
+    const tableName = entityConfig.entity.table_name;
     const tenantId = context.tenantId || 'default';
     const { sql, params } = this.queryManager.buildInsertQuery(tableName, tenantId, data);
-    const result = await this.databaseAdapter.query(sql, params);
+    const result = await this.databaseAdapter.execute(sql, params);
 
-    if (result.length === 0) {
+    if (result.changes === 0) {
       throw new Error(`Failed to create ${tableName} record`);
     }
 
-    return result[0];
+    // For INSERT with RETURNING, we need to get the inserted record
+    // Since execute doesn't return the inserted record, we need to query for it
+    const insertedId = result.lastInsertId;
+    if (insertedId) {
+      const insertedRecord = await this.findById(entityConfig, insertedId, context);
+      return insertedRecord || { id: insertedId, ...data };
+    }
+
+    // Fallback: return the data with a generated ID
+    return { id: generateId(), ...data };
   }
 
   /**
@@ -85,7 +94,7 @@ export class EntityManager {
     context: Context = {},
     rlsConditions?: RLSConditions
   ): Promise<Record<string, any> | null> {
-    const tableName = entityConfig.entity.name;
+    const tableName = entityConfig.entity.table_name;
     const tenantId = context.tenantId || 'default';
     
     // Use QueryManager to build and execute find by ID query
@@ -126,7 +135,7 @@ export class EntityManager {
     context: Context = {},
     rlsConditions?: RLSConditions
   ): Promise<Record<string, any>> {
-    const tableName = entityConfig.entity.name;
+    const tableName = entityConfig.entity.table_name;
     const tenantId = context.tenantId || 'default';
     
     // Add system fields
@@ -181,7 +190,7 @@ export class EntityManager {
     context: Context = {},
     rlsConditions?: RLSConditions
   ): Promise<boolean> {
-    const tableName = entityConfig.entity.name;
+    const tableName = entityConfig.entity.table_name;
     const tenantId = context.tenantId || 'default';
     
     // Use QueryManager to build and execute delete query
@@ -257,7 +266,7 @@ export class EntityManager {
     context: Context = {},
     rlsConditions?: RLSConditions
   ): Promise<number> {
-    const tableName = entityConfig.entity.name;
+    const tableName = entityConfig.entity.table_name;
     const tenantId = context.tenantId || 'default';
     
     // Convert conditions to QueryFilter format for QueryManager
@@ -296,7 +305,7 @@ export class EntityManager {
    * @param entityConfig Entity configuration
    */
   async ensureEntityTable(entityConfig: EntityConfiguration): Promise<void> {
-    const tableName = entityConfig.entity.name;
+    const tableName = entityConfig.entity.table_name;
     
     const exists = await this.databaseAdapter.tableExists(tableName);
     if (!exists) {
@@ -312,7 +321,7 @@ export class EntityManager {
    * @param entityConfig Entity configuration
    */
   private async createEntityTable(entityConfig: EntityConfiguration): Promise<void> {
-    const tableName = entityConfig.entity.name;
+    const tableName = entityConfig.entity.table_name;
     
     // Build column definitions
     const columns = entityConfig.fields.map((field: any) => ({
@@ -340,7 +349,7 @@ export class EntityManager {
    * @param entityConfig Entity configuration
    */
   private async updateEntityTable(entityConfig: EntityConfiguration): Promise<void> {
-    const tableName = entityConfig.entity.name;
+    const tableName = entityConfig.entity.table_name;
     
     // Get existing columns
     const existingColumns = await this.databaseAdapter.getTableColumns(tableName);

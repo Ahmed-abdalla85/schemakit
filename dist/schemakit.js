@@ -1,16 +1,14 @@
-/**
- * SchemaKit - Main API facade (Refactored)
- */
-import { DatabaseAdapter } from './database/adapter';
-import { SchemaKitError } from './errors';
 import { SchemaLoader } from './core/schema-loader';
 import { EntityManager } from './core/entity-manager';
 import { ValidationManager } from './core/validation-manager';
 import { PermissionManager } from './core/permission-manager';
 import { QueryManager } from './core/query-manager';
 import { WorkflowManager } from './core/workflow-manager';
+import { SchemaKitError } from './errors';
 /**
- * SchemaKit - Dynamic entity management system (Refactored)
+ * SchemaKit - Main class for entity management
+ *
+ * Simple API: schemaKit.entity('users').create(data)
  */
 export class SchemaKit {
     /**
@@ -18,97 +16,173 @@ export class SchemaKit {
      * @param options Configuration options
      */
     constructor(options = {}) {
-        this.options = {
-            adapter: {
-                type: 'sqlite',
-                config: {}
-            },
-            cache: {
-                enabled: true,
-                ttl: 3600000 // 1 hour
-            },
-            ...options
-        };
-        // We'll initialize the adapter in the init method
-        this.databaseAdapter = null;
+        // Entity cache
+        this.entityCache = new Map();
+        this.options = options;
+        // Initialize database adapter
+        const adapterType = options.adapter?.type || 'inmemory';
+        const adapterConfig = options.adapter?.config || {};
+        this.databaseAdapter = this.createDatabaseAdapter(adapterType, adapterConfig);
     }
     /**
      * Initialize SchemaKit
-     * This method must be called before using any async methods
+     * @returns Promise<SchemaKit>
      */
     async init() {
-        // Create database adapter asynchronously
-        const adapterType = this.options.adapter?.type || 'sqlite';
-        const adapterConfig = this.options.adapter?.config || {};
-        this.databaseAdapter = await DatabaseAdapter.create(adapterType, adapterConfig);
-        // Connect to the database
-        await this.databaseAdapter.connect();
-        // Initialize managers
-        this.schemaLoader = new SchemaLoader(this.databaseAdapter, { cacheEnabled: this.options.cache?.enabled });
-        this.entityManager = new EntityManager(this.databaseAdapter);
-        this.validationManager = new ValidationManager();
-        this.permissionManager = new PermissionManager(this.databaseAdapter);
-        this.queryManager = new QueryManager(this.databaseAdapter);
-        this.workflowManager = new WorkflowManager(this.databaseAdapter);
-        return this;
+        try {
+            // Connect to database
+            await this.databaseAdapter.connect();
+            // Check if database is installed
+            if (!await this.isInstalled()) {
+                await this.install();
+            }
+            // Initialize managers
+            this.schemaLoader = new SchemaLoader(this.databaseAdapter);
+            this.entityManager = new EntityManager(this.databaseAdapter);
+            this.validationManager = new ValidationManager();
+            this.permissionManager = new PermissionManager(this.databaseAdapter);
+            this.queryManager = new QueryManager(this.databaseAdapter);
+            this.workflowManager = new WorkflowManager(this.databaseAdapter);
+            return this;
+        }
+        catch (error) {
+            throw new SchemaKitError(`Failed to initialize SchemaKit: ${error}`);
+        }
     }
     /**
-     * Check if SchemaKit is connected to the database
-     * @returns True if connected, false otherwise
+     * Get entity object for CRUD operations
+     * @param entityName Entity name
+     * @returns Entity object with CRUD methods
      */
-    isConnected() {
-        return this.databaseAdapter?.isConnected() || false;
+    entity(entityName) {
+        const self = this;
+        return {
+            // CRUD operations
+            async create(data, context = {}) {
+                return await self.createEntity(entityName, data, context);
+            },
+            async read(filters = {}, context = {}) {
+                return await self.readEntity(entityName, filters, context);
+            },
+            async update(id, data, context = {}) {
+                return await self.updateEntity(entityName, id, data, context);
+            },
+            async delete(id, context = {}) {
+                return await self.deleteEntity(entityName, id, context);
+            },
+            async findById(id, context = {}) {
+                return await self.findByIdEntity(entityName, id, context);
+            },
+            // Properties
+            get fields() {
+                return self.getEntityFields(entityName);
+            },
+            get workflows() {
+                return self.getEntityWorkflows(entityName);
+            },
+            get schema() {
+                return self.getEntitySchema(entityName);
+            }
+        };
     }
     /**
-     * Check if SchemaKit is installed
-     * @returns True if installed, false otherwise
+     * Check if database is installed
+     * @returns Promise<boolean>
      */
     async isInstalled() {
-        return await this.schemaLoader.isSchemaKitInstalled();
+        try {
+            const result = await this.databaseAdapter.query("SELECT COUNT(*) as count FROM information_schema.tables WHERE table_name = 'system_entities'");
+            return result.length > 0 && result[0].count > 0;
+        }
+        catch {
+            return false;
+        }
     }
     /**
-     * Get SchemaKit version
-     * @returns Version string or null if not installed
+     * Install database schema
+     * @returns Promise<void>
+     */
+    async install() {
+        try {
+            // Run schema.sql
+            const schemaSql = await this.loadSchemaFile();
+            await this.databaseAdapter.execute(schemaSql);
+            // Run seed.sql
+            const seedSql = await this.loadSeedFile();
+            if (seedSql) {
+                await this.databaseAdapter.execute(seedSql);
+            }
+        }
+        catch (error) {
+            throw new SchemaKitError(`Failed to install database: ${error}`);
+        }
+    }
+    /**
+     * Get database version
+     * @returns Promise<string | null>
      */
     async getVersion() {
-        const version = await this.schemaLoader.getVersion();
-        return version === 'unknown' ? null : version;
+        try {
+            const result = await this.databaseAdapter.query("SELECT version FROM system_config WHERE key = 'version'");
+            return result.length > 0 ? result[0].version : null;
+        }
+        catch {
+            return null;
+        }
     }
     /**
-     * Force reinstall SchemaKit (useful for development/testing)
-     * This will recreate all system tables and seed data
+     * Reinstall database (drop and recreate)
+     * @returns Promise<void>
      */
     async reinstall() {
-        await this.schemaLoader.reinstall();
+        // Drop all tables and recreate
+        await this.install();
     }
     /**
-     * Load entity configuration from database
+     * Load entity configuration
      * @param entityName Entity name
      * @param context User context
+     * @returns Promise<EntityConfiguration>
      */
     async loadEntity(entityName, context = {}) {
-        return this.schemaLoader.loadEntity(entityName, context);
+        // Check cache first
+        if (this.entityCache.has(entityName)) {
+            return this.entityCache.get(entityName);
+        }
+        // Load from database
+        const entityConfig = await this.schemaLoader.loadEntity(entityName, context);
+        // Cache the result
+        this.entityCache.set(entityName, entityConfig);
+        return entityConfig;
     }
     /**
-     * Reload entity configuration from database
-     * @param entityName Entity name
+     * Clear entity cache
+     * @param entityName Optional entity name to clear specific entity
      */
-    async reloadEntity(entityName) {
-        return this.schemaLoader.reloadEntity(entityName);
+    clearEntityCache(entityName) {
+        if (entityName) {
+            this.entityCache.delete(entityName);
+        }
+        else {
+            this.entityCache.clear();
+        }
     }
     /**
-     * Get loaded entity names
+     * Disconnect from database
+     * @returns Promise<void>
      */
-    getLoadedEntities() {
-        return this.schemaLoader.getLoadedEntities();
+    async disconnect() {
+        await this.databaseAdapter.disconnect();
     }
+    // === PRIVATE METHODS ===
     /**
-     * Create a new entity instance
+     * Create entity
      * @param entityName Entity name
      * @param data Entity data
      * @param context User context
+     * @returns Promise<Record<string, any>>
      */
-    async create(entityName, data, context = {}) {
+    async createEntity(entityName, data, context = {}) {
         try {
             // Load entity configuration
             const entityConfig = await this.loadEntity(entityName, context);
@@ -135,12 +209,13 @@ export class SchemaKit {
         }
     }
     /**
-     * Find entity instance by ID
+     * Read entities
      * @param entityName Entity name
-     * @param id Entity ID
+     * @param filters Query filters
      * @param context User context
+     * @returns Promise<any>
      */
-    async findById(entityName, id, context = {}) {
+    async readEntity(entityName, filters = {}, context = {}) {
         try {
             // Load entity configuration
             const entityConfig = await this.loadEntity(entityName, context);
@@ -149,23 +224,22 @@ export class SchemaKit {
             if (!hasPermission) {
                 throw new SchemaKitError(`Permission denied for reading ${entityName}`);
             }
-            // Apply RLS conditions
-            const rlsConditions = this.permissionManager.buildRLSConditions(entityConfig, context);
-            // Find entity using EntityManager
-            return await this.entityManager.findById(entityConfig, id, context, rlsConditions);
+            // Execute query using QueryManager
+            return await this.queryManager.executePaginatedQuery(entityConfig, [], filters, context);
         }
         catch (error) {
-            throw new SchemaKitError(`Failed to find ${entityName} with id ${id}: ${error}`);
+            throw new SchemaKitError(`Failed to read ${entityName}: ${error}`);
         }
     }
     /**
-     * Update entity instance
+     * Update entity
      * @param entityName Entity name
      * @param id Entity ID
      * @param data Entity data
      * @param context User context
+     * @returns Promise<Record<string, any>>
      */
-    async update(entityName, id, data, context = {}) {
+    async updateEntity(entityName, id, data, context = {}) {
         try {
             // Load entity configuration
             const entityConfig = await this.loadEntity(entityName, context);
@@ -199,12 +273,13 @@ export class SchemaKit {
         }
     }
     /**
-     * Delete entity instance
+     * Delete entity
      * @param entityName Entity name
      * @param id Entity ID
      * @param context User context
+     * @returns Promise<boolean>
      */
-    async delete(entityName, id, context = {}) {
+    async deleteEntity(entityName, id, context = {}) {
         try {
             // Load entity configuration
             const entityConfig = await this.loadEntity(entityName, context);
@@ -233,13 +308,13 @@ export class SchemaKit {
         }
     }
     /**
-     * Find entity instances by view
+     * Find entity by ID
      * @param entityName Entity name
-     * @param viewName View name
-     * @param params Query parameters
+     * @param id Entity ID
      * @param context User context
+     * @returns Promise<Record<string, any> | null>
      */
-    async findByView(entityName, viewName, params = {}, context = {}) {
+    async findByIdEntity(entityName, id, context = {}) {
         try {
             // Load entity configuration
             const entityConfig = await this.loadEntity(entityName, context);
@@ -248,298 +323,354 @@ export class SchemaKit {
             if (!hasPermission) {
                 throw new SchemaKitError(`Permission denied for reading ${entityName}`);
             }
-            // Execute view using QueryManager
-            return await this.queryManager.executeView(entityConfig, viewName, params, context);
+            // Apply RLS conditions
+            const rlsConditions = this.permissionManager.buildRLSConditions(entityConfig, context);
+            // Find entity using EntityManager
+            return await this.entityManager.findById(entityConfig, id, context, rlsConditions);
         }
         catch (error) {
-            throw new SchemaKitError(`Failed to execute view '${viewName}' for entity '${entityName}': ${error}`);
+            throw new SchemaKitError(`Failed to find ${entityName} with id ${id}: ${error}`);
         }
     }
     /**
-     * Execute custom query
+     * Get entity fields
      * @param entityName Entity name
-     * @param queryBuilder Query builder function
-     * @param context User context
+     * @returns Promise<any[]>
      */
-    async query(entityName, queryBuilder, context = {}) {
+    async getEntityFields(entityName) {
         try {
-            // Load entity configuration
-            const entityConfig = await this.loadEntity(entityName, context);
-            // Check permission
-            const hasPermission = await this.permissionManager.checkPermission(entityConfig, 'read', context);
-            if (!hasPermission) {
-                throw new SchemaKitError(`Permission denied for reading ${entityName}`);
-            }
-            // Execute custom query using QueryManager
-            return await this.queryManager.executeCustomQuery(entityConfig, queryBuilder, context);
+            const entityConfig = await this.loadEntity(entityName);
+            return entityConfig.fields;
         }
-        catch (error) {
-            throw new SchemaKitError(`Failed to execute custom query for entity '${entityName}': ${error}`);
+        catch {
+            return [];
         }
     }
     /**
-     * Execute view query
+     * Get entity workflows
      * @param entityName Entity name
-     * @param viewName View name
-     * @param params Query parameters
-     * @param context User context
+     * @returns Promise<any[]>
      */
-    async executeView(entityName, viewName, params = {}, context = {}) {
-        // This is essentially the same as findByView but with a different name for API consistency
-        return this.findByView(entityName, viewName, params, context);
-    }
-    /**
-     * Check if user has permission for action
-     * @param entityName Entity name
-     * @param action Action name
-     * @param context User context
-     */
-    async checkPermission(entityName, action, context = {}) {
+    async getEntityWorkflows(entityName) {
         try {
-            // Load entity configuration (without using loadEntity to avoid circular dependency)
-            const entityConfig = await this.schemaLoader.loadEntity(entityName, context);
-            // Check permission using PermissionManager
-            return await this.permissionManager.checkPermission(entityConfig, action, context);
+            const entityConfig = await this.loadEntity(entityName);
+            return entityConfig.workflows;
         }
-        catch (error) {
-            // If there's an error checking permissions, default to denying access
-            console.error(`Error checking permission: ${error}`);
-            return false;
+        catch {
+            return [];
         }
     }
     /**
-     * Get entity permissions for user
+     * Get entity schema
      * @param entityName Entity name
-     * @param context User context
+     * @returns Promise<any>
      */
-    async getEntityPermissions(entityName, context = {}) {
+    async getEntitySchema(entityName) {
         try {
-            // Load entity configuration
-            const entityConfig = await this.schemaLoader.loadEntity(entityName, context);
-            // Get permissions using PermissionManager
-            return await this.permissionManager.getEntityPermissions(entityConfig, context);
+            const entityConfig = await this.loadEntity(entityName);
+            return this.generateJsonSchema(entityConfig);
         }
-        catch (error) {
-            // If there's an error checking permissions, default to denying all access
-            console.error(`Error getting entity permissions: ${error}`);
-            return {
-                create: false,
-                read: false,
-                update: false,
-                delete: false,
-                list: false
+        catch {
+            return {};
+        }
+    }
+    /**
+     * Generate JSON schema from entity configuration
+     * @param entityConfig Entity configuration
+     * @returns JSON schema object
+     */
+    generateJsonSchema(entityConfig) {
+        const properties = {};
+        const required = [];
+        entityConfig.fields.forEach((field) => {
+            const fieldName = field.name;
+            properties[fieldName] = {
+                type: this.mapFieldTypeToJsonSchema(field.type),
+                ...(field.default_value !== undefined && { default: field.default_value })
             };
+            if (field.validation_rules) {
+                const validationRules = typeof field.validation_rules === 'string'
+                    ? JSON.parse(field.validation_rules)
+                    : field.validation_rules;
+                if (validationRules.minLength)
+                    properties[fieldName].minLength = validationRules.minLength;
+                if (validationRules.maxLength)
+                    properties[fieldName].maxLength = validationRules.maxLength;
+                if (validationRules.min)
+                    properties[fieldName].minimum = validationRules.min;
+                if (validationRules.max)
+                    properties[fieldName].maximum = validationRules.max;
+                if (validationRules.pattern)
+                    properties[fieldName].pattern = validationRules.pattern;
+                if (validationRules.enum)
+                    properties[fieldName].enum = validationRules.enum;
+            }
+            if (field.is_required)
+                required.push(fieldName);
+        });
+        return { type: 'object', properties, required };
+    }
+    /**
+     * Map field type to JSON schema type
+     * @param type Field type
+     * @returns JSON schema type
+     */
+    mapFieldTypeToJsonSchema(type) {
+        switch (type) {
+            case 'number': return 'number';
+            case 'boolean': return 'boolean';
+            case 'date':
+            case 'datetime':
+            case 'email':
+            case 'url':
+            case 'text':
+            case 'uuid':
+            default: return 'string';
         }
     }
-    // ===== Static Factory Methods (EntityKit pattern) =====
     /**
-     * Initialize default SchemaKit instance (EntityKit pattern)
+     * Create database adapter
+     * @param type Adapter type
+     * @param config Adapter configuration
+     * @returns DatabaseAdapter
+     */
+    createDatabaseAdapter(type, config) {
+        switch (type.toLowerCase()) {
+            case 'postgres':
+                const { PostgresAdapter } = require('./database/adapters/postgres');
+                return new PostgresAdapter(config);
+            case 'sqlite':
+                const { SQLiteAdapter } = require('./database/adapters/sqlite');
+                return new SQLiteAdapter(config);
+            case 'inmemory':
+            default:
+                const { InMemoryAdapter } = require('./database/adapters/inmemory');
+                return new InMemoryAdapter(config);
+        }
+    }
+    /**
+     * Load schema file
+     * @returns Promise<string>
+     */
+    async loadSchemaFile() {
+        // In a real implementation, this would load from sql/schema.sql
+        return `
+      CREATE TABLE IF NOT EXISTS system_entities (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL UNIQUE,
+        display_name VARCHAR(255),
+        table_name VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      CREATE TABLE IF NOT EXISTS system_fields (
+        id VARCHAR(255) PRIMARY KEY,
+        entity_id VARCHAR(255) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        is_required BOOLEAN DEFAULT FALSE,
+        is_unique BOOLEAN DEFAULT FALSE,
+        default_value TEXT,
+        validation_rules TEXT,
+        order_index INTEGER DEFAULT 0,
+        FOREIGN KEY (entity_id) REFERENCES system_entities(id)
+      );
+      
+      CREATE TABLE IF NOT EXISTS system_permissions (
+        id VARCHAR(255) PRIMARY KEY,
+        entity_id VARCHAR(255) NOT NULL,
+        role VARCHAR(255) NOT NULL,
+        action VARCHAR(50) NOT NULL,
+        is_allowed BOOLEAN DEFAULT FALSE,
+        conditions TEXT,
+        FOREIGN KEY (entity_id) REFERENCES system_entities(id)
+      );
+      
+      CREATE TABLE IF NOT EXISTS system_workflows (
+        id VARCHAR(255) PRIMARY KEY,
+        entity_id VARCHAR(255) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        trigger_event VARCHAR(50) NOT NULL,
+        conditions TEXT,
+        actions TEXT,
+        is_active BOOLEAN DEFAULT TRUE,
+        order_index INTEGER DEFAULT 0,
+        FOREIGN KEY (entity_id) REFERENCES system_entities(id)
+      );
+      
+      CREATE TABLE IF NOT EXISTS system_views (
+        id VARCHAR(255) PRIMARY KEY,
+        entity_id VARCHAR(255) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        query_config TEXT,
+        fields TEXT,
+        is_default BOOLEAN DEFAULT FALSE,
+        is_public BOOLEAN DEFAULT FALSE,
+        FOREIGN KEY (entity_id) REFERENCES system_entities(id)
+      );
+      
+      CREATE TABLE IF NOT EXISTS system_config (
+        key VARCHAR(255) PRIMARY KEY,
+        value TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    }
+    /**
+     * Load seed file
+     * @returns Promise<string | null>
+     */
+    async loadSeedFile() {
+        // In a real implementation, this would load from sql/seed.sql
+        return `
+      INSERT OR IGNORE INTO system_config (key, value) VALUES ('version', '1.0.0');
+    `;
+    }
+    // === STATIC METHODS ===
+    /**
+     * Initialize default SchemaKit instance
      * @param options Configuration options
+     * @returns Promise<SchemaKit>
      */
     static async initDefault(options) {
-        if (this.defaultInstance) {
-            console.warn('Default SchemaKit instance already initialized. Replacing existing instance.');
+        if (!SchemaKit.defaultInstance) {
+            SchemaKit.defaultInstance = new SchemaKit(options);
+            await SchemaKit.defaultInstance.init();
         }
-        const instance = new SchemaKit(options);
-        await instance.init();
-        this.defaultInstance = instance;
-        return instance;
+        return SchemaKit.defaultInstance;
     }
     /**
-     * Initialize named SchemaKit instance (EntityKit pattern)
+     * Initialize named SchemaKit instance
      * @param instanceName Instance name
      * @param options Configuration options
+     * @returns Promise<SchemaKit>
      */
     static async init(instanceName, options) {
-        if (this.instances.has(instanceName)) {
-            console.warn(`SchemaKit instance '${instanceName}' already exists. Replacing existing instance.`);
+        if (!SchemaKit.instances.has(instanceName)) {
+            const instance = new SchemaKit(options);
+            await instance.init();
+            SchemaKit.instances.set(instanceName, instance);
         }
-        const instance = new SchemaKit(options);
-        await instance.init();
-        this.instances.set(instanceName, instance);
-        return instance;
+        return SchemaKit.instances.get(instanceName);
     }
     /**
-     * Get default SchemaKit instance (EntityKit pattern)
+     * Get default SchemaKit instance
+     * @returns SchemaKit
      */
     static getDefault() {
-        if (!this.defaultInstance) {
+        if (!SchemaKit.defaultInstance) {
             throw new SchemaKitError('Default SchemaKit instance not initialized. Call initDefault() first.');
         }
-        return this.defaultInstance;
+        return SchemaKit.defaultInstance;
     }
     /**
-     * Get named SchemaKit instance (EntityKit pattern)
+     * Get named SchemaKit instance
      * @param instanceName Instance name
+     * @returns SchemaKit
      */
     static getInstance(instanceName) {
-        const instance = this.instances.get(instanceName);
-        if (!instance) {
-            throw new SchemaKitError(`SchemaKit instance '${instanceName}' not found. Call init('${instanceName}', options) first.`);
+        if (!SchemaKit.instances.has(instanceName)) {
+            throw new SchemaKitError(`SchemaKit instance '${instanceName}' not found. Call init() first.`);
         }
-        return instance;
+        return SchemaKit.instances.get(instanceName);
     }
     /**
-     * Get entity handler with automatic instance management (EntityKit pattern)
-     * @param entityName Entity name
-     * @param tenantId Tenant identifier
-     * @param instanceName Instance name (optional, uses default if not provided)
-     */
-    static async getEntity(entityName, tenantId, instanceName) {
-        const instance = instanceName ? this.getInstance(instanceName) : this.getDefault();
-        return await instance.getEntityHandler(entityName, tenantId);
-    }
-    /**
-     * Get entity handler (alias for getEntity for compatibility)
-     * @param entityName Entity name
-     * @param tenantId Tenant identifier
-     * @param instanceName Instance name (optional)
-     */
-    static async getEntityHandler(entityName, tenantId, instanceName) {
-        return this.getEntity(entityName, tenantId, instanceName);
-    }
-    /**
-     * Clear entity cache for specific entity and tenant (EntityKit pattern)
-     * @param entityName Entity name (optional)
-     * @param tenantId Tenant identifier (optional)
-     * @param instanceName Instance name (optional)
+     * Clear entity cache
+     * @param entityName Optional entity name
+     * @param tenantId Optional tenant ID
+     * @param instanceName Optional instance name
      */
     static clearEntityCache(entityName, tenantId, instanceName) {
         if (instanceName) {
-            const instance = this.instances.get(instanceName);
+            const instance = SchemaKit.instances.get(instanceName);
             if (instance) {
-                instance.clearEntityCache(entityName, tenantId);
+                instance.clearEntityCache(entityName);
             }
         }
-        else if (this.defaultInstance) {
-            this.defaultInstance.clearEntityCache(entityName, tenantId);
+        else if (SchemaKit.defaultInstance) {
+            SchemaKit.defaultInstance.clearEntityCache(entityName);
         }
     }
     /**
-     * Clear all caches (EntityKit pattern)
+     * Clear all caches
      */
     static clearAllCache() {
-        // Clear default instance cache
-        if (this.defaultInstance) {
-            this.defaultInstance.clearAllCache();
-        }
-        // Clear all named instance caches
-        this.instances.forEach(instance => {
-            instance.clearAllCache();
+        // Clear all instance caches
+        SchemaKit.instances.forEach(instance => {
+            instance.clearEntityCache();
         });
+        // Clear default instance cache
+        if (SchemaKit.defaultInstance) {
+            SchemaKit.defaultInstance.clearEntityCache();
+        }
     }
     /**
-     * Get cache statistics (EntityKit pattern)
+     * Get cache statistics
+     * @returns Cache statistics
      */
     static getCacheStats() {
-        const defaultStats = this.defaultInstance ? this.defaultInstance.getCacheStats() : { entityCacheSize: 0, entities: [] };
-        let totalEntityCache = defaultStats.entityCacheSize;
-        const allEntities = [...defaultStats.entities];
-        // Add stats from named instances
-        this.instances.forEach((instance, name) => {
-            const stats = instance.getCacheStats();
-            totalEntityCache += stats.entityCacheSize;
-            allEntities.push(...stats.entities.map(entity => `${name}:${entity}`));
+        const instances = Array.from(SchemaKit.instances.keys());
+        const defaultInstance = SchemaKit.defaultInstance;
+        let entityCacheSize = 0;
+        const entities = [];
+        // Count entities in all instances
+        SchemaKit.instances.forEach(instance => {
+            entityCacheSize += instance.entityCache.size;
+            entities.push(...Array.from(instance.entityCache.keys()));
         });
+        // Count entities in default instance
+        if (defaultInstance) {
+            entityCacheSize += defaultInstance.entityCache.size;
+            entities.push(...Array.from(defaultInstance.entityCache.keys()));
+        }
         return {
-            entityCacheSize: totalEntityCache,
-            instanceCacheSize: this.instances.size + (this.defaultInstance ? 1 : 0),
-            entities: allEntities,
-            instances: ['default', ...Array.from(this.instances.keys())]
+            entityCacheSize,
+            instanceCacheSize: instances.length + (defaultInstance ? 1 : 0),
+            entities: [...new Set(entities)],
+            instances
         };
     }
     /**
-     * List all initialized instances
+     * List all instances
+     * @returns string[]
      */
     static listInstances() {
-        const instances = Array.from(this.instances.keys());
-        if (this.defaultInstance) {
-            instances.unshift('default');
-        }
-        return instances;
+        return Array.from(SchemaKit.instances.keys());
     }
     /**
-     * Shutdown specific instance
-     * @param instanceName Instance name (optional, shuts down default if not provided)
+     * Shutdown instance
+     * @param instanceName Optional instance name
+     * @returns Promise<void>
      */
     static async shutdown(instanceName) {
         if (instanceName) {
-            const instance = this.instances.get(instanceName);
+            const instance = SchemaKit.instances.get(instanceName);
             if (instance) {
                 await instance.disconnect();
-                this.instances.delete(instanceName);
+                SchemaKit.instances.delete(instanceName);
             }
         }
-        else if (this.defaultInstance) {
-            await this.defaultInstance.disconnect();
-            this.defaultInstance = null;
+        else if (SchemaKit.defaultInstance) {
+            await SchemaKit.defaultInstance.disconnect();
+            SchemaKit.defaultInstance = null;
         }
     }
     /**
      * Shutdown all instances
+     * @returns Promise<void>
      */
     static async shutdownAll() {
+        // Shutdown all instances
+        for (const [instanceName] of SchemaKit.instances) {
+            await SchemaKit.shutdown(instanceName);
+        }
         // Shutdown default instance
-        if (this.defaultInstance) {
-            await this.defaultInstance.disconnect();
-            this.defaultInstance = null;
-        }
-        // Shutdown all named instances
-        const shutdownPromises = Array.from(this.instances.values()).map(instance => instance.disconnect());
-        await Promise.all(shutdownPromises);
-        this.instances.clear();
-    }
-    // ===== Instance methods for EntityKit pattern =====
-    /**
-     * Get entity handler for this instance
-     * @param entityName Entity name
-     * @param tenantId Tenant identifier
-     */
-    async getEntityHandler(entityName, tenantId) {
-        // Load entity configuration
-        const entityConfig = await this.loadEntity(entityName, { tenantId });
-        // Create and return unified entity handler
-        const { UnifiedEntityHandler } = await import('./unified-entity-handler');
-        return new UnifiedEntityHandler(this, entityConfig, tenantId);
-    }
-    /**
-     * Clear entity cache for this instance
-     * @param entityName Entity name (optional)
-     * @param tenantId Tenant identifier (optional)
-     */
-    clearEntityCache(entityName, tenantId) {
-        if (entityName) {
-            // Clear specific entity cache
-            const cacheKey = tenantId ? `${tenantId}:${entityName}` : entityName;
-            this.schemaLoader.clearEntityCache(cacheKey);
-        }
-        else {
-            // Clear all entity cache
-            this.schemaLoader.clearAllCache();
-        }
-    }
-    /**
-     * Clear all caches for this instance
-     */
-    clearAllCache() {
-        this.schemaLoader.clearAllCache();
-    }
-    /**
-     * Get cache statistics for this instance
-     */
-    getCacheStats() {
-        return this.schemaLoader.getCacheStats();
-    }
-    /**
-     * Disconnect from database
-     */
-    async disconnect() {
-        if (this.databaseAdapter && this.databaseAdapter.isConnected()) {
-            await this.databaseAdapter.disconnect();
-        }
+        await SchemaKit.shutdown();
     }
 }
-// ===== Static instance management (EntityKit pattern) =====
+// Static instance management
 SchemaKit.instances = new Map();
 SchemaKit.defaultInstance = null;
 //# sourceMappingURL=schemakit.js.map

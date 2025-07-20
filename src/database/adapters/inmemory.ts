@@ -65,10 +65,45 @@ export class InMemoryAdapter extends DatabaseAdapter {
             const selectMatch = sql.match(/SELECT\s+(.+)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?/i);
             if (selectMatch) {
                 const tableName = selectMatch[2];
+                const whereClause = selectMatch[3];
                 const tenant = this.extractTenantFromTable(tableName);
                 const actualTable = this.extractActualTableName(tableName);
                 
-                const records = this.getTableData(tenant, actualTable);
+                let records = this.getTableData(tenant, actualTable);
+                
+                // Apply WHERE conditions if present
+                if (whereClause && params.length > 0) {
+                    records = records.filter(record => {
+                        // Simple WHERE clause parsing for common patterns
+                        if (whereClause.includes('name = ?') && whereClause.includes('is_active = ?')) {
+                            const nameValue = params[0];
+                            const isActiveValue = params[1];
+                            return record.name === nameValue && record.is_active === isActiveValue;
+                        }
+                        if (whereClause.includes('entity_id = ?') && whereClause.includes('is_active = ?')) {
+                            const entityIdValue = params[0];
+                            const isActiveValue = params[1];
+                            return record.entity_id === entityIdValue && record.is_active === isActiveValue;
+                        }
+                        if (whereClause.includes('entity_id = ?') && whereClause.includes('role IN (?)') && whereClause.includes('is_active = ?')) {
+                            const entityIdValue = params[0];
+                            const roleValue = params[1];
+                            const isActiveValue = params[2];
+                            return record.entity_id === entityIdValue && record.role === roleValue && record.is_active === isActiveValue;
+                        }
+                        if (whereClause.includes('entity_id = ?')) {
+                            const entityIdValue = params[0];
+                            return record.entity_id === entityIdValue;
+                        }
+                        if (whereClause.includes('id = ?')) {
+                            const idValue = params[0];
+                            return record.id === idValue;
+                        }
+                        // Default: return all records if we can't parse the WHERE clause
+                        return true;
+                    });
+                }
+                
                 return records as T[];
             }
 
@@ -129,7 +164,7 @@ export class InMemoryAdapter extends DatabaseAdapter {
             }
 
             // Handle INSERT statements (including multi-row inserts)
-            const insertMatch = sql.match(/INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(.+)/is);
+            const insertMatch = sql.match(/INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(.+?)(?:\s+RETURNING\s+.+)?$/is);
             if (insertMatch) {
                 const tableName = insertMatch[1];
                 const columns = insertMatch[2].split(',').map(col => col.trim());
@@ -140,7 +175,7 @@ export class InMemoryAdapter extends DatabaseAdapter {
                 
                 this.ensureTableExists(tenant, actualTable);
                 
-                // Parse multiple value rows
+                // Check if this is a multi-row insert
                 const valueRows = this.parseMultiRowValues(valuesSection);
                 let changes = 0;
                 let lastInsertId: string | number | undefined;
@@ -150,7 +185,12 @@ export class InMemoryAdapter extends DatabaseAdapter {
                     const record: Record<string, any> = {};
                     columns.forEach((col, index) => {
                         if (index < values.length) {
-                            record[col] = values[index];
+                            // Handle parameterized values if params are provided
+                            if (params.length > 0 && values[index] === `$${index + 1}`) {
+                                record[col] = params[index];
+                            } else {
+                                record[col] = values[index];
+                            }
                         }
                     });
                     
@@ -538,6 +578,26 @@ export class InMemoryAdapter extends DatabaseAdapter {
 
 
 
+    private parseValue(value: string): any {
+        // Remove quotes if present
+        if ((value.startsWith("'") && value.endsWith("'")) || 
+            (value.startsWith('"') && value.endsWith('"'))) {
+            return value.slice(1, -1);
+        }
+        
+        // Handle numeric values
+        if (!isNaN(Number(value))) {
+            return Number(value);
+        }
+        
+        // Handle boolean values
+        if (value.toLowerCase() === 'true') return true;
+        if (value.toLowerCase() === 'false') return false;
+        
+        // Return as string
+        return value;
+    }
+
     private parseInsertValues(valuesStr: string): any[] {
         // Simple parser for INSERT VALUES - handles quoted strings and basic values
         const values: any[] = [];
@@ -555,7 +615,7 @@ export class InMemoryAdapter extends DatabaseAdapter {
                 inQuotes = false;
                 quoteChar = '';
             } else if (!inQuotes && char === ',') {
-                values.push(parseValue(current.trim()));
+                values.push(this.parseValue(current.trim()));
                 current = '';
                 continue;
             }
@@ -564,7 +624,7 @@ export class InMemoryAdapter extends DatabaseAdapter {
         }
         
         if (current.trim()) {
-            values.push(parseValue(current.trim()));
+            values.push(this.parseValue(current.trim()));
         }
         
         return values;

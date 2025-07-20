@@ -183,14 +183,14 @@ describe('JSON Helper Utilities', () => {
 
     it('should merge nested objects', () => {
       const target = { user: { name: 'John', age: 30 } };
-      const source = { user: { age: 31, city: 'NYC' } };
+      const source = { user: { age: 31, city: 'NYC' } as any };
       const result = deepMerge(target, source);
       expect(result).toEqual({ user: { name: 'John', age: 31, city: 'NYC' } });
     });
 
     it('should not modify original objects', () => {
       const target = { a: 1 };
-      const source = { b: 2 };
+      const source = { b: 2 } as any;
       const result = deepMerge(target, source);
       expect(target).toEqual({ a: 1 });
       expect(source).toEqual({ b: 2 });

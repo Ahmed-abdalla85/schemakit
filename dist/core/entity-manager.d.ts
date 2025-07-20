@@ -1,16 +1,18 @@
 /**
  * EntityManager
  * Responsible for CRUD operations on entities
+ *
+ * Phase 2 Refactoring: Delegates query building to QueryManager
  */
 import { DatabaseAdapter } from '../database/adapter';
 import { EntityConfiguration, Context, RLSConditions } from '../types';
-import { QueryCondition } from '../utils/query-helpers';
 /**
  * EntityManager class
  * Single responsibility: Handle CRUD operations on entities
  */
 export declare class EntityManager {
     private databaseAdapter;
+    private queryManager;
     /**
      * Create a new EntityManager instance
      * @param databaseAdapter Database adapter
@@ -53,7 +55,7 @@ export declare class EntityManager {
      */
     delete(entityConfig: EntityConfiguration, id: string | number, context?: Context, rlsConditions?: RLSConditions): Promise<boolean>;
     /**
-     * Find multiple entity records
+     * Find entity records with conditions
      * @param entityConfig Entity configuration
      * @param conditions Query conditions
      * @param options Query options
@@ -61,7 +63,7 @@ export declare class EntityManager {
      * @param rlsConditions RLS conditions (optional)
      * @returns Array of entity records
      */
-    find(entityConfig: EntityConfiguration, conditions?: QueryCondition[], options?: {
+    find(entityConfig: EntityConfiguration, conditions?: any[], options?: {
         fields?: string[];
         sort?: {
             field: string;
@@ -71,14 +73,14 @@ export declare class EntityManager {
         offset?: number;
     }, context?: Context, rlsConditions?: RLSConditions): Promise<Record<string, any>[]>;
     /**
-     * Count entity records
+     * Count entity records with conditions
      * @param entityConfig Entity configuration
      * @param conditions Query conditions
      * @param context User context
      * @param rlsConditions RLS conditions (optional)
-     * @returns Count of matching records
+     * @returns Count of records
      */
-    count(entityConfig: EntityConfiguration, conditions?: QueryCondition[], context?: Context, rlsConditions?: RLSConditions): Promise<number>;
+    count(entityConfig: EntityConfiguration, conditions?: any[], context?: Context, rlsConditions?: RLSConditions): Promise<number>;
     /**
      * Ensure entity table exists
      * @param entityConfig Entity configuration
@@ -87,27 +89,17 @@ export declare class EntityManager {
     /**
      * Create entity table
      * @param entityConfig Entity configuration
-     * @private
      */
     private createEntityTable;
     /**
-     * Update entity table
+     * Update entity table with new fields
      * @param entityConfig Entity configuration
-     * @private
      */
     private updateEntityTable;
     /**
      * Get SQL type for field type
      * @param fieldType Field type
      * @returns SQL type
-     * @private
      */
     private getSqlType;
-    /**
-     * Get SQL value for field value
-     * @param value Field value
-     * @returns SQL value
-     * @private
-     */
-    private getSqlValue;
 }
