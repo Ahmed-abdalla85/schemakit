@@ -49,6 +49,17 @@ export class SchemaKit {
         return this.entityBuilder.entity(name);
     }
     /**
+     * Access entity proxy with tenant context (multi-tenant API)
+     * @param name Entity name
+     * @param tenantId Tenant identifier
+     */
+    entityForTenant(name, tenantId) {
+        if (!this.entityBuilder) {
+            throw new SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
+        }
+        return this.entityBuilder.entityForTenant(name, tenantId);
+    }
+    /**
      * Disconnect from database
      */
     async disconnect() {
@@ -57,8 +68,8 @@ export class SchemaKit {
     /**
      * Clear cached entity definitions
      */
-    clearEntityCache(entityName) {
-        this.entityBuilder?.clearEntityCache(entityName);
+    clearEntityCache(entityName, tenantId) {
+        this.entityBuilder?.clearEntityCache(entityName, tenantId);
     }
     getCacheStats() {
         return this.entityBuilder?.getCacheStats() || { entityCacheSize: 0, entities: [] };

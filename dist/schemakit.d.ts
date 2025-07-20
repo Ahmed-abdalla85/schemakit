@@ -14,13 +14,19 @@ export declare class SchemaKit {
      */
     entity(name: string): import("./core/entity-api").EntityAPI;
     /**
+     * Access entity proxy with tenant context (multi-tenant API)
+     * @param name Entity name
+     * @param tenantId Tenant identifier
+     */
+    entityForTenant(name: string, tenantId: string): import("./core/entity-api").EntityAPI;
+    /**
      * Disconnect from database
      */
     disconnect(): Promise<void>;
     /**
      * Clear cached entity definitions
      */
-    clearEntityCache(entityName?: string): void;
+    clearEntityCache(entityName?: string, tenantId?: string): void;
     getCacheStats(): {
         entityCacheSize: number;
         entities: string[];

@@ -60,21 +60,54 @@ async function main() {
     console.log('     • userEntity.clearCache()');
     console.log('     • userEntity.reload()');
 
-    // ===== 4. Cache Management =====
-    console.log('\n4. Cache Management:');
+    // ===== 4. Multi-tenant Operations =====
+    console.log('\n4. Multi-tenant Operations:');
+    
+    // Get entities for different tenants
+    const userEntityTenantA = schemaKit.entityForTenant('user', 'tenant-a');
+    const userEntityTenantB = schemaKit.entityForTenant('user', 'tenant-b');
+    
+    console.log('   ✅ Created tenant-specific entity instances');
+    console.log('     • userEntityTenantA for tenant "tenant-a"');
+    console.log('     • userEntityTenantB for tenant "tenant-b"');
+    
+    // Note: In a real scenario, you would first need to:
+    // 1. Create the schema for each tenant (PostgreSQL) or ensure tables exist
+    // 2. Set up entity configurations for each tenant
+    console.log('   📋 Multi-tenant table naming:');
+    console.log('     • PostgreSQL: "tenant-a.users", "tenant-b.users"');
+    console.log('     • SQLite/InMemory: "tenant-a_users", "tenant-b_users"');
+
+    // ===== 5. Enhanced Entity API =====
+    console.log('\n5. Enhanced Entity API Features:');
+    console.log('   📋 Available Methods:');
+    console.log('     • userEntity.create(data, context)');
+    console.log('     • userEntity.read(filters, context)');
+    console.log('     • userEntity.update(id, data, context)');
+    console.log('     • userEntity.delete(id, context)');
+    console.log('     • userEntity.findById(id, context)');
+    console.log('     • userEntity.schema');
+    console.log('     • userEntity.fields');
+    console.log('     • userEntity.permissions');
+    console.log('     • userEntity.workflows');
+    console.log('     • userEntity.views');
+    console.log('     • userEntity.clearCache()');
+
+    // ===== 6. Cache Management =====
+    console.log('\n6. Cache Management:');
     const cacheStats = schemaKit.getCacheStats();
     console.log('   📊 Cache Statistics:', cacheStats);
     
-    // Clear specific entity cache
-    schemaKit.clearEntityCache('user');
-    console.log('   ✅ User entity cache cleared');
+    // Clear cache for specific entity and tenant
+    schemaKit.clearEntityCache('user', 'tenant-a');
+    console.log('   ✅ Cleared cache for user entity in tenant-a');
     
-    // Clear all cache
-    schemaKit.clearEntityCache();
-    console.log('   ✅ All entity cache cleared');
+    // Clear all cache for an entity across all tenants
+    schemaKit.clearEntityCache('user');
+    console.log('   ✅ Cleared cache for user entity across all tenants');
 
-    // ===== 5. Error Handling =====
-    console.log('\n5. Error Handling:');
+    // ===== 7. Error Handling =====
+    console.log('\n7. Error Handling:');
     try {
       // Try to use entity without initialization
       const uninitializedKit = new SchemaKit();
@@ -83,8 +116,8 @@ async function main() {
       console.log('   ✅ Proper error handling:', error instanceof Error ? error.message : error);
     }
 
-    // ===== 6. Architecture Benefits =====
-    console.log('\n6. Architecture Benefits:');
+    // ===== 8. Architecture Benefits =====
+    console.log('\n8. Architecture Benefits:');
     console.log('   ✅ Clean separation of concerns');
     console.log('   ✅ InstallManager handles database setup');
     console.log('   ✅ EntityBuilder provides rich entity API');
@@ -93,8 +126,8 @@ async function main() {
     console.log('   ✅ Better error handling');
     console.log('   ✅ Enhanced cache management');
 
-    // ===== 7. Usage Patterns =====
-    console.log('\n7. Common Usage Patterns:');
+    // ===== 9. Usage Patterns =====
+    console.log('\n9. Common Usage Patterns:');
     console.log('   📝 Basic Setup:');
     console.log('     const schemaKit = new SchemaKit(options);');
     console.log('     await schemaKit.initialize();');
@@ -112,8 +145,8 @@ async function main() {
     console.log('     const fields = await user.fields;');
     console.log('     const permissions = await user.permissions;');
 
-    // ===== 8. Cleanup =====
-    console.log('\n8. Cleanup:');
+    // ===== 10. Cleanup =====
+    console.log('\n10. Cleanup:');
     await schemaKit.disconnect();
     console.log('   ✅ Database connection closed');
 
