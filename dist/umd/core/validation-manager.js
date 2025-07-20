@@ -11,49 +11,19 @@
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.ValidationManager = void 0;
     /**
-     * Validation Manager class
+     * Simplified ValidationManager class
+     * Essential validation only
      */
     class ValidationManager {
         /**
          * Validate entity data against schema
-         * @param entityConfig Entity configuration
-         * @param data Data to validate
-         * @param operation Operation type (create, update)
          */
-        validateEntityData(entityConfig, data, operation) {
+        async validate(entityConfig, data, operation) {
             const errors = [];
             // Validate each field
             for (const field of entityConfig.fields) {
-                const value = data[field.name];
-                // Check required fields (only for create operation or if field is present in update)
-                if (field.is_required && (operation === 'create' || data.hasOwnProperty(field.name))) {
-                    if (value === undefined || value === null || value === '') {
-                        errors.push({
-                            field: field.name,
-                            code: 'required',
-                            message: `Field '${field.name}' is required`,
-                            value
-                        });
-                        continue;
-                    }
-                }
-                // Skip validation if value is not provided
-                if (value === undefined || value === null) {
-                    continue;
-                }
-                // Type validation
-                const typeErrors = this.validateFieldType(field, value);
-                errors.push(...typeErrors);
-                // Check uniqueness if required
-                if (field.is_unique && value !== undefined && value !== null) {
-                    // This would require a database check, which we'll skip for now
-                    // In a real implementation, we would check if the value already exists
-                }
-                // Custom validation rules
-                if (field.validation_rules && field.validation_rules.custom) {
-                    // In a real implementation, we would execute custom validation functions
-                    // This is a placeholder for custom validation
-                }
+                const fieldErrors = this.validateField(field, data[field.name], operation, data);
+                errors.push(...fieldErrors);
             }
             return {
                 isValid: errors.length === 0,
@@ -61,10 +31,38 @@
             };
         }
         /**
-         * Validate field type and constraints
-         * @param field Field definition
-         * @param value Value to validate
-         * @private
+         * Validate a single field
+         */
+        validateField(fieldConfig, value, operation = 'create', allData = {}) {
+            const errors = [];
+            // Check required fields
+            if (fieldConfig.is_required && (operation === 'create' || allData.hasOwnProperty(fieldConfig.name))) {
+                if (value === undefined || value === null || value === '') {
+                    errors.push({
+                        field: fieldConfig.name,
+                        code: 'required',
+                        message: `Field '${fieldConfig.name}' is required`,
+                        value
+                    });
+                    return errors; // No need to validate type if required field is missing
+                }
+            }
+            // Skip validation if value is not provided (for optional fields)
+            if (value === undefined || value === null) {
+                return errors;
+            }
+            // Type validation
+            const typeErrors = this.validateFieldType(fieldConfig, value);
+            errors.push(...typeErrors);
+            // Custom validation rules
+            if (fieldConfig.validation_rules) {
+                const customErrors = this.validateCustomRules(fieldConfig, value, allData);
+                errors.push(...customErrors);
+            }
+            return errors;
+        }
+        /**
+         * Validate field type
          */
         validateFieldType(field, value) {
             const errors = [];
@@ -78,38 +76,9 @@
                             value
                         });
                     }
-                    else if (field.validation_rules) {
-                        // String-specific validations
-                        if (field.validation_rules.minLength && value.length < field.validation_rules.minLength) {
-                            errors.push({
-                                field: field.name,
-                                code: 'minLength',
-                                message: `Field '${field.name}' must be at least ${field.validation_rules.minLength} characters`,
-                                value
-                            });
-                        }
-                        if (field.validation_rules.maxLength && value.length > field.validation_rules.maxLength) {
-                            errors.push({
-                                field: field.name,
-                                code: 'maxLength',
-                                message: `Field '${field.name}' must be at most ${field.validation_rules.maxLength} characters`,
-                                value
-                            });
-                        }
-                        if (field.validation_rules.pattern) {
-                            const regex = new RegExp(field.validation_rules.pattern);
-                            if (!regex.test(value)) {
-                                errors.push({
-                                    field: field.name,
-                                    code: 'pattern',
-                                    message: `Field '${field.name}' does not match required pattern`,
-                                    value
-                                });
-                            }
-                        }
-                    }
                     break;
                 case 'number':
+                case 'integer':
                     if (typeof value !== 'number' || isNaN(value)) {
                         errors.push({
                             field: field.name,
@@ -117,25 +86,6 @@
                             message: `Field '${field.name}' must be a number`,
                             value
                         });
-                    }
-                    else if (field.validation_rules) {
-                        // Number-specific validations
-                        if (field.validation_rules.min !== undefined && value < field.validation_rules.min) {
-                            errors.push({
-                                field: field.name,
-                                code: 'min',
-                                message: `Field '${field.name}' must be at least ${field.validation_rules.min}`,
-                                value
-                            });
-                        }
-                        if (field.validation_rules.max !== undefined && value > field.validation_rules.max) {
-                            errors.push({
-                                field: field.name,
-                                code: 'max',
-                                message: `Field '${field.name}' must be at most ${field.validation_rules.max}`,
-                                value
-                            });
-                        }
                     }
                     break;
                 case 'boolean':
@@ -149,11 +99,23 @@
                     }
                     break;
                 case 'date':
+                case 'datetime':
                     if (!(value instanceof Date) && isNaN(Date.parse(value))) {
                         errors.push({
                             field: field.name,
                             code: 'type',
                             message: `Field '${field.name}' must be a valid date`,
+                            value
+                        });
+                    }
+                    break;
+                case 'json':
+                case 'object':
+                    if (typeof value !== 'object' || value === null) {
+                        errors.push({
+                            field: field.name,
+                            code: 'type',
+                            message: `Field '${field.name}' must be an object`,
                             value
                         });
                     }
@@ -167,180 +129,89 @@
                             value
                         });
                     }
-                    else if (field.validation_rules) {
-                        // Array-specific validations
-                        if (field.validation_rules.minItems && value.length < field.validation_rules.minItems) {
-                            errors.push({
-                                field: field.name,
-                                code: 'minItems',
-                                message: `Field '${field.name}' must have at least ${field.validation_rules.minItems} items`,
-                                value
-                            });
-                        }
-                        if (field.validation_rules.maxItems && value.length > field.validation_rules.maxItems) {
-                            errors.push({
-                                field: field.name,
-                                code: 'maxItems',
-                                message: `Field '${field.name}' must have at most ${field.validation_rules.maxItems} items`,
-                                value
-                            });
-                        }
-                    }
-                    break;
-                case 'json':
-                    try {
-                        if (typeof value === 'string') {
-                            JSON.parse(value);
-                        }
-                        else if (typeof value !== 'object') {
-                            throw new Error('Not an object');
-                        }
-                    }
-                    catch (e) {
-                        errors.push({
-                            field: field.name,
-                            code: 'type',
-                            message: `Field '${field.name}' must be valid JSON`,
-                            value
-                        });
-                    }
-                    break;
-                case 'reference':
-                    // Reference validation would require checking if the referenced entity exists
-                    // This is a simplified version
-                    if (typeof value !== 'string' && typeof value !== 'number') {
-                        errors.push({
-                            field: field.name,
-                            code: 'type',
-                            message: `Field '${field.name}' must be a valid reference ID`,
-                            value
-                        });
-                    }
                     break;
             }
             return errors;
         }
         /**
-         * Prepare data for insertion
-         * @param entityConfig Entity configuration
-         * @param data Data to prepare
+         * Validate custom rules
          */
-        prepareDataForInsert(entityConfig, data) {
-            const result = {};
-            // Process each field
-            for (const field of entityConfig.fields) {
-                let value = data[field.name];
-                // Apply default value if not provided
-                if ((value === undefined || value === null) && field.default_value !== undefined) {
-                    value = field.default_value;
+        validateCustomRules(field, value, allData) {
+            const errors = [];
+            try {
+                const rules = typeof field.validation_rules === 'string'
+                    ? JSON.parse(field.validation_rules)
+                    : field.validation_rules;
+                // Min length
+                if (rules.minLength && typeof value === 'string' && value.length < rules.minLength) {
+                    errors.push({
+                        field: field.name,
+                        code: 'minLength',
+                        message: `Field '${field.name}' must be at least ${rules.minLength} characters`,
+                        value
+                    });
                 }
-                // Skip undefined values
-                if (value === undefined) {
-                    continue;
+                // Max length
+                if (rules.maxLength && typeof value === 'string' && value.length > rules.maxLength) {
+                    errors.push({
+                        field: field.name,
+                        code: 'maxLength',
+                        message: `Field '${field.name}' must be at most ${rules.maxLength} characters`,
+                        value
+                    });
                 }
-                // Convert values based on field type
-                result[field.name] = this.convertValueForStorage(field, value);
-            }
-            return result;
-        }
-        /**
-         * Prepare data for update
-         * @param entityConfig Entity configuration
-         * @param data Data to prepare
-         */
-        prepareDataForUpdate(entityConfig, data) {
-            const result = {};
-            // Process each field
-            for (const field of entityConfig.fields) {
-                // Skip fields that are not in the update data
-                if (!data.hasOwnProperty(field.name)) {
-                    continue;
+                // Min value
+                if (rules.min !== undefined && typeof value === 'number' && value < rules.min) {
+                    errors.push({
+                        field: field.name,
+                        code: 'min',
+                        message: `Field '${field.name}' must be at least ${rules.min}`,
+                        value
+                    });
                 }
-                const value = data[field.name];
-                // Skip undefined values
-                if (value === undefined) {
-                    continue;
+                // Max value
+                if (rules.max !== undefined && typeof value === 'number' && value > rules.max) {
+                    errors.push({
+                        field: field.name,
+                        code: 'max',
+                        message: `Field '${field.name}' must be at most ${rules.max}`,
+                        value
+                    });
                 }
-                // Convert values based on field type
-                result[field.name] = this.convertValueForStorage(field, value);
-            }
-            return result;
-        }
-        /**
-         * Process entity result from database
-         * @param entityConfig Entity configuration
-         * @param data Data from database
-         */
-        processEntityResult(entityConfig, data) {
-            const result = { ...data };
-            // Process each field
-            for (const field of entityConfig.fields) {
-                const value = data[field.name];
-                // Skip null or undefined values
-                if (value === null || value === undefined) {
-                    continue;
+                // Pattern (regex)
+                if (rules.pattern && typeof value === 'string') {
+                    const regex = new RegExp(rules.pattern);
+                    if (!regex.test(value)) {
+                        errors.push({
+                            field: field.name,
+                            code: 'pattern',
+                            message: `Field '${field.name}' does not match required pattern`,
+                            value
+                        });
+                    }
                 }
-                // Convert values based on field type
-                result[field.name] = this.convertValueFromStorage(field, value);
+                // Email validation
+                if (rules.email && typeof value === 'string') {
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    if (!emailRegex.test(value)) {
+                        errors.push({
+                            field: field.name,
+                            code: 'email',
+                            message: `Field '${field.name}' must be a valid email address`,
+                            value
+                        });
+                    }
+                }
             }
-            return result;
-        }
-        /**
-         * Convert value for storage in database
-         * @param field Field definition
-         * @param value Value to convert
-         * @private
-         */
-        convertValueForStorage(field, value) {
-            switch (field.type) {
-                case 'date':
-                    if (value instanceof Date) {
-                        return value.toISOString();
-                    }
-                    break;
-                case 'json':
-                case 'array':
-                    if (typeof value === 'object') {
-                        return JSON.stringify(value);
-                    }
-                    break;
+            catch (error) {
+                errors.push({
+                    field: field.name,
+                    code: 'validation_error',
+                    message: `Invalid validation rules for field '${field.name}'`,
+                    value
+                });
             }
-            return value;
-        }
-        /**
-         * Convert value from storage format
-         * @param field Field definition
-         * @param value Value to convert
-         * @private
-         */
-        convertValueFromStorage(field, value) {
-            switch (field.type) {
-                case 'date':
-                    return new Date(value);
-                case 'json':
-                case 'array':
-                    if (typeof value === 'string') {
-                        try {
-                            return JSON.parse(value);
-                        }
-                        catch (e) {
-                            // If parsing fails, keep original value
-                        }
-                    }
-                    break;
-                case 'number':
-                    return Number(value);
-                case 'boolean':
-                    // Convert various boolean representations
-                    if (value === 'true' || value === '1' || value === 1) {
-                        return true;
-                    }
-                    else if (value === 'false' || value === '0' || value === 0) {
-                        return false;
-                    }
-                    break;
-            }
-            return value;
+            return errors;
         }
     }
     exports.ValidationManager = ValidationManager;

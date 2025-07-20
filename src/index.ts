@@ -5,15 +5,17 @@
  */
 
 // Core SchemaKit class (optimized)
-export { SchemaKit, SchemaKitOptions } from './schemakit-optimized';
+export { SchemaKit } from './schemakit';
 
 // Core managers (optimized)
 export { EntityManager } from './core/entity-manager';
-export { QueryManager } from './core/query-manager-simplified';
+export { QueryManager } from './core/query-manager';
 export { ValidationManager } from './core/validation-manager';
 export { PermissionManager } from './core/permission-manager';
 export { WorkflowManager } from './core/workflow-manager';
 export { SchemaLoader } from './core/schema-loader';
+export { InstallManager } from './core/install-manager';
+export { EntityBuilder } from './core/entity-builder';
 
 // Query components (new split)
 export { QueryBuilder } from './core/query/query-builder';
@@ -27,7 +29,6 @@ export { TypeValidators } from './core/validators/type-validators';
 export { WorkflowActions } from './core/workflows/workflow-actions';
 
 // Core utilities
-export { InstanceManager } from './core/instance-manager';
 export { FileLoader } from './core/file-loader';
 
 // Database adapters (optimized)
@@ -38,7 +39,7 @@ export { PostgresAdapter } from './database/adapters/postgres';
 export { SQLiteAdapter } from './database/adapters/sqlite';
 
 // Types (simplified)
-export * from './types-simplified';
+export * from './types';
 
 // Errors
 export { SchemaKitError } from './errors';

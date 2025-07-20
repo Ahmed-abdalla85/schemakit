@@ -61,7 +61,7 @@ var __importStar = (this && this.__importStar) || (function () {
         }
         /**
          * Create a database adapter instance
-         * @param type Adapter type ('sqlite' or 'postgres')
+         * @param type Adapter type ('sqlite', 'postgres', or 'inmemory')
          * @param config Configuration options
          */
         static async create(type = 'sqlite', config = {}) {
@@ -74,13 +74,17 @@ var __importStar = (this && this.__importStar) || (function () {
                     // Import PostgresAdapter using dynamic import
                     const { PostgresAdapter } = await (__syncRequire ? Promise.resolve().then(() => __importStar(require('./adapters/postgres'))) : new Promise((resolve_2, reject_2) => { require(['./adapters/postgres'], resolve_2, reject_2); }).then(__importStar));
                     return new PostgresAdapter(config);
+                case 'inmemory':
+                    // Import InMemoryAdapter using dynamic import
+                    const { InMemoryAdapter } = await (__syncRequire ? Promise.resolve().then(() => __importStar(require('./adapters/inmemory'))) : new Promise((resolve_3, reject_3) => { require(['./adapters/inmemory'], resolve_3, reject_3); }).then(__importStar));
+                    return new InMemoryAdapter(config);
                 default:
                     throw new errors_1.DatabaseError('create', new Error(`Unsupported adapter type: ${type}`));
             }
         }
         /**
          * Create a database adapter instance synchronously (for backward compatibility)
-         * @param type Adapter type ('sqlite' or 'postgres')
+         * @param type Adapter type ('sqlite', 'postgres', or 'inmemory')
          * @param config Configuration options
          */
         static createSync(type = 'sqlite', config = {}) {
@@ -96,6 +100,11 @@ var __importStar = (this && this.__importStar) || (function () {
                     // eslint-disable-next-line @typescript-eslint/no-var-requires
                     const { PostgresAdapter } = require('./adapters/postgres');
                     return new PostgresAdapter(config);
+                case 'inmemory':
+                    // Import InMemoryAdapter
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires
+                    const { InMemoryAdapter } = require('./adapters/inmemory');
+                    return new InMemoryAdapter(config);
                 default:
                     throw new errors_1.DatabaseError('create', new Error(`Unsupported adapter type: ${type}`));
             }

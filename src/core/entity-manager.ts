@@ -6,7 +6,7 @@
  */
 import { DatabaseAdapter } from '../database/adapter';
 import { EntityConfiguration, Context, RLSConditions } from '../types';
-import { QueryManager } from './query-manager';
+import { QueryManager, QueryFilter } from './query-manager';
 import { generateId } from '../utils/id-generation';
 import { getCurrentTimestamp } from '../utils/date-helpers';
 
@@ -236,20 +236,40 @@ export class EntityManager {
     context: Context = {},
     rlsConditions?: RLSConditions
   ): Promise<Record<string, any>[]> {
-    // Use QueryManager for paginated query execution
-    const result = await this.queryManager.executePaginatedQuery(
-      entityConfig,
-      conditions,
-      {
-        fields: options.fields,
-        sort: options.sort,
-        page: options.offset ? Math.floor(options.offset / (options.limit || 10)) + 1 : 1,
-        pageSize: options.limit || 10
-      },
-      context
-    );
+    const tableName = entityConfig.entity.table_name;
+    const tenantId = context.tenantId || 'default';
+    
+    // Convert conditions to QueryFilter format
+    const filters = conditions.map(condition => ({
+      field: condition.field,
+      value: condition.value,
+      operator: condition.operator || 'eq'
+    }));
+    
+    // Use QueryManager to build select query
+    const { sql, params } = this.queryManager.buildSelectQuery(tableName, tenantId, filters, {
+      sort: options.sort,
+      limit: options.limit,
+      offset: options.offset
+    });
+    
+    // Add RLS conditions if provided
+    let finalSql = sql;
+    let finalParams = [...params];
+    
+    if (rlsConditions?.sql) {
+      // Append RLS conditions to WHERE clause
+      const whereIndex = finalSql.indexOf('WHERE');
+      if (whereIndex !== -1) {
+        const beforeWhere = finalSql.substring(0, whereIndex + 5); // +5 to include 'WHERE'
+        const afterWhere = finalSql.substring(whereIndex + 5);
+        finalSql = `${beforeWhere} ${afterWhere} AND (${rlsConditions.sql})`;
+        finalParams = [...finalParams, ...rlsConditions.params];
+      }
+    }
 
-    return result.data || [];
+    const result = await this.databaseAdapter.query(finalSql, finalParams);
+    return result || [];
   }
 
   /**

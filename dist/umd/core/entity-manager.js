@@ -4,268 +4,331 @@
         if (v !== undefined) module.exports = v;
     }
     else if (typeof define === "function" && define.amd) {
-        define(["require", "exports", "../errors", "./validation-manager", "./workflow-manager"], factory);
+        define(["require", "exports", "./query-manager", "../utils/id-generation", "../utils/date-helpers"], factory);
     }
 })(function (require, exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.EntityManager = void 0;
-    const errors_1 = require("../errors");
-    const validation_manager_1 = require("./validation-manager");
-    const workflow_manager_1 = require("./workflow-manager");
+    const query_manager_1 = require("./query-manager");
+    const id_generation_1 = require("../utils/id-generation");
+    const date_helpers_1 = require("../utils/date-helpers");
     /**
-     * Entity Manager class
+     * EntityManager class
+     * Single responsibility: Handle CRUD operations on entities
      */
     class EntityManager {
+        /**
+         * Create a new EntityManager instance
+         * @param databaseAdapter Database adapter
+         */
         constructor(databaseAdapter) {
             this.databaseAdapter = databaseAdapter;
-            this.validationManager = new validation_manager_1.ValidationManager();
-            this.workflowManager = new workflow_manager_1.WorkflowManager();
+            this.queryManager = new query_manager_1.QueryManager(databaseAdapter);
         }
         /**
-         * Create a new entity instance
+         * Create a new entity record
          * @param entityConfig Entity configuration
          * @param data Entity data
          * @param context User context
+         * @returns Created entity record
          */
         async create(entityConfig, data, context = {}) {
-            try {
-                // Validate data against entity schema
-                const validationResult = this.validationManager.validateEntityData(entityConfig, data, 'create');
-                if (!validationResult.isValid) {
-                    throw new errors_1.SchemaKitError(`Validation failed: ${JSON.stringify(validationResult.errors)}`);
-                }
-                // Ensure entity table exists
-                await this.ensureEntityTable(entityConfig);
-                // Prepare data for insertion
-                const insertData = this.validationManager.prepareDataForInsert(entityConfig, data);
-                // Generate ID if not provided
-                if (!insertData.id) {
-                    insertData.id = this.generateId();
-                }
-                // Add timestamps
-                const now = new Date().toISOString();
-                insertData.created_at = now;
-                insertData.updated_at = now;
-                // Execute pre-create workflows
-                await this.workflowManager.executeWorkflows(entityConfig, 'create', null, insertData, context);
-                // Insert data into database
-                const columns = Object.keys(insertData);
-                const placeholders = columns.map(() => '?').join(', ');
-                const values = columns.map(col => insertData[col]);
-                const sql = `INSERT INTO ${entityConfig.entity.table_name} (${columns.join(', ')}) VALUES (${placeholders})`;
-                await this.databaseAdapter.execute(sql, values);
-                // Execute post-create workflows
-                await this.workflowManager.executeWorkflows(entityConfig, 'create', null, insertData, context);
-                return insertData;
+            // Ensure entity table exists
+            await this.ensureEntityTable(entityConfig);
+            // Generate ID if not provided
+            if (!data.id) {
+                data.id = (0, id_generation_1.generateId)();
             }
-            catch (error) {
-                throw new errors_1.SchemaKitError(`Failed to create entity: ${error}`);
+            // Add system fields
+            const timestamp = (0, date_helpers_1.getCurrentTimestamp)();
+            data.created_at = timestamp;
+            data.updated_at = timestamp;
+            // Add creator ID if available in context
+            if (context.user?.id) {
+                data.created_by = context.user.id;
+                data.updated_by = context.user.id;
             }
+            // Use QueryManager to build and execute insert query
+            const tableName = entityConfig.entity.table_name;
+            const tenantId = context.tenantId || 'default';
+            const { sql, params } = this.queryManager.buildInsertQuery(tableName, tenantId, data);
+            const result = await this.databaseAdapter.execute(sql, params);
+            if (result.changes === 0) {
+                throw new Error(`Failed to create ${tableName} record`);
+            }
+            // For INSERT with RETURNING, we need to get the inserted record
+            // Since execute doesn't return the inserted record, we need to query for it
+            const insertedId = result.lastInsertId;
+            if (insertedId) {
+                const insertedRecord = await this.findById(entityConfig, insertedId, context);
+                return insertedRecord || { id: insertedId, ...data };
+            }
+            // Fallback: return the data with a generated ID
+            return { id: (0, id_generation_1.generateId)(), ...data };
         }
         /**
-         * Find entity instance by ID
+         * Find entity record by ID
          * @param entityConfig Entity configuration
-         * @param id Entity ID
+         * @param id Record ID
          * @param context User context
-         * @param rlsConditions RLS conditions to apply
+         * @param rlsConditions RLS conditions (optional)
+         * @returns Entity record or null if not found
          */
-        async findById(entityConfig, id, context = {}, rlsConditions = { sql: '', params: [] }) {
-            try {
-                // Ensure entity table exists
-                await this.ensureEntityTable(entityConfig);
-                // Build query
-                let sql = `SELECT * FROM ${entityConfig.entity.table_name} WHERE id = ?`;
-                const params = [id];
-                // Add RLS conditions if any
-                if (rlsConditions.sql) {
-                    sql += ` AND (${rlsConditions.sql})`;
-                    params.push(...rlsConditions.params);
+        async findById(entityConfig, id, context = {}, rlsConditions) {
+            const tableName = entityConfig.entity.table_name;
+            const tenantId = context.tenantId || 'default';
+            // Use QueryManager to build and execute find by ID query
+            const { sql, params } = this.queryManager.buildFindByIdQuery(tableName, tenantId, id);
+            // Add RLS conditions if provided
+            let finalSql = sql;
+            let finalParams = [...params];
+            if (rlsConditions?.sql) {
+                // Append RLS conditions to WHERE clause
+                const whereIndex = finalSql.indexOf('WHERE');
+                if (whereIndex !== -1) {
+                    const beforeWhere = finalSql.substring(0, whereIndex + 5); // +5 to include 'WHERE'
+                    const afterWhere = finalSql.substring(whereIndex + 5);
+                    finalSql = `${beforeWhere} ${afterWhere} AND (${rlsConditions.sql})`;
+                    finalParams = [...finalParams, ...rlsConditions.params];
                 }
-                // Execute query
-                const results = await this.databaseAdapter.query(sql, params);
-                if (results.length === 0) {
-                    return null;
-                }
-                // Process result
-                const result = this.validationManager.processEntityResult(entityConfig, results[0]);
-                return result;
             }
-            catch (error) {
-                throw new errors_1.SchemaKitError(`Failed to find entity with id ${id}: ${error}`);
-            }
+            const result = await this.databaseAdapter.query(finalSql, finalParams);
+            return result.length > 0 ? result[0] : null;
         }
         /**
-         * Update entity instance
+         * Update entity record
          * @param entityConfig Entity configuration
-         * @param id Entity ID
-         * @param data Entity data
+         * @param id Record ID
+         * @param data Update data
          * @param context User context
-         * @param rlsConditions RLS conditions to apply
+         * @param rlsConditions RLS conditions (optional)
+         * @returns Updated entity record
          */
-        async update(entityConfig, id, data, context = {}, rlsConditions = { sql: '', params: [] }) {
-            try {
-                // Get current entity data
-                const currentData = await this.findById(entityConfig, id, context, rlsConditions);
-                if (!currentData) {
-                    throw new errors_1.SchemaKitError(`Entity with id ${id} not found`);
-                }
-                // Validate data against entity schema
-                const validationResult = this.validationManager.validateEntityData(entityConfig, data, 'update');
-                if (!validationResult.isValid) {
-                    throw new errors_1.SchemaKitError(`Validation failed: ${JSON.stringify(validationResult.errors)}`);
-                }
-                // Prepare data for update
-                const updateData = this.validationManager.prepareDataForUpdate(entityConfig, data);
-                // Add updated_at timestamp
-                updateData.updated_at = new Date().toISOString();
-                // Execute pre-update workflows
-                await this.workflowManager.executeWorkflows(entityConfig, 'update', currentData, updateData, context);
-                // Check if there are fields to update
-                if (Object.keys(updateData).length === 0) {
-                    return currentData; // Nothing to update
-                }
-                // Build update query
-                const setClause = Object.keys(updateData).map(field => `${field} = ?`).join(', ');
-                const values = Object.values(updateData);
-                values.push(id); // Add ID for WHERE clause
-                let sql = `UPDATE ${entityConfig.entity.table_name} SET ${setClause} WHERE id = ?`;
-                // Add RLS conditions if any
-                if (rlsConditions.sql) {
-                    sql += ` AND (${rlsConditions.sql})`;
-                    values.push(...rlsConditions.params);
-                }
-                // Execute update
-                await this.databaseAdapter.execute(sql, values);
-                // Get updated entity
-                const updatedData = await this.findById(entityConfig, id, context, rlsConditions);
-                if (!updatedData) {
-                    throw new errors_1.SchemaKitError(`Failed to retrieve updated entity with id ${id}`);
-                }
-                // Execute post-update workflows
-                await this.workflowManager.executeWorkflows(entityConfig, 'update', currentData, updatedData, context);
-                return updatedData;
+        async update(entityConfig, id, data, context = {}, rlsConditions) {
+            const tableName = entityConfig.entity.table_name;
+            const tenantId = context.tenantId || 'default';
+            // Add system fields
+            data.updated_at = (0, date_helpers_1.getCurrentTimestamp)();
+            // Add updater ID if available in context
+            if (context.user?.id) {
+                data.updated_by = context.user.id;
             }
-            catch (error) {
-                throw new errors_1.SchemaKitError(`Failed to update entity with id ${id}: ${error}`);
+            // Remove ID from update data if present
+            if ('id' in data) {
+                delete data.id;
             }
+            // Use QueryManager to build and execute update query
+            const { sql, params } = this.queryManager.buildUpdateQuery(tableName, tenantId, id, data);
+            // Add RLS conditions if provided
+            let finalSql = sql;
+            let finalParams = [...params];
+            if (rlsConditions?.sql) {
+                // Append RLS conditions to WHERE clause
+                const whereIndex = finalSql.indexOf('WHERE');
+                if (whereIndex !== -1) {
+                    const beforeWhere = finalSql.substring(0, whereIndex + 5); // +5 to include 'WHERE'
+                    const afterWhere = finalSql.substring(whereIndex + 5);
+                    finalSql = `${beforeWhere} ${afterWhere} AND (${rlsConditions.sql})`;
+                    finalParams = [...finalParams, ...rlsConditions.params];
+                }
+            }
+            const result = await this.databaseAdapter.query(finalSql, finalParams);
+            if (result.length === 0) {
+                throw new Error(`Record not found or permission denied: ${tableName} with ID ${id}`);
+            }
+            return result[0];
         }
         /**
-         * Delete entity instance
+         * Delete entity record
          * @param entityConfig Entity configuration
-         * @param id Entity ID
+         * @param id Record ID
          * @param context User context
-         * @param rlsConditions RLS conditions to apply
+         * @param rlsConditions RLS conditions (optional)
+         * @returns True if record was deleted
          */
-        async delete(entityConfig, id, context = {}, rlsConditions = { sql: '', params: [] }) {
-            try {
-                // Get current entity data
-                const currentData = await this.findById(entityConfig, id, context, rlsConditions);
-                if (!currentData) {
-                    throw new errors_1.SchemaKitError(`Entity with id ${id} not found`);
+        async delete(entityConfig, id, context = {}, rlsConditions) {
+            const tableName = entityConfig.entity.table_name;
+            const tenantId = context.tenantId || 'default';
+            // Use QueryManager to build and execute delete query
+            const { sql, params } = this.queryManager.buildDeleteQuery(tableName, tenantId, id);
+            // Add RLS conditions if provided
+            let finalSql = sql;
+            let finalParams = [...params];
+            if (rlsConditions?.sql) {
+                // Append RLS conditions to WHERE clause
+                const whereIndex = finalSql.indexOf('WHERE');
+                if (whereIndex !== -1) {
+                    const beforeWhere = finalSql.substring(0, whereIndex + 5); // +5 to include 'WHERE'
+                    const afterWhere = finalSql.substring(whereIndex + 5);
+                    finalSql = `${beforeWhere} ${afterWhere} AND (${rlsConditions.sql})`;
+                    finalParams = [...finalParams, ...rlsConditions.params];
                 }
-                // Execute pre-delete workflows
-                await this.workflowManager.executeWorkflows(entityConfig, 'delete', currentData, null, context);
-                // Execute delete
-                let sql = `DELETE FROM ${entityConfig.entity.table_name} WHERE id = ?`;
-                const params = [id];
-                // Add RLS conditions if any
-                if (rlsConditions.sql) {
-                    sql += ` AND (${rlsConditions.sql})`;
-                    params.push(...rlsConditions.params);
-                }
-                const result = await this.databaseAdapter.execute(sql, params);
-                // Execute post-delete workflows
-                await this.workflowManager.executeWorkflows(entityConfig, 'delete', currentData, null, context);
-                return result.changes > 0;
             }
-            catch (error) {
-                throw new errors_1.SchemaKitError(`Failed to delete entity with id ${id}: ${error}`);
-            }
+            const result = await this.databaseAdapter.execute(finalSql, finalParams);
+            return result.changes > 0;
         }
+        /**
+         * Find entity records with conditions
+         * @param entityConfig Entity configuration
+         * @param conditions Query conditions
+         * @param options Query options
+         * @param context User context
+         * @param rlsConditions RLS conditions (optional)
+         * @returns Array of entity records
+         */
+        async find(entityConfig, conditions = [], options = {}, context = {}, rlsConditions) {
+            const tableName = entityConfig.entity.table_name;
+            const tenantId = context.tenantId || 'default';
+            // Convert conditions to QueryFilter format
+            const filters = conditions.map(condition => ({
+                field: condition.field,
+                value: condition.value,
+                operator: condition.operator || 'eq'
+            }));
+            // Use QueryManager to build select query
+            const { sql, params } = this.queryManager.buildSelectQuery(tableName, tenantId, filters, {
+                sort: options.sort,
+                limit: options.limit,
+                offset: options.offset
+            });
+            // Add RLS conditions if provided
+            let finalSql = sql;
+            let finalParams = [...params];
+            if (rlsConditions?.sql) {
+                // Append RLS conditions to WHERE clause
+                const whereIndex = finalSql.indexOf('WHERE');
+                if (whereIndex !== -1) {
+                    const beforeWhere = finalSql.substring(0, whereIndex + 5); // +5 to include 'WHERE'
+                    const afterWhere = finalSql.substring(whereIndex + 5);
+                    finalSql = `${beforeWhere} ${afterWhere} AND (${rlsConditions.sql})`;
+                    finalParams = [...finalParams, ...rlsConditions.params];
+                }
+            }
+            const result = await this.databaseAdapter.query(finalSql, finalParams);
+            return result || [];
+        }
+        /**
+         * Count entity records with conditions
+         * @param entityConfig Entity configuration
+         * @param conditions Query conditions
+         * @param context User context
+         * @param rlsConditions RLS conditions (optional)
+         * @returns Count of records
+         */
+        async count(entityConfig, conditions = [], context = {}, rlsConditions) {
+            const tableName = entityConfig.entity.table_name;
+            const tenantId = context.tenantId || 'default';
+            // Convert conditions to QueryFilter format for QueryManager
+            const filters = conditions.map(condition => ({
+                field: condition.field,
+                value: condition.value,
+                operator: condition.operator || 'eq'
+            }));
+            // Use QueryManager to build and execute count query
+            const { sql, params } = this.queryManager.buildCountQuery(tableName, tenantId, filters);
+            // Add RLS conditions if provided
+            let finalSql = sql;
+            let finalParams = [...params];
+            if (rlsConditions?.sql) {
+                // Append RLS conditions to WHERE clause
+                const whereIndex = finalSql.indexOf('WHERE');
+                if (whereIndex !== -1) {
+                    const beforeWhere = finalSql.substring(0, whereIndex + 5); // +5 to include 'WHERE'
+                    const afterWhere = finalSql.substring(whereIndex + 5);
+                    finalSql = `${beforeWhere} ${afterWhere} AND (${rlsConditions.sql})`;
+                    finalParams = [...finalParams, ...rlsConditions.params];
+                }
+            }
+            const result = await this.databaseAdapter.query(finalSql, finalParams);
+            return result.length > 0 ? parseInt(result[0].count, 10) : 0;
+        }
+        // === TABLE MANAGEMENT ===
         /**
          * Ensure entity table exists
          * @param entityConfig Entity configuration
-         * @private
          */
         async ensureEntityTable(entityConfig) {
             const tableName = entityConfig.entity.table_name;
-            // Check if table exists
-            const tableExists = await this.databaseAdapter.tableExists(tableName);
-            if (tableExists) {
-                return;
+            const exists = await this.databaseAdapter.tableExists(tableName);
+            if (!exists) {
+                await this.createEntityTable(entityConfig);
             }
-            // Create table columns
-            const columns = [
-                { name: 'id', type: 'TEXT', primaryKey: true, notNull: true },
-                { name: 'created_at', type: 'TEXT', notNull: true },
-                { name: 'updated_at', type: 'TEXT', notNull: true }
-            ];
-            // Add columns for each field
-            for (const field of entityConfig.fields) {
-                // Skip special fields that are already added
-                if (['id', 'created_at', 'updated_at'].includes(field.name)) {
-                    continue;
-                }
-                // Map field type to SQL type
-                let sqlType;
-                switch (field.type) {
-                    case 'string':
-                        sqlType = 'TEXT';
-                        break;
-                    case 'number':
-                        sqlType = 'REAL';
-                        break;
-                    case 'boolean':
-                        sqlType = 'INTEGER';
-                        break;
-                    case 'date':
-                        sqlType = 'TEXT';
-                        break;
-                    case 'json':
-                    case 'array':
-                        sqlType = 'TEXT';
-                        break;
-                    case 'reference':
-                        sqlType = 'TEXT';
-                        break;
-                    default:
-                        sqlType = 'TEXT';
-                }
-                // Create column definition
-                const column = {
-                    name: field.name,
-                    type: sqlType,
-                    notNull: field.is_required,
-                    unique: field.is_unique
-                };
-                // Add default value if specified
-                if (field.default_value !== undefined) {
-                    column.default = field.default_value;
-                }
-                // Add reference if specified
-                if (field.type === 'reference' && field.reference_entity) {
-                    column.references = {
-                        table: `entity_${field.reference_entity}`,
-                        column: 'id'
-                    };
-                }
-                columns.push(column);
+            else {
+                // Check if table needs to be updated with new fields
+                await this.updateEntityTable(entityConfig);
             }
-            // Create table
+        }
+        /**
+         * Create entity table
+         * @param entityConfig Entity configuration
+         */
+        async createEntityTable(entityConfig) {
+            const tableName = entityConfig.entity.table_name;
+            // Build column definitions
+            const columns = entityConfig.fields.map((field) => ({
+                name: field.name,
+                type: this.getSqlType(field.type),
+                primaryKey: field.name === 'id',
+                notNull: field.is_required || field.name === 'id',
+                unique: field.is_unique,
+                default: field.default_value
+            }));
+            // Add system columns
+            columns.push({ name: 'created_at', type: 'DATETIME', primaryKey: false, notNull: true, unique: false, default: undefined }, { name: 'updated_at', type: 'DATETIME', primaryKey: false, notNull: true, unique: false, default: undefined }, { name: 'created_by', type: 'VARCHAR(255)', primaryKey: false, notNull: false, unique: false, default: undefined }, { name: 'updated_by', type: 'VARCHAR(255)', primaryKey: false, notNull: false, unique: false, default: undefined });
             await this.databaseAdapter.createTable(tableName, columns);
         }
         /**
-         * Generate a unique ID
-         * @private
+         * Update entity table with new fields
+         * @param entityConfig Entity configuration
          */
-        generateId() {
-            // Simple UUID v4 implementation
-            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-                const r = Math.random() * 16 | 0;
-                const v = c === 'x' ? r : (r & 0x3 | 0x8);
-                return v.toString(16);
-            });
+        async updateEntityTable(entityConfig) {
+            const tableName = entityConfig.entity.table_name;
+            // Get existing columns
+            const existingColumns = await this.databaseAdapter.getTableColumns(tableName);
+            const existingColumnNames = new Set(existingColumns.map(col => col.name));
+            // Find new fields that need to be added
+            const newFields = entityConfig.fields.filter((field) => !existingColumnNames.has(field.name));
+            if (newFields.length > 0) {
+                // Add new columns one by one
+                for (const field of newFields) {
+                    const columnDef = {
+                        name: field.name,
+                        type: this.getSqlType(field.type),
+                        notNull: field.is_required,
+                        unique: field.is_unique,
+                        default: field.default_value
+                    };
+                    // Note: This is a simplified approach. In a real implementation,
+                    // you'd want to use ALTER TABLE ADD COLUMN statements
+                    console.log(`Would add column ${field.name} to table ${tableName}`);
+                }
+            }
+        }
+        /**
+         * Get SQL type for field type
+         * @param fieldType Field type
+         * @returns SQL type
+         */
+        getSqlType(fieldType) {
+            switch (fieldType) {
+                case 'string':
+                case 'email':
+                case 'url':
+                case 'text':
+                case 'uuid':
+                    return 'VARCHAR(255)';
+                case 'number':
+                    return 'DECIMAL(10,2)';
+                case 'boolean':
+                    return 'BOOLEAN';
+                case 'date':
+                    return 'DATE';
+                case 'datetime':
+                    return 'DATETIME';
+                default:
+                    return 'VARCHAR(255)';
+            }
         }
     }
     exports.EntityManager = EntityManager;

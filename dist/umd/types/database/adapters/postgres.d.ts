@@ -1,7 +1,7 @@
 /**
  * PostgreSQL database adapter implementation
  */
-import { DatabaseAdapter, DatabaseAdapterConfig, ColumnDefinition, TransactionCallback } from '../adapter';
+import { DatabaseAdapter, DatabaseAdapterConfig, ColumnDefinition, TransactionCallback, QueryFilter, QueryOptions } from '../adapter';
 /**
  * PostgreSQL adapter implementation
  * Uses native PostgreSQL implementation with no external dependencies
@@ -9,6 +9,7 @@ import { DatabaseAdapter, DatabaseAdapterConfig, ColumnDefinition, TransactionCa
 export declare class PostgresAdapter extends DatabaseAdapter {
     private client;
     private connected;
+    private queryManager;
     constructor(config?: DatabaseAdapterConfig);
     /**
      * Connect to PostgreSQL database
@@ -49,4 +50,40 @@ export declare class PostgresAdapter extends DatabaseAdapter {
      * Get column information for a table
      */
     getTableColumns(tableName: string): Promise<ColumnDefinition[]>;
+    /**
+     * Select records with tenant-aware filtering (EntityKit pattern)
+     */
+    select(table: string, filters: QueryFilter[], options: QueryOptions, tenantId: string): Promise<any[]>;
+    /**
+     * Insert a record with tenant context (EntityKit pattern)
+     */
+    insert(table: string, data: Record<string, any>, tenantId?: string): Promise<any>;
+    /**
+     * Update a record with tenant context (EntityKit pattern)
+     */
+    update(table: string, id: string, data: Record<string, any>, tenantId: string): Promise<any>;
+    /**
+     * Delete a record with tenant context (EntityKit pattern)
+     */
+    delete(table: string, id: string, tenantId: string): Promise<void>;
+    /**
+     * Count records with tenant-aware filtering (EntityKit pattern)
+     */
+    count(table: string, filters: QueryFilter[], tenantId: string): Promise<number>;
+    /**
+     * Find a record by ID with tenant context (EntityKit pattern)
+     */
+    findById(table: string, id: string, tenantId: string): Promise<any | null>;
+    /**
+     * Create a database schema (for multi-tenancy)
+     */
+    createSchema(schemaName: string): Promise<void>;
+    /**
+     * Drop a database schema
+     */
+    dropSchema(schemaName: string): Promise<void>;
+    /**
+     * List all database schemas
+     */
+    listSchemas(): Promise<string[]>;
 }

@@ -166,14 +166,35 @@ export class EntityManager {
      * @returns Array of entity records
      */
     async find(entityConfig, conditions = [], options = {}, context = {}, rlsConditions) {
-        // Use QueryManager for paginated query execution
-        const result = await this.queryManager.executePaginatedQuery(entityConfig, conditions, {
-            fields: options.fields,
+        const tableName = entityConfig.entity.table_name;
+        const tenantId = context.tenantId || 'default';
+        // Convert conditions to QueryFilter format
+        const filters = conditions.map(condition => ({
+            field: condition.field,
+            value: condition.value,
+            operator: condition.operator || 'eq'
+        }));
+        // Use QueryManager to build select query
+        const { sql, params } = this.queryManager.buildSelectQuery(tableName, tenantId, filters, {
             sort: options.sort,
-            page: options.offset ? Math.floor(options.offset / (options.limit || 10)) + 1 : 1,
-            pageSize: options.limit || 10
-        }, context);
-        return result.data || [];
+            limit: options.limit,
+            offset: options.offset
+        });
+        // Add RLS conditions if provided
+        let finalSql = sql;
+        let finalParams = [...params];
+        if (rlsConditions?.sql) {
+            // Append RLS conditions to WHERE clause
+            const whereIndex = finalSql.indexOf('WHERE');
+            if (whereIndex !== -1) {
+                const beforeWhere = finalSql.substring(0, whereIndex + 5); // +5 to include 'WHERE'
+                const afterWhere = finalSql.substring(whereIndex + 5);
+                finalSql = `${beforeWhere} ${afterWhere} AND (${rlsConditions.sql})`;
+                finalParams = [...finalParams, ...rlsConditions.params];
+            }
+        }
+        const result = await this.databaseAdapter.query(finalSql, finalParams);
+        return result || [];
     }
     /**
      * Count entity records with conditions

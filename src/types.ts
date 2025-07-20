@@ -1,10 +1,22 @@
 /**
- * Core type definitions for SchemaKit
+ * Simplified Core Type Definitions for SchemaKit
  */
 
-/**
- * Field types supported by SchemaKit
- */
+// ===== SCHEMAKIT OPTIONS =====
+
+export interface SchemaKitOptions {
+  adapter?: {
+    type?: string;
+    config?: Record<string, any>;
+  };
+  cache?: {
+    enabled?: boolean;
+    ttl?: number;
+  };
+}
+
+// ===== FIELD TYPES =====
+
 export type FieldType = 
   | 'string'
   | 'number'
@@ -18,14 +30,10 @@ export type FieldType =
   | 'reference'
   | 'computed';
 
-/**
- * CRUD operation types
- */
 export type OperationType = 'create' | 'read' | 'update' | 'delete' | 'list';
 
-/**
- * User context for operations
- */
+// ===== CONTEXT =====
+
 export interface Context {
   user?: {
     id?: string;
@@ -33,6 +41,7 @@ export interface Context {
     permissions?: string[];
     [key: string]: any;
   };
+  tenantId?: string;
   request?: {
     ip?: string;
     userAgent?: string;
@@ -47,9 +56,8 @@ export interface Context {
   [key: string]: any;
 }
 
-/**
- * Entity definition from system_entities table
- */
+// ===== ENTITY DEFINITIONS =====
+
 export interface EntityDefinition {
   id: string;
   name: string;
@@ -62,9 +70,6 @@ export interface EntityDefinition {
   metadata?: Record<string, any>;
 }
 
-/**
- * Field definition from system_fields table
- */
 export interface FieldDefinition {
   id: string;
   entity_id: string;
@@ -83,9 +88,8 @@ export interface FieldDefinition {
   metadata?: Record<string, any>;
 }
 
-/**
- * Permission definition from system_permissions table
- */
+// ===== PERMISSIONS =====
+
 export interface PermissionDefinition {
   id: string;
   entity_id: string;
@@ -98,9 +102,33 @@ export interface PermissionDefinition {
   field_permissions?: Record<string, boolean>;
 }
 
-/**
- * View definition from system_views table
- */
+export interface RLSDefinition {
+  id: string;
+  entity_id: string;
+  role: string;
+  view_id?: string;
+  rls_config: {
+    relationbetweenconditions: 'and' | 'or';
+    conditions: RLSCondition[];
+  };
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RLSCondition {
+  field: string;
+  op: string;
+  value: any;
+}
+
+export interface RLSConditions {
+  sql: string;
+  params: any[];
+}
+
+// ===== VIEWS =====
+
 export interface ViewDefinition {
   id: string;
   entity_id: string;
@@ -118,9 +146,6 @@ export interface ViewDefinition {
   metadata?: Record<string, any>;
 }
 
-/**
- * Join definition for view queries
- */
 export interface JoinDefinition {
   entity: string;
   type?: 'inner' | 'left' | 'right';
@@ -128,25 +153,18 @@ export interface JoinDefinition {
   alias?: string;
 }
 
-/**
- * Sort definition for view queries
- */
 export interface SortDefinition {
   field: string;
   direction: 'asc' | 'desc';
 }
 
-/**
- * Pagination definition for view queries
- */
 export interface PaginationDefinition {
   default_limit: number;
   max_limit: number;
 }
 
-/**
- * Workflow definition from system_workflows table
- */
+// ===== WORKFLOWS =====
+
 export interface WorkflowDefinition {
   id: string;
   entity_id: string;
@@ -159,51 +177,13 @@ export interface WorkflowDefinition {
   metadata?: Record<string, any>;
 }
 
-/**
- * Workflow action definition
- */
 export interface WorkflowAction {
   type: string;
   config: Record<string, any>;
 }
 
-/**
- * RLS definition from system_rls table
- */
-export interface RLSDefinition {
-  id: string;
-  entity_id: string;
-  role: string;
-  view_id?: string;
-  rls_config: {
-    relationbetweenconditions: 'and' | 'or';
-    conditions: RLSCondition[];
-  };
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
+// ===== MAIN CONFIGURATION =====
 
-/**
- * RLS condition definition
- */
-export interface RLSCondition {
-  field: string;
-  op: string;
-  value: any;
-}
-
-/**
- * Built RLS conditions for query execution
- */
-export interface RLSConditions {
-  sql: string;
-  params: any[];
-}
-
-/**
- * Complete entity configuration loaded from all system tables
- */
 export interface EntityConfiguration {
   entity: EntityDefinition;
   fields: FieldDefinition[];
@@ -213,9 +193,8 @@ export interface EntityConfiguration {
   rls: RLSDefinition[];
 }
 
-/**
- * Query result with metadata
- */
+// ===== QUERY RESULTS =====
+
 export interface QueryResult<T = any> {
   data: T[];
   meta: {
@@ -231,9 +210,6 @@ export interface QueryResult<T = any> {
   };
 }
 
-/**
- * Validation result
- */
 export interface ValidationResult {
   isValid: boolean;
   errors: {

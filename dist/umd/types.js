@@ -1,5 +1,5 @@
 /**
- * Core type definitions for SchemaKit
+ * Simplified Core Type Definitions for SchemaKit
  */
 (function (factory) {
     if (typeof module === "object" && typeof module.exports === "object") {

@@ -11,9 +11,14 @@
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.PermissionManager = void 0;
     /**
-     * Permission Manager class
+     * PermissionManager class
+     * Single responsibility: Handle permissions and RLS
      */
     class PermissionManager {
+        /**
+         * Create a new PermissionManager instance
+         * @param databaseAdapter Database adapter
+         */
         constructor(databaseAdapter) {
             this.databaseAdapter = databaseAdapter;
         }
@@ -22,28 +27,31 @@
          * @param entityConfig Entity configuration
          * @param action Action name
          * @param context User context
+         * @returns True if user has permission
          */
         async checkPermission(entityConfig, action, context = {}) {
-            try {
-                // Get user roles from context
-                const userRoles = context.user?.roles || [];
-                // If no roles specified and no context user, use default permissions
-                if (userRoles.length === 0 && !context.user) {
-                    // Default permissions: allow all operations for now
-                    // In a production system, you might want to be more restrictive
-                    return true;
+            // Get user roles from context
+            const userRoles = context.user?.roles || [];
+            // If no roles specified, use 'public' role
+            const roles = userRoles.length > 0 ? userRoles : ['public'];
+            // Check if any permission allows the action
+            const hasPermission = entityConfig.permissions.some(permission => {
+                // Check if permission matches action and role
+                if (permission.action !== action || !roles.includes(permission.role)) {
+                    return false;
                 }
-                // Check if any permission allows the action
-                const hasPermission = entityConfig.permissions.some(p => p.action === action &&
-                    p.is_allowed &&
-                    userRoles.includes(p.role));
-                return hasPermission;
-            }
-            catch (error) {
-                // If there's an error checking permissions, default to denying access
-                console.error(`Error checking permission: ${error}`);
-                return false;
-            }
+                // Check if permission is active
+                if (permission.is_active === false) {
+                    return false;
+                }
+                // Evaluate permission conditions if they exist
+                if (permission.conditions) {
+                    return this.evaluatePermissionConditions(permission.conditions, context);
+                }
+                // Default to allowing if no conditions
+                return true;
+            });
+            return hasPermission;
         }
         /**
          * Get entity permissions for user
@@ -84,6 +92,7 @@
          * Build RLS (Row Level Security) conditions
          * @param entityConfig Entity configuration
          * @param context User context
+         * @returns RLS conditions
          */
         buildRLSConditions(entityConfig, context) {
             // Get user roles from context
@@ -226,6 +235,7 @@
          * @param data Data object
          * @param action Action (read, write)
          * @param context User context
+         * @returns Filtered data object
          */
         filterFieldsByPermissions(entityConfig, data, action, context = {}) {
             const filteredData = {};
@@ -235,6 +245,124 @@
                 }
             }
             return filteredData;
+        }
+        /**
+         * Evaluate permission conditions
+         * @param conditions Permission conditions
+         * @param context User context
+         * @returns True if conditions are met
+         * @private
+         */
+        evaluatePermissionConditions(conditions, context) {
+            if (!conditions || typeof conditions !== 'object') {
+                return true; // No conditions means permission is granted
+            }
+            // Handle different condition formats
+            if (Array.isArray(conditions)) {
+                // Array of conditions - all must be true (AND logic)
+                return conditions.every(condition => this.evaluateSingleCondition(condition, context));
+            }
+            else if (conditions.operator) {
+                // Object with operator and conditions
+                const { operator, conditions: conditionList } = conditions;
+                if (!Array.isArray(conditionList)) {
+                    return this.evaluateSingleCondition(conditions, context);
+                }
+                switch (operator?.toLowerCase()) {
+                    case 'and':
+                        return conditionList.every(condition => this.evaluateSingleCondition(condition, context));
+                    case 'or':
+                        return conditionList.some(condition => this.evaluateSingleCondition(condition, context));
+                    default:
+                        return conditionList.every(condition => this.evaluateSingleCondition(condition, context));
+                }
+            }
+            else {
+                // Single condition object
+                return this.evaluateSingleCondition(conditions, context);
+            }
+        }
+        /**
+         * Evaluate a single condition
+         * @param condition Single condition object
+         * @param context User context
+         * @returns True if condition is met
+         * @private
+         */
+        evaluateSingleCondition(condition, context) {
+            if (!condition || typeof condition !== 'object') {
+                return true;
+            }
+            const { field, operator, value } = condition;
+            if (!field || !operator) {
+                return true; // Invalid condition, default to allow
+            }
+            // Get the actual value from context
+            let contextValue;
+            if (field.startsWith('$context.')) {
+                const path = field.substring(9).split('.');
+                contextValue = context;
+                for (const key of path) {
+                    if (contextValue === undefined || contextValue === null) {
+                        break;
+                    }
+                    contextValue = contextValue[key];
+                }
+            }
+            else if (field.startsWith('$user.')) {
+                const path = field.substring(6).split('.');
+                contextValue = context.user;
+                for (const key of path) {
+                    if (contextValue === undefined || contextValue === null) {
+                        break;
+                    }
+                    contextValue = contextValue[key];
+                }
+            }
+            else {
+                // Direct field access from context
+                contextValue = context[field];
+            }
+            // Evaluate condition based on operator
+            switch (operator.toLowerCase()) {
+                case 'eq':
+                case '=':
+                case '==':
+                    return contextValue === value;
+                case 'neq':
+                case '!=':
+                case '<>':
+                    return contextValue !== value;
+                case 'gt':
+                case '>':
+                    return contextValue > value;
+                case 'gte':
+                case '>=':
+                    return contextValue >= value;
+                case 'lt':
+                case '<':
+                    return contextValue < value;
+                case 'lte':
+                case '<=':
+                    return contextValue <= value;
+                case 'in':
+                    return Array.isArray(value) ? value.includes(contextValue) : contextValue === value;
+                case 'nin':
+                case 'not_in':
+                    return Array.isArray(value) ? !value.includes(contextValue) : contextValue !== value;
+                case 'like':
+                    if (typeof contextValue === 'string' && typeof value === 'string') {
+                        const regex = new RegExp(value.replace(/%/g, '.*'), 'i');
+                        return regex.test(contextValue);
+                    }
+                    return false;
+                case 'exists':
+                    return contextValue !== undefined && contextValue !== null;
+                case 'not_exists':
+                    return contextValue === undefined || contextValue === null;
+                default:
+                    return true; // Unknown operator, default to allow
+            }
         }
     }
     exports.PermissionManager = PermissionManager;
