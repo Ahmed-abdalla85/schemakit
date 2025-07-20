@@ -1,7 +1,7 @@
 /**
  * Unit tests for InMemoryAdapter
  */
-import { InMemoryAdapter } from '../src/database/adapters/inmemory';
+import { InMemoryAdapter } from '../src/database/adapters/inmemory-simplified';
 import { QueryFilter, QueryOptions } from '../src/database/adapter';
 
 describe('InMemoryAdapter', () => {

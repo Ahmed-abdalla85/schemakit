@@ -1,7 +1,7 @@
-import { SchemaKit, SchemaKitOptions } from '../src/schemakit';
+import { SchemaKit, SchemaKitOptions } from '../src/schemakit-optimized';
 import { DatabaseAdapter } from '../src/database/adapter';
 import { ValidationError, SchemaKitError, EntityNotFoundError } from '../src/errors';
-import { Context, EntityConfiguration } from '../src/types';
+import { Context, EntityConfiguration } from '../src/types-simplified';
 
 // Mock database adapter with user entity
 const mockDatabaseAdapter = {
@@ -77,7 +77,7 @@ const mockQueryResponses = {
 };
 
 // Mock the InMemoryAdapter module
-jest.mock('../src/database/adapters/inmemory', () => {
+jest.mock('../src/database/adapters/inmemory-simplified', () => {
     return {
         InMemoryAdapter: jest.fn().mockImplementation(() => {
             return {
