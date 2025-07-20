@@ -9,6 +9,7 @@ import { DatabaseAdapter, DatabaseAdapterConfig, ColumnDefinition, TransactionCa
 export declare class PostgresAdapter extends DatabaseAdapter {
     private client;
     private connected;
+    private queryManager;
     constructor(config?: DatabaseAdapterConfig);
     /**
      * Connect to PostgreSQL database

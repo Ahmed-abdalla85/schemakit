@@ -451,7 +451,7 @@ describe('Query Helper Utilities', () => {
 
   describe('buildOrConditions', () => {
     it('should combine condition groups with OR', () => {
-      const groups = [
+      const groups: QueryCondition[][] = [
         [{ field: 'name', operator: 'eq', value: 'John' }],
         [{ field: 'email', operator: 'contains', value: 'admin' }],
         [
@@ -473,7 +473,7 @@ describe('Query Helper Utilities', () => {
     });
 
     it('should skip empty condition groups', () => {
-      const groups = [
+      const groups: QueryCondition[][] = [
         [{ field: 'name', operator: 'eq', value: 'John' }],
         [],
         [{ field: 'active', operator: 'eq', value: true }]
@@ -595,14 +595,14 @@ describe('Query Helper Utilities', () => {
 
       // UPDATE
       const updateData = { name: 'Jane' };
-      const updateConditions = [{ field: 'id', operator: 'eq', value: 1 }];
+      const updateConditions: QueryCondition[] = [{ field: 'id', operator: 'eq', value: 1 }];
       const updateQuery = buildUpdateQuery(tableName, updateData, updateConditions);
       expect(updateQuery.sql).toContain('UPDATE');
       expect(updateQuery.sql).toContain('SET');
       expect(updateQuery.sql).toContain('WHERE');
 
       // DELETE
-      const deleteConditions = [{ field: 'id', operator: 'eq', value: 1 }];
+      const deleteConditions: QueryCondition[] = [{ field: 'id', operator: 'eq', value: 1 }];
       const deleteQuery = buildDeleteQuery(tableName, deleteConditions);
       expect(deleteQuery.sql).toContain('DELETE FROM');
       expect(deleteQuery.sql).toContain('WHERE');

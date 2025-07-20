@@ -1,30 +1,30 @@
 /**
- * SchemaKit - Dynamic entity management system
+ * SchemaKit - Enterprise Schema Management Library
  *
- * A comprehensive system for runtime entity creation, validation, and CRUD operations
- * with support for permissions, workflows, and dynamic query building.
+ * Simple, focused API for entity management with enterprise architecture underneath.
  */
-// Export all error types
-export * from './errors';
-// Export core types
-export * from './types';
-// Export database adapters
-export * from './database/adapter';
-// Export main SchemaKit class with static factory methods (EntityKit pattern)
+// Core SchemaKit class
 export { SchemaKit } from './schemakit';
-// Export UnifiedEntityHandler for EntityKit-style operations
-export { UnifiedEntityHandler } from './unified-entity-handler';
-// Export core modules for advanced usage
-export { SchemaLoader } from './core/schema-loader';
+// Core managers
 export { EntityManager } from './core/entity-manager';
+export { QueryManager } from './core/query-manager';
 export { ValidationManager } from './core/validation-manager';
 export { PermissionManager } from './core/permission-manager';
-export { QueryManager } from './core/query-manager';
 export { WorkflowManager } from './core/workflow-manager';
-// Export utilities for advanced usage
-export * from './utils/id-generation';
+export { SchemaLoader } from './core/schema-loader';
+// Database adapters
+export { DatabaseAdapter } from './database/adapter';
+export { InMemoryAdapter } from './database/adapters/inmemory';
+export { PostgresAdapter } from './database/adapters/postgres';
+export { SQLiteAdapter } from './database/adapters/sqlite';
+// Types
+export * from './types';
+// Errors
+export { SchemaKitError } from './errors';
+// Utilities
 export * from './utils/date-helpers';
+export * from './utils/id-generation';
 export * from './utils/json-helpers';
-export * from './utils/validation-helpers';
 export * from './utils/query-helpers';
+export * from './utils/validation-helpers';
 //# sourceMappingURL=index.js.map

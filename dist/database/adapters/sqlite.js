@@ -3,7 +3,7 @@
  */
 import { DatabaseAdapter } from '../adapter';
 import { DatabaseError } from '../../errors';
-import { QueryBuilderService } from '../../core/query-builder-service';
+import { processFilterValue } from '../../utils/query-helpers';
 /**
  * SQLite adapter implementation
  * Uses native SQLite implementation with no external dependencies
@@ -302,7 +302,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
             // Process filter values for special operators
             const processedFilters = filters.map(filter => ({
                 ...filter,
-                value: QueryBuilderService.processFilterValue(filter.operator || 'eq', filter.value)
+                value: processFilterValue(filter.operator || 'eq', filter.value)
             }));
             // Build query using SQLite syntax (? instead of $1, $2, etc.)
             const { query, params } = this.buildSQLiteSelectQuery(prefixedTable, processedFilters, options);
@@ -388,7 +388,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
             // Process filter values for special operators
             const processedFilters = filters.map(filter => ({
                 ...filter,
-                value: QueryBuilderService.processFilterValue(filter.operator || 'eq', filter.value)
+                value: processFilterValue(filter.operator || 'eq', filter.value)
             }));
             const { query, params } = this.buildSQLiteCountQuery(prefixedTable, processedFilters);
             const result = await this.query(query, params);

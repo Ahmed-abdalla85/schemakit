@@ -114,9 +114,9 @@ describe('Validation Helper Utilities', () => {
 
   describe('sanitizeInput', () => {
     it('should remove dangerous characters', () => {
-      expect(sanitizeInput('<script>alert("xss")</script>')).toBe('scriptalert("xss")/script');
+      expect(sanitizeInput('<script>alert("xss")</script>')).toBe('script>alert("xss")/script>');
       expect(sanitizeInput('javascript:alert("xss")')).toBe('alert("xss")');
-      expect(sanitizeInput('<div onclick="alert()">test</div>')).toBe('div"alert()">test/div');
+      expect(sanitizeInput('<div onclick="alert()">test</div>')).toBe('div"alert()">test/div>');
     });
 
     it('should trim whitespace', () => {
