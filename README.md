@@ -230,8 +230,6 @@ SchemaKit automatically creates performance indexes on:
 - Active record filtering
 - Foreign key relationships
 
-All system tables use optimized indexes for fast querying and maintain referential integrity through foreign key constraints.
-
 ## 🏗️ Architecture
 
 SchemaKit uses a modular architecture with focused components:
