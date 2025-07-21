@@ -1,31 +1,41 @@
 /**
  * EntityManager
- * Responsible for CRUD operations on entities
+ * Responsible for CRUD operations on entities and basic schema management
  * 
- * Refactored: Focused only on CRUD operations
- * Schema management moved to SchemaManager
- * Table management moved to TableManager
+ * Simplified: Uses InstallManager for system tables, focuses on core functionality
  */
 import { DatabaseAdapter } from '../database/adapter';
-import { EntityConfiguration, Context, RLSConditions } from '../types';
+import { EntityConfiguration, EntityDefinition, FieldDefinition, PermissionDefinition, ViewDefinition, WorkflowDefinition, RLSDefinition, Context, RLSConditions } from '../types';
 import { QueryManager } from './query-manager';
-import { SchemaManager, CacheStats } from './schema-manager';
-import { TableManager } from './table-manager';
-
-// Re-export CacheStats for backward compatibility
-export { CacheStats };
+import { InstallManager } from './install-manager';
 import { generateId } from '../utils/id-generation';
 import { getCurrentTimestamp } from '../utils/date-helpers';
+import { safeJsonParse } from '../utils/json-helpers';
+
+/**
+ * Cache statistics interface
+ */
+export interface CacheStats {
+    entityCacheSize: number;
+    entities: string[];
+    hitRate?: number;
+    missRate?: number;
+}
 
 /**
  * EntityManager class
- * Single responsibility: Handle CRUD operations on entities
+ * Handles CRUD operations and schema management using existing patterns
  */
 export class EntityManager {
   private databaseAdapter: DatabaseAdapter;
   private queryManager: QueryManager;
-  private schemaManager: SchemaManager;
-  private tableManager: TableManager;
+  private installManager: InstallManager;
+  
+  // Schema loading and caching
+  private entityCache: Map<string, EntityConfiguration> = new Map();
+  private cacheEnabled = true;
+  private cacheHits = 0;
+  private cacheMisses = 0;
 
   /**
    * Create a new EntityManager instance
@@ -35,11 +45,11 @@ export class EntityManager {
   constructor(databaseAdapter: DatabaseAdapter, options?: { cacheEnabled?: boolean }) {
     this.databaseAdapter = databaseAdapter;
     this.queryManager = new QueryManager(databaseAdapter);
-    this.schemaManager = new SchemaManager(databaseAdapter, options);
-    this.tableManager = new TableManager(databaseAdapter);
+    this.installManager = new InstallManager(databaseAdapter);
+    this.cacheEnabled = options?.cacheEnabled !== false;
   }
 
-  // === SCHEMA MANAGEMENT (Delegated) ===
+  // === SCHEMA MANAGEMENT ===
 
   /**
    * Load entity configuration
@@ -48,80 +58,120 @@ export class EntityManager {
    * @returns Entity configuration
    */
   async loadEntity(entityName: string, context: Context = {}): Promise<EntityConfiguration> {
-    return this.schemaManager.loadEntity(entityName, context);
+    // Check cache first
+    if (this.cacheEnabled && this.entityCache.has(entityName)) {
+      this.cacheHits++;
+      return this.entityCache.get(entityName)!;
+    }
+
+    this.cacheMisses++;
+
+    // Load entity configuration components
+    const entity = await this.loadEntityDefinition(entityName);
+    if (!entity) {
+      throw new Error(`Entity '${entityName}' not found`);
+    }
+
+    const fields = await this.loadEntityFields(entity.id);
+    const permissions = await this.loadEntityPermissions(entity.id, context);
+    const views = await this.loadEntityViews(entity.id);
+    const workflows = await this.loadEntityWorkflows(entity.id);
+    const rls = await this.loadEntityRLS(entity.id, context);
+
+    const entityConfig: EntityConfiguration = {
+      entity, fields, permissions, views, workflows, rls
+    };
+
+    // Cache the result
+    if (this.cacheEnabled) {
+      this.entityCache.set(entityName, entityConfig);
+    }
+
+    return entityConfig;
   }
 
   /**
    * Reload entity configuration (bypass cache)
-   * @param entityName Entity name
-   * @param context User context
-   * @returns Entity configuration
    */
   async reloadEntity(entityName: string, context: Context = {}): Promise<EntityConfiguration> {
-    return this.schemaManager.reloadEntity(entityName, context);
+    this.clearEntityCache(entityName);
+    return this.loadEntity(entityName, context);
   }
 
   /**
    * Check if SchemaKit is installed
-   * @returns True if installed
    */
   async isSchemaKitInstalled(): Promise<boolean> {
-    return this.schemaManager.isSchemaKitInstalled();
+    return this.installManager.isInstalled();
   }
 
   /**
    * Get SchemaKit version
-   * @returns Version string
    */
   async getVersion(): Promise<string> {
-    return this.schemaManager.getVersion();
+    try {
+      const result = await this.databaseAdapter.query<{ value: string }>(
+        'SELECT value FROM system_settings WHERE key = ?', ['version']
+      );
+      return result.length > 0 ? result[0].value : 'unknown';
+    } catch {
+      return 'unknown';
+    }
   }
 
   /**
    * Ensure system tables exist
    */
   async ensureSystemTables(): Promise<void> {
-    return this.tableManager.ensureSystemTables();
+    await this.installManager.ensureReady();
   }
 
   /**
    * Reinstall SchemaKit
-   * WARNING: This will delete all system tables and recreate them
    */
   async reinstall(): Promise<void> {
-    await this.tableManager.reinstall();
-    this.schemaManager.clearAllCache();
+    await this.installManager.install();
+    this.clearAllCache();
   }
 
   /**
-   * Clear entity cache for a specific entity or all entities
-   * @param entityName Optional entity name to clear
+   * Clear entity cache
    */
   clearEntityCache(entityName?: string): void {
-    this.schemaManager.clearEntityCache(entityName);
+    if (entityName) {
+      this.entityCache.delete(entityName);
+    } else {
+      this.entityCache.clear();
+    }
   }
 
   /**
    * Clear all caches
    */
   clearAllCache(): void {
-    this.schemaManager.clearAllCache();
+    this.entityCache.clear();
+    this.cacheHits = 0;
+    this.cacheMisses = 0;
   }
 
   /**
    * Get cache statistics
-   * @returns Cache statistics
    */
-  getCacheStats() {
-    return this.schemaManager.getCacheStats();
+  getCacheStats(): CacheStats {
+    const total = this.cacheHits + this.cacheMisses;
+    return {
+      entityCacheSize: this.entityCache.size,
+      entities: Array.from(this.entityCache.keys()),
+      hitRate: total > 0 ? this.cacheHits / total : undefined,
+      missRate: total > 0 ? this.cacheMisses / total : undefined
+    };
   }
 
   /**
    * Get all loaded entities
-   * @returns Array of entity names
    */
   getLoadedEntities(): string[] {
-    return this.schemaManager.getLoadedEntities();
+    return Array.from(this.entityCache.keys());
   }
 
   // === CRUD OPERATIONS ===
@@ -138,8 +188,11 @@ export class EntityManager {
     data: Record<string, any>,
     context: Context = {}
   ): Promise<Record<string, any>> {
+    // Ensure system tables exist
+    await this.installManager.ensureReady();
+    
     // Ensure entity table exists
-    await this.tableManager.ensureEntityTable(entityConfig);
+    await this.ensureEntityTable(entityConfig);
 
     // Generate ID if not provided
     if (!data.id) {
@@ -417,4 +470,161 @@ export class EntityManager {
     return result.length > 0 ? parseInt(result[0].count, 10) : 0;
   }
 
+  // === MINIMAL TABLE MANAGEMENT ===
+
+  /**
+   * Ensure entity table exists
+   */
+  private async ensureEntityTable(entityConfig: EntityConfiguration): Promise<void> {
+    const tableName = entityConfig.entity.table_name;
+    const exists = await this.databaseAdapter.tableExists(tableName);
+    
+    if (!exists) {
+      // Build column definitions
+      const columns = entityConfig.fields.map((field: any) => ({
+        name: field.name,
+        type: this.getSqlType(field.type),
+        primaryKey: field.name === 'id',
+        notNull: field.is_required || field.name === 'id',
+        unique: field.is_unique,
+        default: field.default_value
+      }));
+
+      // Add system columns
+      columns.push(
+        { name: 'created_at', type: 'DATETIME', primaryKey: false, notNull: true, unique: false, default: undefined },
+        { name: 'updated_at', type: 'DATETIME', primaryKey: false, notNull: true, unique: false, default: undefined },
+        { name: 'created_by', type: 'VARCHAR(255)', primaryKey: false, notNull: false, unique: false, default: undefined },
+        { name: 'updated_by', type: 'VARCHAR(255)', primaryKey: false, notNull: false, unique: false, default: undefined }
+      );
+
+      await this.databaseAdapter.createTable(tableName, columns);
+    }
+  }
+
+  /**
+   * Get SQL type for field type
+   */
+  private getSqlType(fieldType: string): string {
+    switch (fieldType) {
+      case 'string':
+      case 'email':
+      case 'url':
+      case 'text':
+      case 'uuid':
+        return 'VARCHAR(255)';
+      case 'number':
+        return 'DECIMAL(10,2)';
+      case 'boolean':
+        return 'BOOLEAN';
+      case 'date':
+        return 'DATE';
+      case 'datetime':
+        return 'DATETIME';
+      default:
+        return 'VARCHAR(255)';
+    }
+  }
+
+  // === PRIVATE SCHEMA LOADING METHODS ===
+
+  private async loadEntityDefinition(entityName: string): Promise<EntityDefinition | null> {
+    const entities = await this.databaseAdapter.query<EntityDefinition>(
+      'SELECT * FROM system_entities WHERE name = ? AND is_active = ?',
+      [entityName, 1]
+    );
+
+    if (entities.length === 0) return null;
+
+    const entity = entities[0];
+    if (entity.metadata && typeof entity.metadata === 'string') {
+      entity.metadata = safeJsonParse(entity.metadata, {});
+    }
+    return entity;
+  }
+
+  private async loadEntityFields(entityId: string): Promise<FieldDefinition[]> {
+    const fields = await this.databaseAdapter.query<FieldDefinition>(
+      'SELECT * FROM system_fields WHERE entity_id = ? AND is_active = ? ORDER BY order_index ASC',
+      [entityId, 1]
+    );
+
+    for (const field of fields) {
+      if (field.metadata && typeof field.metadata === 'string') {
+        field.metadata = safeJsonParse(field.metadata, {});
+      }
+      if (field.validation_rules && typeof field.validation_rules === 'string') {
+        field.validation_rules = safeJsonParse(field.validation_rules, {});
+      }
+    }
+    return fields;
+  }
+
+  private async loadEntityPermissions(entityId: string, context: Context): Promise<PermissionDefinition[]> {
+    const userRoles = context.user?.roles || [];
+    const roles = userRoles.length > 0 ? userRoles : ['public'];
+
+    const permissions = await this.databaseAdapter.query<PermissionDefinition>(
+      'SELECT * FROM system_permissions WHERE entity_id = ? AND role IN (?) AND is_active = ?',
+      [entityId, roles.join(','), 1]
+    );
+
+    for (const permission of permissions) {
+      if (permission.conditions && typeof permission.conditions === 'string') {
+        permission.conditions = safeJsonParse(permission.conditions, {});
+      }
+    }
+    return permissions;
+  }
+
+  private async loadEntityViews(entityId: string): Promise<ViewDefinition[]> {
+    const views = await this.databaseAdapter.query<ViewDefinition>(
+      'SELECT * FROM system_views WHERE entity_id = ?',
+      [entityId]
+    );
+
+    for (const view of views) {
+      if (view.query_config && typeof view.query_config === 'string') {
+        view.query_config = safeJsonParse(view.query_config, {});
+      }
+    }
+    return views;
+  }
+
+  private async loadEntityWorkflows(entityId: string): Promise<WorkflowDefinition[]> {
+    const workflows = await this.databaseAdapter.query<WorkflowDefinition>(
+      'SELECT * FROM system_workflows WHERE entity_id = ? AND is_active = ? ORDER BY order_index ASC',
+      [entityId, 1]
+    );
+
+    for (const workflow of workflows) {
+      if (workflow.conditions && typeof workflow.conditions === 'string') {
+        workflow.conditions = safeJsonParse(workflow.conditions, {});
+      }
+      if (workflow.actions && typeof workflow.actions === 'string') {
+        workflow.actions = safeJsonParse(workflow.actions, []);
+      }
+    }
+    return workflows;
+  }
+
+  private async loadEntityRLS(entityId: string, context: Context): Promise<RLSDefinition[]> {
+    const userRoles = context.user?.roles || [];
+    const roles = userRoles.length > 0 ? userRoles : ['public'];
+
+    const rlsRules = await this.databaseAdapter.query<RLSDefinition>(
+      'SELECT * FROM system_rls WHERE entity_id = ? AND role IN (?) AND is_active = ?',
+      [entityId, roles.join(','), 1]
+    );
+
+    for (const rule of rlsRules) {
+      if (rule.rls_config && typeof rule.rls_config === 'string') {
+        rule.rls_config = safeJsonParse(rule.rls_config, {
+          relationbetweenconditions: 'and',
+          conditions: []
+        });
+      }
+    }
+    return rlsRules;
+  }
 }
