@@ -1,11 +1,9 @@
 import { InstallManager } from './core/install-manager';
 import { EntityBuilder } from './core/entity-builder';
-import { SchemaLoader } from './core/schema-loader';
 import { EntityManager } from './core/entity-manager';
 import { ValidationManager } from './core/validation-manager';
 import { PermissionManager } from './core/permission-manager';
 import { WorkflowManager } from './core/workflow-manager';
-import { QueryManager } from './core/query-manager';
 import { SchemaKitError } from './errors';
 // Database adapters
 import { PostgresAdapter } from './database/adapters/postgres';
@@ -24,14 +22,12 @@ export class SchemaKit {
     async initialize() {
         try {
             await this.databaseAdapter.connect();
-            const schemaLoader = new SchemaLoader(this.databaseAdapter);
             const entityManager = new EntityManager(this.databaseAdapter);
             const validationManager = new ValidationManager();
             const permissionManager = new PermissionManager(this.databaseAdapter);
             const workflowManager = new WorkflowManager(this.databaseAdapter);
-            const queryManager = new QueryManager(this.databaseAdapter); // Future use
             this.installManager = new InstallManager(this.databaseAdapter);
-            this.entityBuilder = new EntityBuilder(schemaLoader, entityManager, validationManager, permissionManager, workflowManager);
+            this.entityBuilder = new EntityBuilder(entityManager, validationManager, permissionManager, workflowManager);
             await this.installManager.ensureReady();
             return this;
         }
