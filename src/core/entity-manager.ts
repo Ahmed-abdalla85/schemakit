@@ -3,12 +3,13 @@
  * Responsible for CRUD operations on entities and basic schema management
  * 
  * Simplified: Uses InstallManager for system tables, focuses on core functionality
- * Enhanced: Includes EntityBuilder functionality and CodeIgniter-style database interface
+ * Enhanced: Uses DatabaseManager as the main database gateway
  */
-import { DatabaseAdapter } from '../database/adapter';
+import { DatabaseManager } from '../database/database-manager';
+import { FluentQueryBuilder } from '../database/fluent-query-builder';
 import { EntityConfiguration, EntityDefinition, FieldDefinition, PermissionDefinition, ViewDefinition, WorkflowDefinition, RLSDefinition, Context, RLSConditions } from '../types';
-import { QueryManager } from './query-manager';
-import { InstallManager } from './install-manager';
+import { QueryManager } from '../database/query-manager';
+import { InstallManager } from '../database/install-manager';
 import { generateId } from '../utils/id-generation';
 import { getCurrentTimestamp } from '../utils/date-helpers';
 import { safeJsonParse } from '../utils/json-helpers';
@@ -23,189 +24,15 @@ export interface CacheStats {
     missRate?: number;
 }
 
-/**
- * CodeIgniter-style fluent query builder interface
- */
-export class FluentQueryBuilder {
-  private tableName: string;
-  private selectFields: string[] = ['*'];
-  private whereConditions: Array<{ field: string; operator: string; value: any }> = [];
-  private orderByClause: Array<{ field: string; direction: 'ASC' | 'DESC' }> = [];
-  private limitCount?: number;
-  private offsetCount?: number;
-  private tenantId: string;
 
-  constructor(
-    private entityManager: EntityManager,
-    private databaseAdapter: DatabaseAdapter,
-    tableName: string,
-    tenantId: string = 'default'
-  ) {
-    this.tableName = tableName;
-    this.tenantId = tenantId;
-  }
-
-  // CodeIgniter-style methods
-  select(fields: string | string[] = '*'): FluentQueryBuilder {
-    this.selectFields = Array.isArray(fields) ? fields : [fields];
-    return this;
-  }
-
-  where(field: string, operator: string | any, value?: any): FluentQueryBuilder {
-    if (arguments.length === 2) {
-      // where(field, value) - defaults to equals
-      this.whereConditions.push({ field, operator: '=', value: operator });
-    } else {
-      // where(field, operator, value)
-      this.whereConditions.push({ field, operator, value });
-    }
-    return this;
-  }
-
-  whereIn(field: string, values: any[]): FluentQueryBuilder {
-    this.whereConditions.push({ field, operator: 'IN', value: values });
-    return this;
-  }
-
-  whereLike(field: string, value: string): FluentQueryBuilder {
-    this.whereConditions.push({ field, operator: 'LIKE', value: `%${value}%` });
-    return this;
-  }
-
-  orderBy(field: string, direction: 'ASC' | 'DESC' = 'ASC'): FluentQueryBuilder {
-    this.orderByClause.push({ field, direction });
-    return this;
-  }
-
-  limit(count: number, offset?: number): FluentQueryBuilder {
-    this.limitCount = count;
-    if (offset !== undefined) {
-      this.offsetCount = offset;
-    }
-    return this;
-  }
-
-  offset(count: number): FluentQueryBuilder {
-    this.offsetCount = count;
-    return this;
-  }
-
-  // Execute methods
-  async get(): Promise<Record<string, any>[]> {
-    const sql = this.buildSelectSql();
-    const params = this.buildParams();
-    return await this.databaseAdapter.query(sql, params);
-  }
-
-  async first(): Promise<Record<string, any> | null> {
-    this.limitCount = 1;
-    const results = await this.get();
-    return results.length > 0 ? results[0] : null;
-  }
-
-  async count(): Promise<number> {
-    const sql = this.buildCountSql();
-    const params = this.buildParams();
-    const result = await this.databaseAdapter.query(sql, params);
-    return result.length > 0 ? parseInt(result[0].count, 10) : 0;
-  }
-
-  async insert(data: Record<string, any>): Promise<any> {
-    const fields = Object.keys(data);
-    const placeholders = fields.map(() => '?').join(', ');
-    const sql = `INSERT INTO ${this.tableName} (${fields.join(', ')}) VALUES (${placeholders})`;
-    const params = Object.values(data);
-    return await this.databaseAdapter.execute(sql, params);
-  }
-
-  async update(data: Record<string, any>): Promise<any> {
-    const fields = Object.keys(data);
-    const setClause = fields.map(field => `${field} = ?`).join(', ');
-    let sql = `UPDATE ${this.tableName} SET ${setClause}`;
-    const params = [...Object.values(data), ...this.buildParams()];
-    
-    if (this.whereConditions.length > 0) {
-      sql += ` WHERE ${this.buildWhereClause()}`;
-    }
-    
-    return await this.databaseAdapter.execute(sql, params);
-  }
-
-  async delete(): Promise<any> {
-    let sql = `DELETE FROM ${this.tableName}`;
-    const params = this.buildParams();
-    
-    if (this.whereConditions.length > 0) {
-      sql += ` WHERE ${this.buildWhereClause()}`;
-    }
-    
-    return await this.databaseAdapter.execute(sql, params);
-  }
-
-  // Private helper methods
-  private buildSelectSql(): string {
-    let sql = `SELECT ${this.selectFields.join(', ')} FROM ${this.tableName}`;
-    
-    if (this.whereConditions.length > 0) {
-      sql += ` WHERE ${this.buildWhereClause()}`;
-    }
-    
-    if (this.orderByClause.length > 0) {
-      const orderBy = this.orderByClause.map(o => `${o.field} ${o.direction}`).join(', ');
-      sql += ` ORDER BY ${orderBy}`;
-    }
-    
-    if (this.limitCount) {
-      sql += ` LIMIT ${this.limitCount}`;
-    }
-    
-    if (this.offsetCount) {
-      sql += ` OFFSET ${this.offsetCount}`;
-    }
-    
-    return sql;
-  }
-
-  private buildCountSql(): string {
-    let sql = `SELECT COUNT(*) as count FROM ${this.tableName}`;
-    
-    if (this.whereConditions.length > 0) {
-      sql += ` WHERE ${this.buildWhereClause()}`;
-    }
-    
-    return sql;
-  }
-
-  private buildWhereClause(): string {
-    return this.whereConditions.map(condition => {
-      if (condition.operator === 'IN') {
-        const placeholders = Array(condition.value.length).fill('?').join(', ');
-        return `${condition.field} IN (${placeholders})`;
-      }
-      return `${condition.field} ${condition.operator} ?`;
-    }).join(' AND ');
-  }
-
-  private buildParams(): any[] {
-    const params: any[] = [];
-    for (const condition of this.whereConditions) {
-      if (condition.operator === 'IN') {
-        params.push(...condition.value);
-      } else {
-        params.push(condition.value);
-      }
-    }
-    return params;
-  }
-}
 
 /**
  * EntityManager class
  * Handles CRUD operations and schema management using existing patterns
- * Enhanced with EntityBuilder functionality and CodeIgniter-style database interface
+ * Enhanced with EntityBuilder functionality and uses DatabaseManager as gateway
  */
 export class EntityManager {
-  private databaseAdapter: DatabaseAdapter;
+  private databaseManager: DatabaseManager;
   private queryManager: QueryManager;
   private installManager: InstallManager;
   
@@ -221,11 +48,12 @@ export class EntityManager {
 
   /**
    * Create a new EntityManager instance
-   * @param databaseAdapter Database adapter
+   * @param databaseManager Database manager
    * @param options Options
    */
-  constructor(databaseAdapter: DatabaseAdapter, options?: { cacheEnabled?: boolean }) {
-    this.databaseAdapter = databaseAdapter;
+  constructor(databaseManager: DatabaseManager, options?: { cacheEnabled?: boolean }) {
+    this.databaseManager = databaseManager;
+    const databaseAdapter = databaseManager.getAdapter();
     this.queryManager = new QueryManager(databaseAdapter);
     this.installManager = new InstallManager(databaseAdapter);
     this.cacheEnabled = options?.cacheEnabled !== false;
@@ -240,7 +68,7 @@ export class EntityManager {
    * @returns FluentQueryBuilder instance
    */
   db(tableName: string, tenantId: string = 'default'): FluentQueryBuilder {
-    return new FluentQueryBuilder(this, this.databaseAdapter, tableName, tenantId);
+    return this.databaseManager.db(tableName, tenantId);
   }
 
   /**
@@ -250,7 +78,7 @@ export class EntityManager {
    * @returns FluentQueryBuilder instance
    */
   table(tableName: string, tenantId: string = 'default'): FluentQueryBuilder {
-    return this.db(tableName, tenantId);
+    return this.databaseManager.table(tableName, tenantId);
   }
 
   // === ENTITY BUILDER FUNCTIONALITY (merged from EntityBuilder) ===
@@ -358,7 +186,7 @@ export class EntityManager {
    */
   async getVersion(): Promise<string> {
     try {
-      const result = await this.databaseAdapter.query<{ value: string }>(
+      const result = await this.databaseManager.query<{ value: string }>(
         'SELECT value FROM system_settings WHERE key = ?', ['version']
       );
       return result.length > 0 ? result[0].value : 'unknown';
@@ -689,7 +517,7 @@ export class EntityManager {
    */
   private async ensureEntityTable(entityConfig: EntityConfiguration): Promise<void> {
     const tableName = entityConfig.entity.table_name;
-    const exists = await this.databaseAdapter.tableExists(tableName);
+    const exists = await this.databaseManager.tableExists(tableName);
     
     if (!exists) {
       // Build column definitions
@@ -710,7 +538,7 @@ export class EntityManager {
         { name: 'updated_by', type: 'VARCHAR(255)', primaryKey: false, notNull: false, unique: false, default: undefined }
       );
 
-      await this.databaseAdapter.createTable(tableName, columns);
+      await this.databaseManager.createTable(tableName, columns);
     }
   }
 
@@ -741,7 +569,7 @@ export class EntityManager {
   // === PRIVATE SCHEMA LOADING METHODS ===
 
   private async loadEntityDefinition(entityName: string): Promise<EntityDefinition | null> {
-    const entities = await this.databaseAdapter.query<EntityDefinition>(
+    const entities = await this.databaseManager.query<EntityDefinition>(
       'SELECT * FROM system_entities WHERE name = ? AND is_active = ?',
       [entityName, 1]
     );
@@ -756,7 +584,7 @@ export class EntityManager {
   }
 
   private async loadEntityFields(entityId: string): Promise<FieldDefinition[]> {
-    const fields = await this.databaseAdapter.query<FieldDefinition>(
+    const fields = await this.databaseManager.query<FieldDefinition>(
       'SELECT * FROM system_fields WHERE entity_id = ? AND is_active = ? ORDER BY order_index ASC',
       [entityId, 1]
     );
@@ -776,7 +604,7 @@ export class EntityManager {
     const userRoles = context.user?.roles || [];
     const roles = userRoles.length > 0 ? userRoles : ['public'];
 
-    const permissions = await this.databaseAdapter.query<PermissionDefinition>(
+    const permissions = await this.databaseManager.query<PermissionDefinition>(
       'SELECT * FROM system_permissions WHERE entity_id = ? AND role IN (?) AND is_active = ?',
       [entityId, roles.join(','), 1]
     );
@@ -790,7 +618,7 @@ export class EntityManager {
   }
 
   private async loadEntityViews(entityId: string): Promise<ViewDefinition[]> {
-    const views = await this.databaseAdapter.query<ViewDefinition>(
+    const views = await this.databaseManager.query<ViewDefinition>(
       'SELECT * FROM system_views WHERE entity_id = ?',
       [entityId]
     );
@@ -804,7 +632,7 @@ export class EntityManager {
   }
 
   private async loadEntityWorkflows(entityId: string): Promise<WorkflowDefinition[]> {
-    const workflows = await this.databaseAdapter.query<WorkflowDefinition>(
+    const workflows = await this.databaseManager.query<WorkflowDefinition>(
       'SELECT * FROM system_workflows WHERE entity_id = ? AND is_active = ? ORDER BY order_index ASC',
       [entityId, 1]
     );
@@ -824,7 +652,7 @@ export class EntityManager {
     const userRoles = context.user?.roles || [];
     const roles = userRoles.length > 0 ? userRoles : ['public'];
 
-    const rlsRules = await this.databaseAdapter.query<RLSDefinition>(
+    const rlsRules = await this.databaseManager.query<RLSDefinition>(
       'SELECT * FROM system_rls WHERE entity_id = ? AND role IN (?) AND is_active = ?',
       [entityId, roles.join(','), 1]
     );

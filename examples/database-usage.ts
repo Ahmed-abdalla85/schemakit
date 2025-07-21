@@ -2,17 +2,28 @@
  * Database Usage Examples - CodeIgniter Style
  * 
  * This file demonstrates how to use the new fluent database interface
- * that replaces the old QueryManager pattern.
+ * with DatabaseManager as the main gateway.
  */
 
 import { EntityManager } from '../src/core/entity-manager';
-import { DatabaseAdapter } from '../src/database/adapter';
+import { DatabaseManager, DatabaseConfig } from '../src/database/database-manager';
 
 export class DatabaseUsageExamples {
+  private databaseManager: DatabaseManager;
   private entityManager: EntityManager;
 
-  constructor(databaseAdapter: DatabaseAdapter) {
-    this.entityManager = new EntityManager(databaseAdapter);
+  constructor(config: DatabaseConfig) {
+    // DatabaseManager is now the main gateway for all database operations
+    this.databaseManager = new DatabaseManager(config);
+    this.entityManager = new EntityManager(this.databaseManager);
+  }
+
+  async initialize() {
+    // Initialize database connection
+    await this.databaseManager.connect();
+    
+    // Ensure system tables exist (do this once during app startup)
+    await this.entityManager.ensureSystemTables();
   }
 
   async examples() {
@@ -22,7 +33,9 @@ export class DatabaseUsageExamples {
 
     // === NEW CODEIGNITER-STYLE APPROACH ===
 
-    // 1. Simple Insert
+    // Can use either EntityManager or DatabaseManager for fluent queries
+    
+    // 1. Simple Insert (via EntityManager)
     const user = await this.entityManager.db('users')
       .insert({
         name: 'John Doe',
@@ -30,8 +43,16 @@ export class DatabaseUsageExamples {
         status: 'active'
       });
 
+    // 1b. Simple Insert (via DatabaseManager directly)
+    const user2 = await this.databaseManager.db('users')
+      .insert({
+        name: 'Jane Doe',
+        email: 'jane@example.com',
+        status: 'active'
+      });
+
     // 2. Select with conditions
-    const activeUsers = await this.entityManager.db('users')
+    const activeUsers = await this.databaseManager.db('users')
       .where('status', 'active')
       .where('created_at', '>', '2024-01-01')
       .orderBy('name', 'ASC')
@@ -100,8 +121,37 @@ export class DatabaseUsageExamples {
       .where('role', 'admin')
       .get();
 
+    // === DATABASE MANAGER SPECIFIC FEATURES ===
+
+    // Transaction support
+    const transactionResult = await this.databaseManager.transaction(async () => {
+      const newUser = await this.databaseManager.db('users').insert({
+        name: 'Transaction User',
+        email: 'transaction@example.com'
+      });
+      
+      await this.databaseManager.db('user_profiles').insert({
+        user_id: newUser.lastInsertId,
+        bio: 'Created in transaction'
+      });
+      
+      return newUser;
+    });
+
+    // Raw queries
+    const rawResult = await this.databaseManager.query(
+      'SELECT COUNT(*) as total FROM users WHERE created_at > ?',
+      ['2024-01-01']
+    );
+
+    // Database introspection
+    const tables = await this.databaseManager.listTables();
+    const userTableInfo = await this.databaseManager.getTableInfo('users');
+    const connectionInfo = this.databaseManager.getConnectionInfo();
+
     return {
       user,
+      user2,
       activeUsers,
       userNames,
       firstUser,
@@ -112,7 +162,12 @@ export class DatabaseUsageExamples {
       deleteResult,
       userCount,
       posts,
-      tenantUsers
+      tenantUsers,
+      transactionResult,
+      rawResult,
+      tables,
+      userTableInfo,
+      connectionInfo
     };
   }
 
