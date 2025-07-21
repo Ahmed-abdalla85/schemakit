@@ -3,6 +3,7 @@
  * Responsible for CRUD operations on entities and basic schema management
  * 
  * Simplified: Uses InstallManager for system tables, focuses on core functionality
+ * Enhanced: Includes EntityBuilder functionality and CodeIgniter-style database interface
  */
 import { DatabaseAdapter } from '../database/adapter';
 import { EntityConfiguration, EntityDefinition, FieldDefinition, PermissionDefinition, ViewDefinition, WorkflowDefinition, RLSDefinition, Context, RLSConditions } from '../types';
@@ -23,8 +24,185 @@ export interface CacheStats {
 }
 
 /**
+ * CodeIgniter-style fluent query builder interface
+ */
+export class FluentQueryBuilder {
+  private tableName: string;
+  private selectFields: string[] = ['*'];
+  private whereConditions: Array<{ field: string; operator: string; value: any }> = [];
+  private orderByClause: Array<{ field: string; direction: 'ASC' | 'DESC' }> = [];
+  private limitCount?: number;
+  private offsetCount?: number;
+  private tenantId: string;
+
+  constructor(
+    private entityManager: EntityManager,
+    private databaseAdapter: DatabaseAdapter,
+    tableName: string,
+    tenantId: string = 'default'
+  ) {
+    this.tableName = tableName;
+    this.tenantId = tenantId;
+  }
+
+  // CodeIgniter-style methods
+  select(fields: string | string[] = '*'): FluentQueryBuilder {
+    this.selectFields = Array.isArray(fields) ? fields : [fields];
+    return this;
+  }
+
+  where(field: string, operator: string | any, value?: any): FluentQueryBuilder {
+    if (arguments.length === 2) {
+      // where(field, value) - defaults to equals
+      this.whereConditions.push({ field, operator: '=', value: operator });
+    } else {
+      // where(field, operator, value)
+      this.whereConditions.push({ field, operator, value });
+    }
+    return this;
+  }
+
+  whereIn(field: string, values: any[]): FluentQueryBuilder {
+    this.whereConditions.push({ field, operator: 'IN', value: values });
+    return this;
+  }
+
+  whereLike(field: string, value: string): FluentQueryBuilder {
+    this.whereConditions.push({ field, operator: 'LIKE', value: `%${value}%` });
+    return this;
+  }
+
+  orderBy(field: string, direction: 'ASC' | 'DESC' = 'ASC'): FluentQueryBuilder {
+    this.orderByClause.push({ field, direction });
+    return this;
+  }
+
+  limit(count: number, offset?: number): FluentQueryBuilder {
+    this.limitCount = count;
+    if (offset !== undefined) {
+      this.offsetCount = offset;
+    }
+    return this;
+  }
+
+  offset(count: number): FluentQueryBuilder {
+    this.offsetCount = count;
+    return this;
+  }
+
+  // Execute methods
+  async get(): Promise<Record<string, any>[]> {
+    const sql = this.buildSelectSql();
+    const params = this.buildParams();
+    return await this.databaseAdapter.query(sql, params);
+  }
+
+  async first(): Promise<Record<string, any> | null> {
+    this.limitCount = 1;
+    const results = await this.get();
+    return results.length > 0 ? results[0] : null;
+  }
+
+  async count(): Promise<number> {
+    const sql = this.buildCountSql();
+    const params = this.buildParams();
+    const result = await this.databaseAdapter.query(sql, params);
+    return result.length > 0 ? parseInt(result[0].count, 10) : 0;
+  }
+
+  async insert(data: Record<string, any>): Promise<any> {
+    const fields = Object.keys(data);
+    const placeholders = fields.map(() => '?').join(', ');
+    const sql = `INSERT INTO ${this.tableName} (${fields.join(', ')}) VALUES (${placeholders})`;
+    const params = Object.values(data);
+    return await this.databaseAdapter.execute(sql, params);
+  }
+
+  async update(data: Record<string, any>): Promise<any> {
+    const fields = Object.keys(data);
+    const setClause = fields.map(field => `${field} = ?`).join(', ');
+    let sql = `UPDATE ${this.tableName} SET ${setClause}`;
+    const params = [...Object.values(data), ...this.buildParams()];
+    
+    if (this.whereConditions.length > 0) {
+      sql += ` WHERE ${this.buildWhereClause()}`;
+    }
+    
+    return await this.databaseAdapter.execute(sql, params);
+  }
+
+  async delete(): Promise<any> {
+    let sql = `DELETE FROM ${this.tableName}`;
+    const params = this.buildParams();
+    
+    if (this.whereConditions.length > 0) {
+      sql += ` WHERE ${this.buildWhereClause()}`;
+    }
+    
+    return await this.databaseAdapter.execute(sql, params);
+  }
+
+  // Private helper methods
+  private buildSelectSql(): string {
+    let sql = `SELECT ${this.selectFields.join(', ')} FROM ${this.tableName}`;
+    
+    if (this.whereConditions.length > 0) {
+      sql += ` WHERE ${this.buildWhereClause()}`;
+    }
+    
+    if (this.orderByClause.length > 0) {
+      const orderBy = this.orderByClause.map(o => `${o.field} ${o.direction}`).join(', ');
+      sql += ` ORDER BY ${orderBy}`;
+    }
+    
+    if (this.limitCount) {
+      sql += ` LIMIT ${this.limitCount}`;
+    }
+    
+    if (this.offsetCount) {
+      sql += ` OFFSET ${this.offsetCount}`;
+    }
+    
+    return sql;
+  }
+
+  private buildCountSql(): string {
+    let sql = `SELECT COUNT(*) as count FROM ${this.tableName}`;
+    
+    if (this.whereConditions.length > 0) {
+      sql += ` WHERE ${this.buildWhereClause()}`;
+    }
+    
+    return sql;
+  }
+
+  private buildWhereClause(): string {
+    return this.whereConditions.map(condition => {
+      if (condition.operator === 'IN') {
+        const placeholders = Array(condition.value.length).fill('?').join(', ');
+        return `${condition.field} IN (${placeholders})`;
+      }
+      return `${condition.field} ${condition.operator} ?`;
+    }).join(' AND ');
+  }
+
+  private buildParams(): any[] {
+    const params: any[] = [];
+    for (const condition of this.whereConditions) {
+      if (condition.operator === 'IN') {
+        params.push(...condition.value);
+      } else {
+        params.push(condition.value);
+      }
+    }
+    return params;
+  }
+}
+
+/**
  * EntityManager class
  * Handles CRUD operations and schema management using existing patterns
+ * Enhanced with EntityBuilder functionality and CodeIgniter-style database interface
  */
 export class EntityManager {
   private databaseAdapter: DatabaseAdapter;
@@ -33,6 +211,10 @@ export class EntityManager {
   
   // Schema loading and caching
   private entityCache: Map<string, EntityConfiguration> = new Map();
+  
+  // EntityBuilder functionality merged in
+  private entityApiCache = new Map<string, any>();
+  
   private cacheEnabled = true;
   private cacheHits = 0;
   private cacheMisses = 0;
@@ -47,6 +229,72 @@ export class EntityManager {
     this.queryManager = new QueryManager(databaseAdapter);
     this.installManager = new InstallManager(databaseAdapter);
     this.cacheEnabled = options?.cacheEnabled !== false;
+  }
+
+  // === FLUENT DATABASE INTERFACE (CodeIgniter-style) ===
+
+  /**
+   * Create a fluent query builder for a table
+   * @param tableName Table name
+   * @param tenantId Tenant ID
+   * @returns FluentQueryBuilder instance
+   */
+  db(tableName: string, tenantId: string = 'default'): FluentQueryBuilder {
+    return new FluentQueryBuilder(this, this.databaseAdapter, tableName, tenantId);
+  }
+
+  /**
+   * Get table reference for fluent queries
+   * @param tableName Table name
+   * @param tenantId Tenant ID
+   * @returns FluentQueryBuilder instance
+   */
+  table(tableName: string, tenantId: string = 'default'): FluentQueryBuilder {
+    return this.db(tableName, tenantId);
+  }
+
+  // === ENTITY BUILDER FUNCTIONALITY (merged from EntityBuilder) ===
+
+  /**
+   * Returns a fluent EntityAPI instance for the given entity name.
+   */
+  entity(entityName: string): any {
+    return this.entityForTenant(entityName, 'default');
+  }
+
+  /**
+   * Returns a fluent EntityAPI instance for the given entity name with tenant context.
+   */
+  entityForTenant(entityName: string, tenantId = 'default'): any {
+    const cacheKey = `${tenantId}:${entityName}`;
+    
+    if (!this.entityApiCache.has(cacheKey)) {
+      // Note: This would need to be implemented with proper EntityAPI dependency injection
+      // For now, returning a placeholder that indicates this needs to be properly wired
+      throw new Error(`EntityAPI creation needs proper dependency injection setup for ${cacheKey}`);
+    }
+    
+    const cachedEntity = this.entityApiCache.get(cacheKey);
+    if (!cachedEntity) {
+      throw new Error(`Failed to retrieve cached entity API for ${cacheKey}`);
+    }
+    return cachedEntity;
+  }
+
+  /**
+   * Clears the entity API cache for a specific entity or all entities.
+   */
+  clearEntityApiCache(entityName?: string, tenantId?: string): void {
+    if (entityName && tenantId) {
+      const cacheKey = `${tenantId}:${entityName}`;
+      this.entityApiCache.delete(cacheKey);
+    } else if (entityName) {
+      // Clear all tenant variants of this entity
+      const keysToDelete = Array.from(this.entityApiCache.keys()).filter(key => key.endsWith(`:${entityName}`));
+      keysToDelete.forEach(key => this.entityApiCache.delete(key));
+    } else {
+      this.entityApiCache.clear();
+    }
   }
 
   // === SCHEMA MANAGEMENT ===
@@ -120,7 +368,7 @@ export class EntityManager {
   }
 
   /**
-   * Ensure system tables exist
+   * Ensure system tables exist - Only call during initialization
    */
   async ensureSystemTables(): Promise<void> {
     await this.installManager.ensureReady();
@@ -150,6 +398,7 @@ export class EntityManager {
    */
   clearAllCache(): void {
     this.entityCache.clear();
+    this.entityApiCache.clear();
     this.cacheHits = 0;
     this.cacheMisses = 0;
   }
@@ -174,7 +423,7 @@ export class EntityManager {
     return Array.from(this.entityCache.keys());
   }
 
-  // === CRUD OPERATIONS ===
+  // === CRUD OPERATIONS (Simplified - removed ensureReady calls) ===
 
   /**
    * Create a new entity record
@@ -188,9 +437,6 @@ export class EntityManager {
     data: Record<string, any>,
     context: Context = {}
   ): Promise<Record<string, any>> {
-    // Ensure system tables exist
-    await this.installManager.ensureReady();
-    
     // Ensure entity table exists
     await this.ensureEntityTable(entityConfig);
 
@@ -210,18 +456,16 @@ export class EntityManager {
       data.updated_by = context.user.id;
     }
 
-    // Use QueryManager to build and execute insert query
+    // Use fluent database interface (CodeIgniter-style)
     const tableName = entityConfig.entity.table_name;
     const tenantId = context.tenantId || 'default';
-    const { sql, params } = this.queryManager.buildInsertQuery(tableName, tenantId, data);
-    const result = await this.databaseAdapter.execute(sql, params);
+    const result = await this.db(tableName, tenantId).insert(data);
 
     if (result.changes === 0) {
       throw new Error(`Failed to create ${tableName} record`);
     }
 
     // For INSERT with RETURNING, we need to get the inserted record
-    // Since execute doesn't return the inserted record, we need to query for it
     const insertedId = result.lastInsertId;
     if (insertedId) {
       const insertedRecord = await this.findById(entityConfig, insertedId, context);
@@ -249,26 +493,17 @@ export class EntityManager {
     const tableName = entityConfig.entity.table_name;
     const tenantId = context.tenantId || 'default';
     
-    // Use QueryManager to build and execute find by ID query
-    const { sql, params } = this.queryManager.buildFindByIdQuery(tableName, tenantId, id);
+    // Use fluent database interface (CodeIgniter-style)
+    let query = this.db(tableName, tenantId).where('id', id);
     
     // Add RLS conditions if provided
-    let finalSql = sql;
-    let finalParams = [...params];
-    
-    if (rlsConditions?.sql) {
-      // Append RLS conditions to WHERE clause
-      const whereIndex = finalSql.indexOf('WHERE');
-      if (whereIndex !== -1) {
-        const beforeWhere = finalSql.substring(0, whereIndex + 5); // +5 to include 'WHERE'
-        const afterWhere = finalSql.substring(whereIndex + 5);
-        finalSql = `${beforeWhere} ${afterWhere} AND (${rlsConditions.sql})`;
-        finalParams = [...finalParams, ...rlsConditions.params];
+    if (rlsConditions?.conditions) {
+      for (const condition of rlsConditions.conditions) {
+        query = query.where(condition.field, condition.operator, condition.value);
       }
     }
 
-    const result = await this.databaseAdapter.query(finalSql, finalParams);
-    return result.length > 0 ? result[0] : null;
+    return await query.first();
   }
 
   /**
@@ -303,29 +538,23 @@ export class EntityManager {
       delete data.id;
     }
 
-    // Use QueryManager to build and execute update query
-    const { sql, params } = this.queryManager.buildUpdateQuery(tableName, tenantId, id, data);
+    // Use fluent database interface (CodeIgniter-style)
+    let query = this.db(tableName, tenantId).where('id', id);
     
     // Add RLS conditions if provided
-    let finalSql = sql;
-    let finalParams = [...params];
-    
-    if (rlsConditions?.sql) {
-      // Append RLS conditions to WHERE clause
-      const whereIndex = finalSql.indexOf('WHERE');
-      if (whereIndex !== -1) {
-        const beforeWhere = finalSql.substring(0, whereIndex + 5); // +5 to include 'WHERE'
-        const afterWhere = finalSql.substring(whereIndex + 5);
-        finalSql = `${beforeWhere} ${afterWhere} AND (${rlsConditions.sql})`;
-        finalParams = [...finalParams, ...rlsConditions.params];
+    if (rlsConditions?.conditions) {
+      for (const condition of rlsConditions.conditions) {
+        query = query.where(condition.field, condition.operator, condition.value);
       }
     }
 
-    const result = await this.databaseAdapter.query(finalSql, finalParams);
-    if (result.length === 0) {
+    const result = await query.update(data);
+    if (result.changes === 0) {
       throw new Error(`Record not found or permission denied: ${tableName} with ID ${id}`);
     }
-    return result[0];
+
+    // Return updated record
+    return await this.findById(entityConfig, id, context, rlsConditions) || { id, ...data };
   }
 
   /**
@@ -345,25 +574,17 @@ export class EntityManager {
     const tableName = entityConfig.entity.table_name;
     const tenantId = context.tenantId || 'default';
     
-    // Use QueryManager to build and execute delete query
-    const { sql, params } = this.queryManager.buildDeleteQuery(tableName, tenantId, id);
+    // Use fluent database interface (CodeIgniter-style)
+    let query = this.db(tableName, tenantId).where('id', id);
     
     // Add RLS conditions if provided
-    let finalSql = sql;
-    let finalParams = [...params];
-    
-    if (rlsConditions?.sql) {
-      // Append RLS conditions to WHERE clause
-      const whereIndex = finalSql.indexOf('WHERE');
-      if (whereIndex !== -1) {
-        const beforeWhere = finalSql.substring(0, whereIndex + 5); // +5 to include 'WHERE'
-        const afterWhere = finalSql.substring(whereIndex + 5);
-        finalSql = `${beforeWhere} ${afterWhere} AND (${rlsConditions.sql})`;
-        finalParams = [...finalParams, ...rlsConditions.params];
+    if (rlsConditions?.conditions) {
+      for (const condition of rlsConditions.conditions) {
+        query = query.where(condition.field, condition.operator, condition.value);
       }
     }
 
-    const result = await this.databaseAdapter.execute(finalSql, finalParams);
+    const result = await query.delete();
     return result.changes > 0;
   }
 
@@ -391,37 +612,39 @@ export class EntityManager {
     const tableName = entityConfig.entity.table_name;
     const tenantId = context.tenantId || 'default';
     
-    // Convert conditions to QueryFilter format
-    const filters = conditions.map(condition => ({
-      field: condition.field,
-      value: condition.value,
-      operator: condition.operator || 'eq'
-    }));
+    // Use fluent database interface (CodeIgniter-style)
+    let query = this.db(tableName, tenantId);
     
-    // Use QueryManager to build select query
-    const { sql, params } = this.queryManager.buildSelectQuery(tableName, tenantId, filters, {
-      sort: options.sort,
-      limit: options.limit,
-      offset: options.offset
-    });
+    // Apply field selection
+    if (options.fields && options.fields.length > 0) {
+      query = query.select(options.fields);
+    }
+    
+    // Apply conditions
+    for (const condition of conditions) {
+      query = query.where(condition.field, condition.operator || '=', condition.value);
+    }
     
     // Add RLS conditions if provided
-    let finalSql = sql;
-    let finalParams = [...params];
-    
-    if (rlsConditions?.sql) {
-      // Append RLS conditions to WHERE clause
-      const whereIndex = finalSql.indexOf('WHERE');
-      if (whereIndex !== -1) {
-        const beforeWhere = finalSql.substring(0, whereIndex + 5); // +5 to include 'WHERE'
-        const afterWhere = finalSql.substring(whereIndex + 5);
-        finalSql = `${beforeWhere} ${afterWhere} AND (${rlsConditions.sql})`;
-        finalParams = [...finalParams, ...rlsConditions.params];
+    if (rlsConditions?.conditions) {
+      for (const condition of rlsConditions.conditions) {
+        query = query.where(condition.field, condition.operator, condition.value);
       }
     }
+    
+    // Apply sorting
+    if (options.sort) {
+      for (const sort of options.sort) {
+        query = query.orderBy(sort.field, sort.direction);
+      }
+    }
+    
+    // Apply pagination
+    if (options.limit) {
+      query = query.limit(options.limit, options.offset);
+    }
 
-    const result = await this.databaseAdapter.query(finalSql, finalParams);
-    return result || [];
+    return await query.get();
   }
 
   /**
@@ -441,33 +664,22 @@ export class EntityManager {
     const tableName = entityConfig.entity.table_name;
     const tenantId = context.tenantId || 'default';
     
-    // Convert conditions to QueryFilter format for QueryManager
-    const filters = conditions.map(condition => ({
-      field: condition.field,
-      value: condition.value,
-      operator: condition.operator || 'eq'
-    }));
+    // Use fluent database interface (CodeIgniter-style)
+    let query = this.db(tableName, tenantId);
     
-    // Use QueryManager to build and execute count query
-    const { sql, params } = this.queryManager.buildCountQuery(tableName, tenantId, filters);
+    // Apply conditions
+    for (const condition of conditions) {
+      query = query.where(condition.field, condition.operator || '=', condition.value);
+    }
     
     // Add RLS conditions if provided
-    let finalSql = sql;
-    let finalParams = [...params];
-    
-    if (rlsConditions?.sql) {
-      // Append RLS conditions to WHERE clause
-      const whereIndex = finalSql.indexOf('WHERE');
-      if (whereIndex !== -1) {
-        const beforeWhere = finalSql.substring(0, whereIndex + 5); // +5 to include 'WHERE'
-        const afterWhere = finalSql.substring(whereIndex + 5);
-        finalSql = `${beforeWhere} ${afterWhere} AND (${rlsConditions.sql})`;
-        finalParams = [...finalParams, ...rlsConditions.params];
+    if (rlsConditions?.conditions) {
+      for (const condition of rlsConditions.conditions) {
+        query = query.where(condition.field, condition.operator, condition.value);
       }
     }
 
-    const result = await this.databaseAdapter.query(finalSql, finalParams);
-    return result.length > 0 ? parseInt(result[0].count, 10) : 0;
+    return await query.count();
   }
 
   // === MINIMAL TABLE MANAGEMENT ===

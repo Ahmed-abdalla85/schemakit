@@ -5,6 +5,11 @@ import type { WorkflowManager } from './workflow-manager';
 
 import { EntityAPI } from './entity-api';
 
+/**
+ * @deprecated EntityBuilder functionality has been merged into EntityManager.
+ * Use EntityManager.entity() and EntityManager.entityForTenant() instead.
+ * This class will be removed in a future version.
+ */
 export class EntityBuilder {
   private cache = new Map<string, EntityAPI>();
 

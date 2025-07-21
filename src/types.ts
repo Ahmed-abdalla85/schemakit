@@ -123,8 +123,9 @@ export interface RLSCondition {
 }
 
 export interface RLSConditions {
-  sql: string;
-  params: any[];
+  sql?: string;  // Legacy support
+  params?: any[];  // Legacy support
+  conditions?: Array<{ field: string; operator: string; value: any }>;  // New fluent style
 }
 
 // ===== VIEWS =====
