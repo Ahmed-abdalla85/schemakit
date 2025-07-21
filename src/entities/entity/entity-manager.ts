@@ -7,12 +7,12 @@
  * - Managing entity cache
  * - Providing database access for configuration queries
  */
-import { DatabaseManager } from '../database/database-manager';
-import { FluentQueryBuilder } from '../database/fluent-query-builder';
-import { EntityConfiguration, EntityDefinition, FieldDefinition, PermissionDefinition, ViewDefinition, WorkflowDefinition, RLSDefinition, Context } from '../types';
-import { QueryManager } from '../database/query-manager';
-import { InstallManager } from '../database/install-manager';
-import { safeJsonParse } from '../utils/json-helpers';
+import { DatabaseManager } from '../../database/database-manager';
+import { FluentQueryBuilder } from '../../database/fluent-query-builder';
+import { EntityConfiguration, EntityDefinition, FieldDefinition, PermissionDefinition, ViewDefinition, WorkflowDefinition, RLSDefinition, Context } from '../../types';
+import { QueryManager } from '../../database/query-manager';
+import { InstallManager } from '../../database/install-manager';
+import { safeJsonParse } from '../../utils/json-helpers';
 
 /**
  * Cache statistics interface

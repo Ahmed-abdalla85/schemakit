@@ -1,9 +1,6 @@
 import { DatabaseManager } from './database/database-manager';
 import { InstallManager } from './database/install-manager';
-import { EntityManager } from './core/entity-manager';
-import { ValidationManager } from './core/validation-manager';
-import { PermissionManager } from './core/permission-manager';
-import { WorkflowManager } from './core/workflow-manager';
+import { EntityAPIFactory } from './entities/entity/entity-api-factory';
 import { SchemaKitError } from './errors';
 export class SchemaKit {
     constructor(options = {}) {
@@ -22,11 +19,8 @@ export class SchemaKit {
     async initialize() {
         try {
             await this.databaseManager.connect();
-            // Initialize managers with DatabaseManager
-            this.entityManager = new EntityManager(this.databaseManager);
-            this.validationManager = new ValidationManager();
-            this.permissionManager = new PermissionManager(this.databaseManager.getAdapter());
-            this.workflowManager = new WorkflowManager(this.databaseManager.getAdapter());
+            // Initialize EntityAPIFactory with DatabaseManager (handles all manager creation)
+            this.entityAPIFactory = new EntityAPIFactory(this.databaseManager);
             // Initialize system tables
             this.installManager = new InstallManager(this.databaseManager.getAdapter());
             await this.installManager.ensureReady();
@@ -43,16 +37,25 @@ export class SchemaKit {
      * @param tenantId Tenant identifier (defaults to 'default')
      */
     entity(name, tenantId = 'default') {
-        if (!this.entityManager) {
+        if (!this.entityAPIFactory) {
             throw new SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
         }
-        return this.entityManager.createEntityAPI(name, tenantId);
+        return this.entityAPIFactory.createEntityAPI(name, tenantId);
     }
     /**
      * Access database manager for advanced operations
      */
     getDatabase() {
         return this.databaseManager;
+    }
+    /**
+     * Access entity manager for configuration management
+     */
+    getEntityManager() {
+        if (!this.entityAPIFactory) {
+            throw new SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
+        }
+        return this.entityAPIFactory.getEntityManager();
     }
     /**
      * Disconnect from database
@@ -64,13 +67,13 @@ export class SchemaKit {
      * Clear cached entity definitions
      */
     clearEntityCache(entityName, tenantId) {
-        this.entityManager?.clearEntityCache(entityName, tenantId);
+        this.getEntityManager()?.clearEntityCache(entityName);
     }
     /**
      * Get cache statistics
      */
     getCacheStats() {
-        return this.entityManager?.getCacheStats() || { entityCacheSize: 0, entities: [] };
+        return this.getEntityManager()?.getCacheStats() || { entityCacheSize: 0, entities: [] };
     }
     /**
      * Get connection information

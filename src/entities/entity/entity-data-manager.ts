@@ -7,11 +7,11 @@
  * - Table creation and management
  * - Data transformation and system field management
  */
-import { DatabaseManager } from '../database/database-manager';
-import { FluentQueryBuilder } from '../database/fluent-query-builder';
-import { EntityConfiguration, Context, RLSConditions } from '../types';
-import { generateId } from '../utils/id-generation';
-import { getCurrentTimestamp } from '../utils/date-helpers';
+import { DatabaseManager } from '../../database/database-manager';
+import { FluentQueryBuilder } from '../../database/fluent-query-builder';
+import { EntityConfiguration, Context, RLSConditions } from '../../types';
+import { generateId } from '../../utils/id-generation';
+import { getCurrentTimestamp } from '../../utils/date-helpers';
 
 /**
  * EntityDataManager class - Entity Data Operations

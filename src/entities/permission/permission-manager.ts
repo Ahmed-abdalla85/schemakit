@@ -2,8 +2,8 @@
  * PermissionManager
  * Responsible for handling permissions and RLS
  */
-import { DatabaseAdapter } from '../database/adapter';
-import { EntityConfiguration, Context, RLSCondition, RLSConditions } from '../types';
+import { DatabaseAdapter } from '../../database/adapter';
+import { EntityConfiguration, Context, RLSCondition, RLSConditions } from '../../types';
 
 /**
  * PermissionManager class

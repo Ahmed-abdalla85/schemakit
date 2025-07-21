@@ -4,16 +4,16 @@
  * Simple, focused API for entity management with enterprise architecture underneath.
  */
 export { SchemaKit } from './schemakit';
-export { EntityManager, CacheStats } from './core/entity-manager';
-export { ValidationManager } from './core/validation-manager';
-export { PermissionManager } from './core/permission-manager';
-export { WorkflowManager } from './core/workflow-manager';
-export { QueryBuilder } from './core/query/query-builder';
-export { PaginationManager } from './core/query/pagination-manager';
-export { QueryExecutor } from './core/query/query-executor';
-export { TypeValidators } from './core/validators/type-validators';
-export { WorkflowActions } from './core/workflows/workflow-actions';
-export { FileLoader } from './core/file-loader';
+export { EntityManager, CacheStats } from './entities/entity';
+export { ValidationManager } from './entities/validation';
+export { PermissionManager } from './entities/permission';
+export { WorkflowManager } from './entities/workflow';
+export { QueryBuilder } from './entities/query';
+export { PaginationManager } from './entities/query';
+export { QueryExecutor } from './entities/query';
+export { TypeValidators } from './entities/validation';
+export { WorkflowActions } from './entities/workflow';
+export { FileLoader } from './entities/entity';
 export * from './database';
 export { DatabaseManager, FluentQueryBuilder, createDatabase, createInMemoryDatabase, createSQLiteDatabase, createPostgresDatabase } from './database';
 export * from './types';
@@ -23,3 +23,4 @@ export * from './utils/id-generation';
 export * from './utils/json-helpers';
 export * from './utils/query-helpers';
 export * from './utils/validation-helpers';
+export { Logger } from './utils/logger';
