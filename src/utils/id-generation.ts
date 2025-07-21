@@ -2,6 +2,7 @@
  * ID Generation Utilities
  * Centralized ID generation functions for SchemaKit
  */
+import * as nodeCrypto from 'crypto';
 
 /**
  * Generate a simple UUID v4
@@ -28,8 +29,7 @@ export function generateUUID(): string {
   
   // Check if we're in Node.js with crypto module
   try {
-    const crypto = require('crypto');
-    return crypto.randomUUID();
+    return nodeCrypto.randomUUID();
   } catch (e) {
     // Fall back to our simple implementation
     return generateId();
