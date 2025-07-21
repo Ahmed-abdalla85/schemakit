@@ -1,10 +1,11 @@
 import { SchemaKitOptions } from './types';
 import { DatabaseManager } from './database/database-manager';
+import { UnifiedEntityFactory } from './entities/unified';
 export declare class SchemaKit {
     private readonly options;
     private readonly databaseManager;
     private installManager?;
-    private entityAPIFactory?;
+    private entityFactory?;
     constructor(options?: SchemaKitOptions);
     /**
      * Initialize all services
@@ -12,33 +13,33 @@ export declare class SchemaKit {
     initialize(): Promise<this>;
     /**
      * Access entity with optional tenant context (unified API)
-     * Returns EntityAPI instance - the standalone gateway for entity operations
+     * Returns UnifiedEntityHandler instance - the standalone gateway for entity operations
      * @param name Entity name
      * @param tenantId Tenant identifier (defaults to 'default')
      */
-    entity(name: string, tenantId?: string): import("./entities").EntityAPI;
+    entity(name: string, tenantId?: string): Promise<import("./entities/unified").UnifiedEntityHandler>;
     /**
      * Access database manager for advanced operations
      */
     getDatabase(): DatabaseManager;
     /**
-     * Access entity manager for configuration management
+     * Access entity factory for handler creation and cache management
      */
-    getEntityManager(): import(".").EntityManager;
+    getEntityFactory(): UnifiedEntityFactory;
     /**
      * Disconnect from database
      */
     disconnect(): Promise<void>;
     /**
-     * Clear cached entity definitions
+     * Clear cached entity handlers
      */
     clearEntityCache(entityName?: string, tenantId?: string): void;
     /**
      * Get cache statistics
      */
     getCacheStats(): {
-        entityCacheSize: number;
-        entities: string[];
+        handlerCacheSize: number;
+        cachedEntities: string[];
     };
     /**
      * Get connection information

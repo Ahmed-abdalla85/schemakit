@@ -1,7 +1,7 @@
 import { SchemaKitOptions } from './types';
 import { DatabaseManager, DatabaseConfig } from './database/database-manager';
 import { InstallManager } from './database/install-manager';
-import { EntityAPIFactory } from './entities/entity/entity-api-factory';
+import { UnifiedEntityFactory } from './entities/unified';
 import { SchemaKitError } from './errors';
 
 export class SchemaKit {
@@ -9,7 +9,7 @@ export class SchemaKit {
   private readonly databaseManager: DatabaseManager;
 
   private installManager?: InstallManager;
-  private entityAPIFactory?: EntityAPIFactory;
+  private entityFactory?: UnifiedEntityFactory;
 
   constructor(options: SchemaKitOptions = {}) {
     this.options = options;
@@ -31,8 +31,11 @@ export class SchemaKit {
     try {
       await this.databaseManager.connect();
 
-      // Initialize EntityAPIFactory with DatabaseManager (handles all manager creation)
-      this.entityAPIFactory = new EntityAPIFactory(this.databaseManager);
+      // Initialize UnifiedEntityFactory with DatabaseAdapter
+      this.entityFactory = new UnifiedEntityFactory(this.databaseManager.getAdapter(), {
+        cacheEnabled: this.options.cache?.enabled !== false,
+        tenantId: 'default'
+      });
 
       // Initialize system tables
       this.installManager = new InstallManager(this.databaseManager.getAdapter());
@@ -46,15 +49,15 @@ export class SchemaKit {
 
   /**
    * Access entity with optional tenant context (unified API)
-   * Returns EntityAPI instance - the standalone gateway for entity operations
+   * Returns UnifiedEntityHandler instance - the standalone gateway for entity operations
    * @param name Entity name
    * @param tenantId Tenant identifier (defaults to 'default')
    */
-  entity(name: string, tenantId = 'default') {
-    if (!this.entityAPIFactory) {
+  async entity(name: string, tenantId = 'default') {
+    if (!this.entityFactory) {
       throw new SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
     }
-    return this.entityAPIFactory.createEntityAPI(name, tenantId);
+    return this.entityFactory.createHandler(name, tenantId);
   }
 
   /**
@@ -65,13 +68,13 @@ export class SchemaKit {
   }
 
   /**
-   * Access entity manager for configuration management
+   * Access entity factory for handler creation and cache management
    */
-  getEntityManager() {
-    if (!this.entityAPIFactory) {
+  getEntityFactory() {
+    if (!this.entityFactory) {
       throw new SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
     }
-    return this.entityAPIFactory.getEntityManager();
+    return this.entityFactory;
   }
 
   /**
@@ -82,17 +85,17 @@ export class SchemaKit {
   }
 
   /**
-   * Clear cached entity definitions
+   * Clear cached entity handlers
    */
   clearEntityCache(entityName?: string, tenantId?: string): void {
-    this.getEntityManager()?.clearEntityCache(entityName);
+    this.getEntityFactory()?.clearCache(entityName, tenantId);
   }
 
   /**
    * Get cache statistics
    */
-  getCacheStats(): { entityCacheSize: number; entities: string[] } {
-    return this.getEntityManager()?.getCacheStats() || { entityCacheSize: 0, entities: [] };
+  getCacheStats(): { handlerCacheSize: number; cachedEntities: string[] } {
+    return this.getEntityFactory()?.getCacheStats() || { handlerCacheSize: 0, cachedEntities: [] };
   }
 
   /**

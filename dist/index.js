@@ -19,11 +19,17 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Logger = exports.SchemaKitError = exports.createPostgresDatabase = exports.createSQLiteDatabase = exports.createInMemoryDatabase = exports.createDatabase = exports.FluentQueryBuilder = exports.DatabaseManager = exports.SchemaLoader = exports.WorkflowActions = exports.TypeValidators = exports.QueryExecutor = exports.PaginationManager = exports.QueryBuilder = exports.WorkflowManager = exports.PermissionManager = exports.ValidationManager = exports.EntityManager = exports.SchemaKit = void 0;
+exports.Logger = exports.SchemaKitError = exports.createPostgresDatabase = exports.createSQLiteDatabase = exports.createInMemoryDatabase = exports.createDatabase = exports.FluentQueryBuilder = exports.DatabaseManager = exports.SchemaLoader = exports.WorkflowActions = exports.TypeValidators = exports.QueryExecutor = exports.PaginationManager = exports.QueryBuilder = exports.WorkflowManager = exports.PermissionManager = exports.ValidationManager = exports.EntityManager = exports.createDbAdapter = exports.DatabaseAdapterBridge = exports.UnifiedEntityFactory = exports.UnifiedEntityHandler = exports.SchemaKit = void 0;
 // Core SchemaKit class (optimized)
 var schemakit_1 = require("./schemakit");
 Object.defineProperty(exports, "SchemaKit", { enumerable: true, get: function () { return schemakit_1.SchemaKit; } });
-// Core managers (organized by entities)
+// Unified entity module (recommended)
+var unified_1 = require("./entities/unified");
+Object.defineProperty(exports, "UnifiedEntityHandler", { enumerable: true, get: function () { return unified_1.UnifiedEntityHandler; } });
+Object.defineProperty(exports, "UnifiedEntityFactory", { enumerable: true, get: function () { return unified_1.UnifiedEntityFactory; } });
+Object.defineProperty(exports, "DatabaseAdapterBridge", { enumerable: true, get: function () { return unified_1.DatabaseAdapterBridge; } });
+Object.defineProperty(exports, "createDbAdapter", { enumerable: true, get: function () { return unified_1.createDbAdapter; } });
+// Legacy managers (organized by entities) - for backward compatibility
 var entity_1 = require("./entities/entity");
 Object.defineProperty(exports, "EntityManager", { enumerable: true, get: function () { return entity_1.EntityManager; } });
 var validation_1 = require("./entities/validation");

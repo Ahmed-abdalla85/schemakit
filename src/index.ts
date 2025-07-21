@@ -7,7 +7,17 @@
 // Core SchemaKit class (optimized)
 export { SchemaKit } from './schemakit';
 
-// Core managers (organized by entities)
+// Unified entity module (recommended)
+export { 
+  UnifiedEntityHandler, 
+  UnifiedEntityFactory, 
+  UnifiedEntityFactoryOptions,
+  DbAdapter,
+  DatabaseAdapterBridge,
+  createDbAdapter
+} from './entities/unified';
+
+// Legacy managers (organized by entities) - for backward compatibility
 export { EntityManager, CacheStats } from './entities/entity';
 export { ValidationManager } from './entities/validation';
 export { PermissionManager } from './entities/permission';

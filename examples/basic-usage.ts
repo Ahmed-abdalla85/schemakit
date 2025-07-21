@@ -32,44 +32,52 @@ async function main() {
     // ===== 2. Entity Operations =====
     console.log('2. Entity Operations:');
     
-    // Get entity instance
-    const userEntity = schemaKit.entity('user');
-    console.log('   ✅ Entity instance created');
-    
-    // Try to access entity properties (will fail without entity configuration)
+    // Get entity instance (now async with UnifiedEntityHandler)
     try {
-      const schema = await userEntity.schema;
+      const userEntity = await schemaKit.entity('user');
+      console.log('   ✅ Entity handler created');
+      
+      // Access entity properties directly (synchronous with new API)
+      const entityInfo = userEntity.getEntityInfo();
+      console.log('   ✅ Entity info accessed:', entityInfo);
+      
+      const schema = userEntity.getSchema();
       console.log('   ✅ Schema accessed:', schema);
     } catch (error) {
       console.log('   ❌ Expected error (no entity configured):', error instanceof Error ? error.message : error);
     }
 
     // ===== 3. Enhanced Entity API =====
-    console.log('\n3. Enhanced Entity API Features:');
+    console.log('\n3. Enhanced UnifiedEntityHandler API:');
     console.log('   📋 Available Methods:');
-    console.log('     • userEntity.create(data, context)');
-    console.log('     • userEntity.read(filters, context)');
-    console.log('     • userEntity.update(id, data, context)');
-    console.log('     • userEntity.delete(id, context)');
-    console.log('     • userEntity.findById(id, context)');
-    console.log('     • userEntity.schema');
-    console.log('     • userEntity.fields');
-    console.log('     • userEntity.permissions');
-    console.log('     • userEntity.workflows');
-    console.log('     • userEntity.views');
-    console.log('     • userEntity.clearCache()');
-    console.log('     • userEntity.reload()');
+    console.log('     • userHandler.create(data, userRole?)');
+    console.log('     • userHandler.read(filters, userRole?)');
+    console.log('     • userHandler.update(id, data, userRole?)');
+    console.log('     • userHandler.delete(id, userRole?)');
+    console.log('     • userHandler.findById(id, userRole?)');
+    console.log('     • userHandler.getSchema() (synchronous)');
+    console.log('     • userHandler.getFields() (synchronous)');
+    console.log('     • userHandler.getPermissions() (synchronous)');
+    console.log('     • userHandler.getWorkflows() (synchronous)');
+    console.log('     • userHandler.getViews() (synchronous)');
+    console.log('     • userHandler.validateData(data, isCreate?)');
+    console.log('     • userHandler.checkPermission(role, action)');
+    console.log('     • userHandler.getEntityInfo()');
 
     // ===== 4. Multi-tenant Operations =====
     console.log('\n4. Multi-tenant Operations:');
     
-    // Get entities for different tenants
-    const userEntityTenantA = schemaKit.entity('user', 'tenant-a');
-    const userEntityTenantB = schemaKit.entity('user', 'tenant-b');
-    
-    console.log('   ✅ Created tenant-specific entity instances');
-    console.log('     • userEntityTenantA for tenant "tenant-a"');
-    console.log('     • userEntityTenantB for tenant "tenant-b"');
+    // Get entities for different tenants (now async)
+    try {
+      const userEntityTenantA = await schemaKit.entity('user', 'tenant-a');
+      const userEntityTenantB = await schemaKit.entity('user', 'tenant-b');
+      
+      console.log('   ✅ Created tenant-specific entity handlers');
+      console.log('     • userEntityTenantA for tenant "tenant-a"');
+      console.log('     • userEntityTenantB for tenant "tenant-b"');
+    } catch (error) {
+      console.log('   ❌ Expected error (no entity configured for tenants):', error instanceof Error ? error.message : error);
+    }
     
     // Note: In a real scenario, you would first need to:
     // 1. Create the schema for each tenant (PostgreSQL) or ensure tables exist
@@ -78,20 +86,14 @@ async function main() {
     console.log('     • PostgreSQL: "tenant-a.users", "tenant-b.users"');
     console.log('     • SQLite/InMemory: "tenant-a_users", "tenant-b_users"');
 
-    // ===== 5. Enhanced Entity API =====
-    console.log('\n5. Enhanced Entity API Features:');
-    console.log('   📋 Available Methods:');
-    console.log('     • userEntity.create(data, context)');
-    console.log('     • userEntity.read(filters, context)');
-    console.log('     • userEntity.update(id, data, context)');
-    console.log('     • userEntity.delete(id, context)');
-    console.log('     • userEntity.findById(id, context)');
-    console.log('     • userEntity.schema');
-    console.log('     • userEntity.fields');
-    console.log('     • userEntity.permissions');
-    console.log('     • userEntity.workflows');
-    console.log('     • userEntity.views');
-    console.log('     • userEntity.clearCache()');
+    // ===== 5. Improved Architecture =====
+    console.log('\n5. Improved Architecture Benefits:');
+    console.log('   ✅ UnifiedEntityHandler combines all entity operations');
+    console.log('   ✅ Synchronous schema and metadata access');
+    console.log('   ✅ Built-in validation and permission checking');
+    console.log('   ✅ Role-based security (pass role instead of full context)');
+    console.log('   ✅ Standardized result objects for all operations');
+    console.log('   ✅ Better performance with Map-based configuration processing');
 
     // ===== 6. Cache Management =====
     console.log('\n6. Cache Management:');
@@ -111,7 +113,7 @@ async function main() {
     try {
       // Try to use entity without initialization
       const uninitializedKit = new SchemaKit();
-      uninitializedKit.entity('user');
+      await uninitializedKit.entity('user');
     } catch (error) {
       console.log('   ✅ Proper error handling:', error instanceof Error ? error.message : error);
     }
@@ -120,11 +122,12 @@ async function main() {
     console.log('\n8. Architecture Benefits:');
     console.log('   ✅ Clean separation of concerns');
     console.log('   ✅ InstallManager handles database setup');
-    console.log('   ✅ EntityBuilder provides rich entity API');
+    console.log('   ✅ UnifiedEntityHandler provides comprehensive entity API');
     console.log('   ✅ Simplified main SchemaKit class');
     console.log('   ✅ Type-safe adapter management');
     console.log('   ✅ Better error handling');
     console.log('   ✅ Enhanced cache management');
+    console.log('   ✅ Single class instead of multiple managers');
 
     // ===== 9. Usage Patterns =====
     console.log('\n9. Common Usage Patterns:');
@@ -133,17 +136,18 @@ async function main() {
     console.log('     await schemaKit.initialize();');
     console.log('');
     console.log('   📝 Entity Operations:');
-    console.log('     const user = schemaKit.entity("user");');
-    console.log('     await user.create({ name: "John", email: "john@example.com" });');
-    console.log('     const users = await user.read({ status: "active" });');
-    console.log('     await user.update(1, { status: "inactive" });');
-    console.log('     await user.delete(1);');
-    console.log('     const userData = await user.findById(1);');
+    console.log('     const user = await schemaKit.entity("user");');
+    console.log('     await user.create({ name: "John", email: "john@example.com" }, "admin");');
+    console.log('     const users = await user.read({ filters: { status: "active" } }, "user");');
+    console.log('     await user.update("1", { status: "inactive" }, "admin");');
+    console.log('     await user.delete("1", "admin");');
+    console.log('     const userData = await user.findById("1", "user");');
     console.log('');
-    console.log('   📝 Schema Access:');
-    console.log('     const schema = await user.schema;');
-    console.log('     const fields = await user.fields;');
-    console.log('     const permissions = await user.permissions;');
+    console.log('   📝 Schema Access (Synchronous):');
+    console.log('     const schema = user.getSchema();');
+    console.log('     const fields = user.getFields();');
+    console.log('     const permissions = user.getPermissions();');
+    console.log('     const entityInfo = user.getEntityInfo();');
 
     // ===== 10. Cleanup =====
     console.log('\n10. Cleanup:');

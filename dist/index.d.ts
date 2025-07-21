@@ -4,6 +4,7 @@
  * Simple, focused API for entity management with enterprise architecture underneath.
  */
 export { SchemaKit } from './schemakit';
+export { UnifiedEntityHandler, UnifiedEntityFactory, UnifiedEntityFactoryOptions, DbAdapter, DatabaseAdapterBridge, createDbAdapter } from './entities/unified';
 export { EntityManager, CacheStats } from './entities/entity';
 export { ValidationManager } from './entities/validation';
 export { PermissionManager } from './entities/permission';
