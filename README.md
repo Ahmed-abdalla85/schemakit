@@ -1,10 +1,12 @@
 # SchemaKit
 
+> ⚠️ **BETA VERSION** - This is a beta version and is not recommended for production use. Please use with caution and expect potential breaking changes.
+
 [![npm version](https://badge.fury.io/js/%40ahmedabdalla_85%2Fschemakit.svg)](https://badge.fury.io/js/%40ahmedabdalla_85%2Fschemakit)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/%3C%2F%3E-TypeScript-%230074c1.svg)](http://www.typescriptlang.org/)
 
-A powerful, zero-dependency TypeScript library for dynamic entity management with runtime schema creation, validation, and CRUD operations. Perfect for applications that need flexible data modeling without predefined schemas.
+Dynamic entity management system with runtime schema creation, validation, and CRUD operations. Zero dependencies, works in Node.js and browsers.
 
 ## ✨ Features
 
@@ -162,6 +164,74 @@ await schemaKit.reinstall();
 - **Version tracking** - Automatic version management
 - **Migration support** - Ready for future schema updates
 
+## 🗄️ Database Tables
+
+When SchemaKit is installed, it creates the following system tables in your database:
+
+### Core System Tables
+
+| Table Name | Purpose | Description |
+|------------|---------|-------------|
+| `system_entities` | Entity Definitions | Stores metadata for all dynamic entities including name, table name, and configuration |
+| `system_fields` | Field Definitions | Defines fields for each entity with validation rules, types, and constraints |
+| `system_permissions` | Access Control | Role-based permissions for entities and field-level access control |
+| `system_views` | Query Views | Predefined query configurations for entities with sorting and filtering |
+| `system_workflows` | Automation | Workflow definitions for automated actions on entity lifecycle events |
+| `system_rls` | Row-Level Security | Security rules that control which records users can access |
+| `system_installation` | Version Management | Tracks SchemaKit installation version and metadata |
+
+### Table Details
+
+#### `system_entities`
+- **Primary Key**: `id` (TEXT)
+- **Key Fields**: `name` (unique entity name), `table_name`, `display_name`
+- **Purpose**: Central registry of all dynamic entities in your application
+
+#### `system_fields` 
+- **Primary Key**: `id` (TEXT)
+- **Foreign Key**: `entity_id` → `system_entities.id`
+- **Key Fields**: `name`, `type`, `validation_rules` (JSON), `is_required`, `is_unique`
+- **Purpose**: Define structure and validation for entity fields
+
+#### `system_permissions`
+- **Primary Key**: `id` (TEXT)  
+- **Foreign Key**: `entity_id` → `system_entities.id`
+- **Key Fields**: `role`, `action`, `conditions` (JSON), `field_permissions` (JSON)
+- **Purpose**: Control who can perform what actions on entities
+
+#### `system_views`
+- **Primary Key**: `id` (TEXT)
+- **Foreign Key**: `entity_id` → `system_entities.id`  
+- **Key Fields**: `name`, `query_config` (JSON), `fields` (JSON array)
+- **Purpose**: Store reusable query configurations for entities
+
+#### `system_workflows`
+- **Primary Key**: `id` (TEXT)
+- **Foreign Key**: `entity_id` → `system_entities.id`
+- **Key Fields**: `trigger_event`, `conditions` (JSON), `actions` (JSON array)
+- **Purpose**: Define automated workflows triggered by entity events
+
+#### `system_rls`
+- **Primary Key**: `id` (TEXT)
+- **Foreign Key**: `entity_id` → `system_entities.id`
+- **Key Fields**: `role`, `rls_config` (JSON)
+- **Purpose**: Implement row-level security rules
+
+#### `system_installation`
+- **Primary Key**: `id` (INTEGER)
+- **Key Fields**: `version`, `installed_at`, `updated_at`
+- **Purpose**: Track SchemaKit version and installation status
+
+### Automatic Indexes
+
+SchemaKit automatically creates performance indexes on:
+- Entity and field lookups
+- Permission and role queries  
+- Active record filtering
+- Foreign key relationships
+
+All system tables use optimized indexes for fast querying and maintain referential integrity through foreign key constraints.
+
 ## 🏗️ Architecture
 
 SchemaKit uses a modular architecture with focused components:
@@ -191,7 +261,7 @@ const validationManager = new ValidationManager();
 const result = validationManager.validateEntityData(entityConfig, data, 'create');
 ```
 
-## 🗄️ Database Support
+## 🔌 Database Adapters
 
 ### SQLite (Default)
 
