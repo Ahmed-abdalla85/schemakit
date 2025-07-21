@@ -2,7 +2,7 @@
  * InstallManager - Database installation and setup
  */
 import { DatabaseAdapter } from '../database/adapter';
-import { FileLoader } from '../entities/entity/file-loader';
+import { SchemaLoader } from './schema-loader';
 import { SchemaKitError } from '../errors';
 
 export class InstallManager {
@@ -31,10 +31,10 @@ export class InstallManager {
    */
   async install(): Promise<void> {
     try {
-      const schemaSql = await FileLoader.loadSchemaFile();
+      const schemaSql = await SchemaLoader.loadSchemaFile();
       await this.databaseAdapter.execute(schemaSql);
 
-      const seedSql = await FileLoader.loadSeedFile();
+      const seedSql = await SchemaLoader.loadSeedFile();
       if (seedSql) {
         await this.databaseAdapter.execute(seedSql);
       }
