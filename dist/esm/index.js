@@ -1,24 +1,38 @@
 /**
- * SchemaKit - Dynamic entity management system
+ * SchemaKit - Enterprise Schema Management Library
  *
- * A comprehensive system for runtime entity creation, validation, and CRUD operations
- * with support for permissions, workflows, and dynamic query building.
+ * Simple, focused API for entity management with enterprise architecture underneath.
  */
-// Export all error types
-export * from './errors';
-// Export core types
+// Core SchemaKit class (optimized)
+export { SchemaKit } from './schemakit';
+// Core managers (organized by entities)
+export { EntityManager } from './entities/entity';
+export { ValidationManager } from './entities/validation';
+export { PermissionManager } from './entities/permission';
+export { WorkflowManager } from './entities/workflow';
+// EntityBuilder has been removed - use EntityManager.entity() instead
+// Query components (organized)
+export { QueryBuilder } from './entities/query';
+export { PaginationManager } from './entities/query';
+export { QueryExecutor } from './entities/query';
+// Validators (organized)
+export { TypeValidators } from './entities/validation';
+// Workflows (organized)
+export { WorkflowActions } from './entities/workflow';
+// Core utilities
+export { SchemaLoader } from './database/schema-loader';
+// Database module (new structure) - Main gateway for all database operations
+export * from './database';
+export { DatabaseManager, FluentQueryBuilder, createDatabase, createInMemoryDatabase, createSQLiteDatabase, createPostgresDatabase } from './database';
+// Types (simplified)
 export * from './types';
-// Export database adapters
-export * from './database/adapter';
-// Export main SchemaKit class (new modular version)
-export * from './schemakit-new';
-// Export core modules for advanced usage
-export { SchemaLoader } from './core/schema-loader';
-export { EntityManager } from './core/entity-manager';
-export { ValidationManager } from './core/validation-manager';
-export { PermissionManager } from './core/permission-manager';
-export { QueryManager } from './core/query-builder';
-export { WorkflowManager } from './core/workflow-manager';
-// Keep the old SchemaKit class for backward compatibility
-export { SchemaKit as SchemaKitLegacy } from './schemakit';
+// Errors
+export { SchemaKitError } from './errors';
+// Utilities
+export * from './utils/date-helpers';
+export * from './utils/id-generation';
+export * from './utils/json-helpers';
+export * from './utils/query-helpers';
+export * from './utils/validation-helpers';
+export { Logger } from './utils/logger';
 //# sourceMappingURL=index.js.map

@@ -293,7 +293,7 @@ export class EntityDataManager {
   /**
    * Create a fluent query builder for a table
    */
-  private db(tableName: string, tenantId: string = 'default'): FluentQueryBuilder {
+  private db(tableName: string, tenantId = 'default'): FluentQueryBuilder {
     return this.databaseManager.db(tableName, tenantId);
   }
 

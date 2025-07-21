@@ -85,6 +85,6 @@ export function isValidUUID(id: string): boolean {
  * @param separator Separator between prefix and ID (default: '_')
  * @returns Prefixed ID string
  */
-export function generatePrefixedId(prefix: string, separator: string = '_'): string {
+export function generatePrefixedId(prefix: string, separator = '_'): string {
   return `${prefix}${separator}${generateShortId()}`;
 }

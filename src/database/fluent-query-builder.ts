@@ -18,7 +18,7 @@ export class FluentQueryBuilder {
   constructor(
     private databaseAdapter: DatabaseAdapter,
     tableName: string,
-    tenantId: string = 'default'
+    tenantId = 'default'
   ) {
     this.tableName = tableName;
     this.tenantId = tenantId;

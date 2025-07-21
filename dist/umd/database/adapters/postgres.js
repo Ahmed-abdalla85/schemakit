@@ -4,7 +4,7 @@
         if (v !== undefined) module.exports = v;
     }
     else if (typeof define === "function" && define.amd) {
-        define(["require", "exports", "../adapter", "../../errors", "../../utils/query-helpers", "../../core/query-manager"], factory);
+        define(["require", "exports", "../adapter", "../../errors", "../../utils/query-helpers", "../query-manager"], factory);
     }
 })(function (require, exports) {
     "use strict";
@@ -16,7 +16,7 @@
     const adapter_1 = require("../adapter");
     const errors_1 = require("../../errors");
     const query_helpers_1 = require("../../utils/query-helpers");
-    const query_manager_1 = require("../../core/query-manager");
+    const query_manager_1 = require("../query-manager");
     /**
      * PostgreSQL adapter implementation
      * Uses native PostgreSQL implementation with no external dependencies

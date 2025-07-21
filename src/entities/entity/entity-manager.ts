@@ -65,7 +65,7 @@ export class EntityManager {
    * @param tenantId Tenant ID
    * @returns FluentQueryBuilder instance
    */
-  db(tableName: string, tenantId: string = 'default'): FluentQueryBuilder {
+  db(tableName: string, tenantId = 'default'): FluentQueryBuilder {
     return this.databaseManager.db(tableName, tenantId);
   }
 
@@ -75,7 +75,7 @@ export class EntityManager {
    * @param tenantId Tenant ID
    * @returns FluentQueryBuilder instance
    */
-  table(tableName: string, tenantId: string = 'default'): FluentQueryBuilder {
+  table(tableName: string, tenantId = 'default'): FluentQueryBuilder {
     return this.databaseManager.table(tableName, tenantId);
   }
 

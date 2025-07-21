@@ -31,7 +31,7 @@ export class Entity {
   constructor(
     entityName: string,
     databaseManager: DatabaseManager,
-    tenantId: string = 'default'
+    tenantId = 'default'
   ) {
     this.entityName = entityName;
     this.tenantId = tenantId;

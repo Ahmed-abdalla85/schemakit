@@ -43,7 +43,7 @@ export interface BuiltQuery {
  * @param databaseType Database type ('postgres', 'sqlite', 'inmemory')
  * @returns Qualified table name
  */
-export function resolveTableName(table: string, tenantId: string = 'default', databaseType: string = 'sqlite'): string {
+export function resolveTableName(table: string, tenantId = 'default', databaseType = 'sqlite'): string {
   if (!tenantId || tenantId === 'default') {
     return table;
   }
@@ -67,7 +67,7 @@ export function resolveTableName(table: string, tenantId: string = 'default', da
  * @param startParamIndex Starting parameter index (for prepared statements)
  * @returns Built WHERE clause with parameters
  */
-export function buildWhereClause(conditions: QueryCondition[], startParamIndex: number = 1): BuiltQuery {
+export function buildWhereClause(conditions: QueryCondition[], startParamIndex = 1): BuiltQuery {
   if (conditions.length === 0) {
     return { sql: '', params: [] };
   }
@@ -345,7 +345,7 @@ export function buildUpdateQuery(
   
   let sql = `UPDATE ${escapedTable} SET ${setClause}`;
   const params = [...values];
-  let paramIndex = values.length + 1;
+  const paramIndex = values.length + 1;
 
   // Add WHERE clause
   if (conditions.length > 0) {

@@ -150,7 +150,7 @@ export class DatabaseManager {
    * @param tenantId Tenant ID (optional)
    * @returns FluentQueryBuilder instance
    */
-  table(tableName: string, tenantId: string = 'default'): FluentQueryBuilder {
+  table(tableName: string, tenantId = 'default'): FluentQueryBuilder {
     return new FluentQueryBuilder(this.adapter, tableName, tenantId);
   }
 
@@ -160,7 +160,7 @@ export class DatabaseManager {
    * @param tenantId Tenant ID (optional)
    * @returns FluentQueryBuilder instance
    */
-  db(tableName: string, tenantId: string = 'default'): FluentQueryBuilder {
+  db(tableName: string, tenantId = 'default'): FluentQueryBuilder {
     return this.table(tableName, tenantId);
   }
 

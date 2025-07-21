@@ -49,7 +49,7 @@ export class EntityAPIFactory {
    * @param tenantId Tenant ID (defaults to 'default')
    * @returns EntityAPI instance
    */
-  createEntityAPI(entityName: string, tenantId: string = 'default'): EntityAPI {
+  createEntityAPI(entityName: string, tenantId = 'default'): EntityAPI {
     const cacheKey = `${tenantId}:${entityName}`;
     
     if (!this.entityApiCache.has(cacheKey)) {

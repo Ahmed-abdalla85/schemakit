@@ -50,7 +50,7 @@ export class SchemaKit {
    * @param name Entity name
    * @param tenantId Tenant identifier (defaults to 'default')
    */
-  entity(name: string, tenantId: string = 'default') {
+  entity(name: string, tenantId = 'default') {
     if (!this.entityAPIFactory) {
       throw new SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
     }
