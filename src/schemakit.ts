@@ -1,7 +1,7 @@
 import { SchemaKitOptions } from './types';
 import { DatabaseManager, DatabaseConfig } from './database/database-manager';
 import { InstallManager } from './database/install-manager';
-import { EntityAPIFactory } from './core/entity-api-factory';
+import { EntityAPIFactory } from './entities/entity/entity-api-factory';
 import { SchemaKitError } from './errors';
 
 export class SchemaKit {
@@ -85,14 +85,14 @@ export class SchemaKit {
    * Clear cached entity definitions
    */
   clearEntityCache(entityName?: string, tenantId?: string): void {
-    this.entityManager?.clearEntityCache(entityName, tenantId);
+    this.getEntityManager()?.clearEntityCache(entityName);
   }
 
   /**
    * Get cache statistics
    */
   getCacheStats(): { entityCacheSize: number; entities: string[] } {
-    return this.entityManager?.getCacheStats() || { entityCacheSize: 0, entities: [] };
+    return this.getEntityManager()?.getCacheStats() || { entityCacheSize: 0, entities: [] };
   }
 
   /**

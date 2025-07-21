@@ -7,26 +7,26 @@
 // Core SchemaKit class (optimized)
 export { SchemaKit } from './schemakit';
 
-// Core managers (optimized)
-export { EntityManager, CacheStats } from './core/entity-manager';
-export { ValidationManager } from './core/validation-manager';
-export { PermissionManager } from './core/permission-manager';
-export { WorkflowManager } from './core/workflow-manager';
+// Core managers (organized by entities)
+export { EntityManager, CacheStats } from './entities/entity';
+export { ValidationManager } from './entities/validation';
+export { PermissionManager } from './entities/permission';
+export { WorkflowManager } from './entities/workflow';
 // EntityBuilder has been removed - use EntityManager.entity() instead
 
-// Query components (new split)
-export { QueryBuilder } from './core/query/query-builder';
-export { PaginationManager } from './core/query/pagination-manager';
-export { QueryExecutor } from './core/query/query-executor';
+// Query components (organized)
+export { QueryBuilder } from './entities/query';
+export { PaginationManager } from './entities/query';
+export { QueryExecutor } from './entities/query';
 
-// Validators (new split)
-export { TypeValidators } from './core/validators/type-validators';
+// Validators (organized)
+export { TypeValidators } from './entities/validation';
 
-// Workflows (new split)
-export { WorkflowActions } from './core/workflows/workflow-actions';
+// Workflows (organized)
+export { WorkflowActions } from './entities/workflow';
 
 // Core utilities
-export { FileLoader } from './core/file-loader';
+export { FileLoader } from './entities/entity';
 
 // Database module (new structure) - Main gateway for all database operations
 export * from './database';
@@ -51,3 +51,4 @@ export * from './utils/id-generation';
 export * from './utils/json-helpers';
 export * from './utils/query-helpers';
 export * from './utils/validation-helpers';
+export { Logger } from './utils/logger';

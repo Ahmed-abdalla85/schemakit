@@ -3,7 +3,7 @@
  * Handles type-specific validation logic
  */
 import { FieldDefinition } from '../../types';
-import { ValidationError } from '../validation-manager';
+import { ValidationError } from './validation-manager';
 
 export class TypeValidators {
   /**

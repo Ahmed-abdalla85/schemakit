@@ -2,8 +2,8 @@
  * WorkflowManager
  * Responsible for workflow execution
  */
-import { Context, EntityConfiguration, WorkflowDefinition } from '../types';
-import { DatabaseAdapter } from '../database/adapter';
+import { Context, EntityConfiguration, WorkflowDefinition } from '../../types';
+import { DatabaseAdapter } from '../../database/adapter';
 
 /**
  * WorkflowManager class

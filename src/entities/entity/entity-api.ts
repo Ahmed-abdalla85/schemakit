@@ -1,11 +1,11 @@
-import type { Context, EntityConfiguration } from '../types';
+import type { Context, EntityConfiguration } from '../../types';
 import type { EntityManager } from './entity-manager';
 import type { EntityDataManager } from './entity-data-manager';
-import type { ValidationManager } from './validation-manager';
-import type { PermissionManager } from './permission-manager';
-import type { WorkflowManager } from './workflow-manager';
+import type { ValidationManager } from '../validation/validation-manager';
+import type { PermissionManager } from '../permission/permission-manager';
+import type { WorkflowManager } from '../workflow/workflow-manager';
 
-import { SchemaKitError } from '../errors';
+import { SchemaKitError } from '../../errors';
 
 export class EntityAPI {
   private entityCache?: EntityConfiguration;

@@ -2,7 +2,7 @@
  * ValidationManager - Simplified
  * Essential validation functionality only
  */
-import { EntityConfiguration, FieldDefinition } from '../types';
+import { EntityConfiguration, FieldDefinition } from '../../types';
 
 export interface ValidationResult {
   isValid: boolean;

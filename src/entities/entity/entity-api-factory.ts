@@ -10,10 +10,10 @@
 import { EntityAPI } from './entity-api';
 import { EntityManager } from './entity-manager';
 import { EntityDataManager } from './entity-data-manager';
-import { ValidationManager } from './validation-manager';
-import { PermissionManager } from './permission-manager';
-import { WorkflowManager } from './workflow-manager';
-import { DatabaseManager } from '../database/database-manager';
+import { ValidationManager } from '../validation/validation-manager';
+import { PermissionManager } from '../permission/permission-manager';
+import { WorkflowManager } from '../workflow/workflow-manager';
+import { DatabaseManager } from '../../database/database-manager';
 
 /**
  * EntityAPIFactory class - EntityAPI Instance Management

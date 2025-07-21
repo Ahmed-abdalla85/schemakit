@@ -4,10 +4,7 @@ export declare class SchemaKit {
     private readonly options;
     private readonly databaseManager;
     private installManager?;
-    private entityManager?;
-    private validationManager?;
-    private permissionManager?;
-    private workflowManager?;
+    private entityAPIFactory?;
     constructor(options?: SchemaKitOptions);
     /**
      * Initialize all services
@@ -19,11 +16,15 @@ export declare class SchemaKit {
      * @param name Entity name
      * @param tenantId Tenant identifier (defaults to 'default')
      */
-    entity(name: string, tenantId?: string): any;
+    entity(name: string, tenantId?: string): import("./entities").EntityAPI;
     /**
      * Access database manager for advanced operations
      */
     getDatabase(): DatabaseManager;
+    /**
+     * Access entity manager for configuration management
+     */
+    getEntityManager(): import(".").EntityManager;
     /**
      * Disconnect from database
      */
