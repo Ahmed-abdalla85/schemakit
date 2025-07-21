@@ -1,20 +1,17 @@
 /**
- * EntityManager - Data Access Layer
- * Responsible for entity configuration management and data access operations
+ * EntityManager - Entity Configuration Management
+ * Responsible for entity configuration loading and caching only
  * 
- * This is the data layer that EntityAPI uses for:
+ * This is a focused data layer that handles:
  * - Loading entity configurations
  * - Managing entity cache
- * - Providing database access
- * - Creating EntityAPI instances
+ * - Providing database access for configuration queries
  */
 import { DatabaseManager } from '../database/database-manager';
 import { FluentQueryBuilder } from '../database/fluent-query-builder';
-import { EntityConfiguration, EntityDefinition, FieldDefinition, PermissionDefinition, ViewDefinition, WorkflowDefinition, RLSDefinition, Context, RLSConditions } from '../types';
+import { EntityConfiguration, EntityDefinition, FieldDefinition, PermissionDefinition, ViewDefinition, WorkflowDefinition, RLSDefinition, Context } from '../types';
 import { QueryManager } from '../database/query-manager';
 import { InstallManager } from '../database/install-manager';
-import { generateId } from '../utils/id-generation';
-import { getCurrentTimestamp } from '../utils/date-helpers';
 import { safeJsonParse } from '../utils/json-helpers';
 
 /**
@@ -28,15 +25,12 @@ export interface CacheStats {
 }
 
 /**
- * EntityManager class - Data Access Layer
+ * EntityManager class - Entity Configuration Management
  * 
- * Responsibilities:
- * - Entity configuration loading and caching
- * - EntityAPI instance creation and management
- * - Database access provision
- * - Schema management
+ * Single Responsibility: Manage entity configurations and caching
  * 
- * Note: Business logic (validation, permissions, workflows) is handled by EntityAPI
+ * Note: Business logic (validation, permissions, workflows) and data operations
+ * are handled by separate managers and EntityAPI
  */
 export class EntityManager {
   private databaseManager: DatabaseManager;
@@ -45,9 +39,6 @@ export class EntityManager {
   
   // Schema loading and caching
   private entityCache: Map<string, EntityConfiguration> = new Map();
-  
-  // EntityAPI instance cache
-  private entityApiCache = new Map<string, any>();
   
   private cacheEnabled = true;
   private cacheHits = 0;
@@ -93,63 +84,6 @@ export class EntityManager {
    */
   getDatabaseManager(): DatabaseManager {
     return this.databaseManager;
-  }
-
-  // === ENTITYAPI FACTORY METHODS ===
-
-  /**
-   * Create EntityAPI instance for the given entity name with optional tenant context.
-   * This is the factory method that should be called by SchemaKit, not a business logic method.
-   * @param entityName Entity name
-   * @param tenantId Tenant ID (defaults to 'default')
-   */
-  createEntityAPI(entityName: string, tenantId: string = 'default'): any {
-    const cacheKey = `${tenantId}:${entityName}`;
-    
-    if (!this.entityApiCache.has(cacheKey)) {
-      // Create EntityAPI instance with proper dependency injection
-      const { EntityAPI } = require('./entity-api');
-      const { ValidationManager } = require('./validation-manager');
-      const { PermissionManager } = require('./permission-manager');
-      const { WorkflowManager } = require('./workflow-manager');
-      
-      // Create the required managers if they don't exist
-      const validationManager = new ValidationManager();
-      const permissionManager = new PermissionManager(this.databaseManager.getAdapter());
-      const workflowManager = new WorkflowManager(this.databaseManager.getAdapter());
-      
-      const entityApi = new EntityAPI(
-        entityName,
-        this,
-        validationManager,
-        permissionManager,
-        workflowManager,
-        tenantId
-      );
-      this.entityApiCache.set(cacheKey, entityApi);
-    }
-    
-    const cachedEntity = this.entityApiCache.get(cacheKey);
-    if (!cachedEntity) {
-      throw new Error(`Failed to retrieve cached entity API for ${cacheKey}`);
-    }
-    return cachedEntity;
-  }
-
-  /**
-   * Clears the entity API cache for a specific entity or all entities.
-   */
-  clearEntityApiCache(entityName?: string, tenantId?: string): void {
-    if (entityName && tenantId) {
-      const cacheKey = `${tenantId}:${entityName}`;
-      this.entityApiCache.delete(cacheKey);
-    } else if (entityName) {
-      // Clear all tenant variants of this entity
-      const keysToDelete = Array.from(this.entityApiCache.keys()).filter(key => key.endsWith(`:${entityName}`));
-      keysToDelete.forEach(key => this.entityApiCache.delete(key));
-    } else {
-      this.entityApiCache.clear();
-    }
   }
 
   // === CONFIGURATION MANAGEMENT ===
@@ -198,233 +132,6 @@ export class EntityManager {
     return entityConfig;
   }
 
-  // === DATA ACCESS METHODS (for EntityAPI use) ===
-
-  /**
-   * Raw data insertion - used by EntityAPI
-   * @param entityConfig Entity configuration
-   * @param data Entity data
-   * @param context User context
-   * @returns Created entity record
-   */
-  async insertData(
-    entityConfig: EntityConfiguration,
-    data: Record<string, any>,
-    context: Context = {}
-  ): Promise<Record<string, any>> {
-    // Ensure entity table exists
-    await this.ensureEntityTable(entityConfig);
-
-    // Generate ID if not provided
-    if (!data.id) {
-      data.id = generateId();
-    }
-
-    // Add system fields
-    const timestamp = getCurrentTimestamp();
-    data.created_at = timestamp;
-    data.updated_at = timestamp;
-
-    // Add creator ID if available in context
-    if (context.user?.id) {
-      data.created_by = context.user.id;
-      data.updated_by = context.user.id;
-    }
-
-    // Use fluent database interface
-    const tableName = entityConfig.entity.table_name;
-    const tenantId = context.tenantId || 'default';
-    const result = await this.db(tableName, tenantId).insert(data);
-
-    if (result.changes === 0) {
-      throw new Error(`Failed to create ${tableName} record`);
-    }
-
-    // For INSERT with RETURNING, we need to get the inserted record
-    const insertedId = result.lastInsertId;
-    if (insertedId) {
-      const insertedRecord = await this.findByIdData(entityConfig, insertedId, context);
-      return insertedRecord || { id: insertedId, ...data };
-    }
-
-    // Fallback: return the data with a generated ID
-    return { id: generateId(), ...data };
-  }
-
-  /**
-   * Raw data retrieval by ID - used by EntityAPI
-   * @param entityConfig Entity configuration
-   * @param id Record ID
-   * @param context User context
-   * @param rlsConditions RLS conditions (optional)
-   * @returns Entity record or null if not found
-   */
-  async findByIdData(
-    entityConfig: EntityConfiguration,
-    id: string | number,
-    context: Context = {},
-    rlsConditions?: RLSConditions
-  ): Promise<Record<string, any> | null> {
-    const tableName = entityConfig.entity.table_name;
-    const tenantId = context.tenantId || 'default';
-    
-    // Use fluent database interface
-    let query = this.db(tableName, tenantId).where('id', id);
-    
-    // Add RLS conditions if provided
-    if (rlsConditions?.conditions) {
-      for (const condition of rlsConditions.conditions) {
-        query = query.where(condition.field, condition.operator, condition.value);
-      }
-    }
-
-    return await query.first();
-  }
-
-  /**
-   * Raw data update - used by EntityAPI
-   * @param entityConfig Entity configuration
-   * @param id Record ID
-   * @param data Update data
-   * @param context User context
-   * @param rlsConditions RLS conditions (optional)
-   * @returns Updated entity record
-   */
-  async updateData(
-    entityConfig: EntityConfiguration,
-    id: string | number,
-    data: Record<string, any>,
-    context: Context = {},
-    rlsConditions?: RLSConditions
-  ): Promise<Record<string, any>> {
-    const tableName = entityConfig.entity.table_name;
-    const tenantId = context.tenantId || 'default';
-    
-    // Add system fields
-    data.updated_at = getCurrentTimestamp();
-    
-    // Add updater ID if available in context
-    if (context.user?.id) {
-      data.updated_by = context.user.id;
-    }
-
-    // Remove ID from update data if present
-    if ('id' in data) {
-      delete data.id;
-    }
-
-    // Use fluent database interface
-    let query = this.db(tableName, tenantId).where('id', id);
-    
-    // Add RLS conditions if provided
-    if (rlsConditions?.conditions) {
-      for (const condition of rlsConditions.conditions) {
-        query = query.where(condition.field, condition.operator, condition.value);
-      }
-    }
-
-    const result = await query.update(data);
-    if (result.changes === 0) {
-      throw new Error(`Record not found or permission denied: ${tableName} with ID ${id}`);
-    }
-
-    // Return updated record
-    return await this.findByIdData(entityConfig, id, context, rlsConditions) || { id, ...data };
-  }
-
-  /**
-   * Raw data deletion - used by EntityAPI
-   * @param entityConfig Entity configuration
-   * @param id Record ID
-   * @param context User context
-   * @param rlsConditions RLS conditions (optional)
-   * @returns True if record was deleted
-   */
-  async deleteData(
-    entityConfig: EntityConfiguration,
-    id: string | number,
-    context: Context = {},
-    rlsConditions?: RLSConditions
-  ): Promise<boolean> {
-    const tableName = entityConfig.entity.table_name;
-    const tenantId = context.tenantId || 'default';
-    
-    // Use fluent database interface
-    let query = this.db(tableName, tenantId).where('id', id);
-    
-    // Add RLS conditions if provided
-    if (rlsConditions?.conditions) {
-      for (const condition of rlsConditions.conditions) {
-        query = query.where(condition.field, condition.operator, condition.value);
-      }
-    }
-
-    const result = await query.delete();
-    return result.changes > 0;
-  }
-
-  /**
-   * Raw data finding with conditions - used by EntityAPI
-   * @param entityConfig Entity configuration
-   * @param conditions Query conditions
-   * @param options Query options
-   * @param context User context
-   * @param rlsConditions RLS conditions (optional)
-   * @returns Array of entity records
-   */
-  async findData(
-    entityConfig: EntityConfiguration,
-    conditions: any[] = [],
-    options: {
-      fields?: string[];
-      sort?: { field: string; direction: 'ASC' | 'DESC' }[];
-      limit?: number;
-      offset?: number;
-    } = {},
-    context: Context = {},
-    rlsConditions?: RLSConditions
-  ): Promise<Record<string, any>[]> {
-    const tableName = entityConfig.entity.table_name;
-    const tenantId = context.tenantId || 'default';
-    
-    // Start building query
-    let query = this.db(tableName, tenantId);
-
-    // Add RLS conditions first
-    if (rlsConditions?.conditions) {
-      for (const condition of rlsConditions.conditions) {
-        query = query.where(condition.field, condition.operator, condition.value);
-      }
-    }
-
-    // Add search conditions
-    for (const condition of conditions) {
-      query = query.where(condition.field, condition.operator, condition.value);
-    }
-
-    // Add field selection
-    if (options.fields && options.fields.length > 0) {
-      query = query.select(options.fields);
-    }
-
-    // Add sorting
-    if (options.sort && options.sort.length > 0) {
-      for (const sort of options.sort) {
-        query = query.orderBy(sort.field, sort.direction);
-      }
-    }
-
-    // Add pagination
-    if (options.limit) {
-      query = query.limit(options.limit);
-    }
-    if (options.offset) {
-      query = query.offset(options.offset);
-    }
-
-    return await query.get();
-  }
-
   // === SCHEMA MANAGEMENT ===
 
   /**
@@ -438,15 +145,12 @@ export class EntityManager {
   /**
    * Clear entity cache
    */
-  clearEntityCache(entityName?: string, tenantId?: string): void {
+  clearEntityCache(entityName?: string): void {
     if (entityName) {
       this.entityCache.delete(entityName);
     } else {
       this.entityCache.clear();
     }
-    
-    // Also clear entity API cache
-    this.clearEntityApiCache(entityName, tenantId);
   }
 
   /**
@@ -454,7 +158,6 @@ export class EntityManager {
    */
   clearAllCache(): void {
     this.entityCache.clear();
-    this.entityApiCache.clear();
     this.cacheHits = 0;
     this.cacheMisses = 0;
   }
@@ -477,62 +180,6 @@ export class EntityManager {
    */
   getLoadedEntities(): string[] {
     return Array.from(this.entityCache.keys());
-  }
-
-  // === MINIMAL TABLE MANAGEMENT ===
-
-  /**
-   * Ensure entity table exists
-   */
-  private async ensureEntityTable(entityConfig: EntityConfiguration): Promise<void> {
-    const tableName = entityConfig.entity.table_name;
-    const exists = await this.databaseManager.tableExists(tableName);
-    
-    if (!exists) {
-      // Build column definitions
-      const columns = entityConfig.fields.map((field: any) => ({
-        name: field.name,
-        type: this.getSqlType(field.type),
-        primaryKey: field.name === 'id',
-        notNull: field.is_required || field.name === 'id',
-        unique: field.is_unique,
-        default: field.default_value
-      }));
-
-      // Add system columns
-      columns.push(
-        { name: 'created_at', type: 'DATETIME', primaryKey: false, notNull: true, unique: false, default: undefined },
-        { name: 'updated_at', type: 'DATETIME', primaryKey: false, notNull: true, unique: false, default: undefined },
-        { name: 'created_by', type: 'VARCHAR(255)', primaryKey: false, notNull: false, unique: false, default: undefined },
-        { name: 'updated_by', type: 'VARCHAR(255)', primaryKey: false, notNull: false, unique: false, default: undefined }
-      );
-
-      await this.databaseManager.createTable(tableName, columns);
-    }
-  }
-
-  /**
-   * Get SQL type for field type
-   */
-  private getSqlType(fieldType: string): string {
-    switch (fieldType) {
-      case 'string':
-      case 'email':
-      case 'url':
-      case 'text':
-      case 'uuid':
-        return 'VARCHAR(255)';
-      case 'number':
-        return 'DECIMAL(10,2)';
-      case 'boolean':
-        return 'BOOLEAN';
-      case 'date':
-        return 'DATE';
-      case 'datetime':
-        return 'DATETIME';
-      default:
-        return 'VARCHAR(255)';
-    }
   }
 
   // === PRIVATE SCHEMA LOADING METHODS ===
