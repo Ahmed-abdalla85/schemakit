@@ -1,8 +1,11 @@
-import { DatabaseManager } from './database/database-manager';
-import { InstallManager } from './database/install-manager';
-import { EntityAPIFactory } from './entities/entity/entity-api-factory';
-import { SchemaKitError } from './errors';
-export class SchemaKit {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SchemaKit = void 0;
+const database_manager_1 = require("./database/database-manager");
+const install_manager_1 = require("./database/install-manager");
+const entity_api_factory_1 = require("./entities/entity/entity-api-factory");
+const errors_1 = require("./errors");
+class SchemaKit {
     constructor(options = {}) {
         this.options = options;
         // Create database configuration from options
@@ -11,7 +14,7 @@ export class SchemaKit {
             type: adapterConfig.type || 'inmemory-simplified',
             ...adapterConfig.config
         };
-        this.databaseManager = new DatabaseManager(databaseConfig);
+        this.databaseManager = new database_manager_1.DatabaseManager(databaseConfig);
     }
     /**
      * Initialize all services
@@ -20,14 +23,14 @@ export class SchemaKit {
         try {
             await this.databaseManager.connect();
             // Initialize EntityAPIFactory with DatabaseManager (handles all manager creation)
-            this.entityAPIFactory = new EntityAPIFactory(this.databaseManager);
+            this.entityAPIFactory = new entity_api_factory_1.EntityAPIFactory(this.databaseManager);
             // Initialize system tables
-            this.installManager = new InstallManager(this.databaseManager.getAdapter());
+            this.installManager = new install_manager_1.InstallManager(this.databaseManager.getAdapter());
             await this.installManager.ensureReady();
             return this;
         }
         catch (error) {
-            throw new SchemaKitError(`Failed to initialize SchemaKit: ${error.message}`);
+            throw new errors_1.SchemaKitError(`Failed to initialize SchemaKit: ${error.message}`);
         }
     }
     /**
@@ -38,7 +41,7 @@ export class SchemaKit {
      */
     entity(name, tenantId = 'default') {
         if (!this.entityAPIFactory) {
-            throw new SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
+            throw new errors_1.SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
         }
         return this.entityAPIFactory.createEntityAPI(name, tenantId);
     }
@@ -53,7 +56,7 @@ export class SchemaKit {
      */
     getEntityManager() {
         if (!this.entityAPIFactory) {
-            throw new SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
+            throw new errors_1.SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
         }
         return this.entityAPIFactory.getEntityManager();
     }
@@ -88,4 +91,5 @@ export class SchemaKit {
         return this.databaseManager.testConnection();
     }
 }
+exports.SchemaKit = SchemaKit;
 //# sourceMappingURL=schemakit.js.map

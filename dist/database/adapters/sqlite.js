@@ -1,14 +1,17 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SQLiteAdapter = void 0;
 /**
  * SQLite database adapter implementation
  */
-import { DatabaseAdapter } from '../adapter';
-import { DatabaseError } from '../../errors';
-import { processFilterValue } from '../../utils/query-helpers';
+const adapter_1 = require("../adapter");
+const errors_1 = require("../../errors");
+const query_helpers_1 = require("../../utils/query-helpers");
 /**
  * SQLite adapter implementation
  * Uses native SQLite implementation with no external dependencies
  */
-export class SQLiteAdapter extends DatabaseAdapter {
+class SQLiteAdapter extends adapter_1.DatabaseAdapter {
     constructor(config = {}) {
         super(config);
         this.db = null;
@@ -118,7 +121,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
             this.connected = true;
         }
         catch (error) {
-            throw new DatabaseError('connect', error);
+            throw new errors_1.DatabaseError('connect', error);
         }
     }
     /**
@@ -136,7 +139,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
             this.connected = false;
         }
         catch (error) {
-            throw new DatabaseError('disconnect', error);
+            throw new errors_1.DatabaseError('disconnect', error);
         }
     }
     /**
@@ -160,7 +163,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
             return result;
         }
         catch (error) {
-            throw new DatabaseError('query', error);
+            throw new errors_1.DatabaseError('query', error);
         }
     }
     /**
@@ -188,7 +191,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
             };
         }
         catch (error) {
-            throw new DatabaseError('execute', error);
+            throw new errors_1.DatabaseError('execute', error);
         }
     }
     /**
@@ -211,7 +214,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
             }
         }
         catch (error) {
-            throw new DatabaseError('transaction', error);
+            throw new errors_1.DatabaseError('transaction', error);
         }
     }
     /**
@@ -226,7 +229,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
             return result.length > 0;
         }
         catch (error) {
-            throw new DatabaseError('tableExists', error);
+            throw new errors_1.DatabaseError('tableExists', error);
         }
     }
     /**
@@ -262,7 +265,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
             await this.execute(`CREATE TABLE IF NOT EXISTS ${tableName} (${columnDefs})`);
         }
         catch (error) {
-            throw new DatabaseError('createTable', error);
+            throw new errors_1.DatabaseError('createTable', error);
         }
     }
     /**
@@ -283,7 +286,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
             }));
         }
         catch (error) {
-            throw new DatabaseError('getTableColumns', error);
+            throw new errors_1.DatabaseError('getTableColumns', error);
         }
     }
     // ===== EntityKit-style multi-tenant methods =====
@@ -302,14 +305,14 @@ export class SQLiteAdapter extends DatabaseAdapter {
             // Process filter values for special operators
             const processedFilters = filters.map(filter => ({
                 ...filter,
-                value: processFilterValue(filter.operator || 'eq', filter.value)
+                value: (0, query_helpers_1.processFilterValue)(filter.operator || 'eq', filter.value)
             }));
             // Build query using SQLite syntax (? instead of $1, $2, etc.)
             const { query, params } = this.buildSQLiteSelectQuery(prefixedTable, processedFilters, options);
             return await this.query(query, params);
         }
         catch (error) {
-            throw new DatabaseError('select', error);
+            throw new errors_1.DatabaseError('select', error);
         }
     }
     /**
@@ -339,7 +342,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
             }
         }
         catch (error) {
-            throw new DatabaseError('insert', error);
+            throw new errors_1.DatabaseError('insert', error);
         }
     }
     /**
@@ -357,7 +360,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
             return { ...data, id };
         }
         catch (error) {
-            throw new DatabaseError('update', error);
+            throw new errors_1.DatabaseError('update', error);
         }
     }
     /**
@@ -373,7 +376,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
             await this.execute(query, [id]);
         }
         catch (error) {
-            throw new DatabaseError('delete', error);
+            throw new errors_1.DatabaseError('delete', error);
         }
     }
     /**
@@ -388,14 +391,14 @@ export class SQLiteAdapter extends DatabaseAdapter {
             // Process filter values for special operators
             const processedFilters = filters.map(filter => ({
                 ...filter,
-                value: processFilterValue(filter.operator || 'eq', filter.value)
+                value: (0, query_helpers_1.processFilterValue)(filter.operator || 'eq', filter.value)
             }));
             const { query, params } = this.buildSQLiteCountQuery(prefixedTable, processedFilters);
             const result = await this.query(query, params);
             return result[0]?.count || 0;
         }
         catch (error) {
-            throw new DatabaseError('count', error);
+            throw new errors_1.DatabaseError('count', error);
         }
     }
     /**
@@ -412,7 +415,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
             return result[0] || null;
         }
         catch (error) {
-            throw new DatabaseError('findById', error);
+            throw new errors_1.DatabaseError('findById', error);
         }
     }
     // ===== Schema management methods =====
@@ -423,7 +426,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
     async createSchema(schemaName) {
         // SQLite doesn't have schemas, but we can validate the schema name
         if (!schemaName || schemaName.includes(' ') || schemaName.includes('.')) {
-            throw new DatabaseError('createSchema', new Error('Invalid schema name for SQLite'));
+            throw new errors_1.DatabaseError('createSchema', new Error('Invalid schema name for SQLite'));
         }
         // Schema creation is implicit in SQLite when we create prefixed tables
     }
@@ -443,7 +446,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
             }
         }
         catch (error) {
-            throw new DatabaseError('dropSchema', error);
+            throw new errors_1.DatabaseError('dropSchema', error);
         }
     }
     /**
@@ -466,7 +469,7 @@ export class SQLiteAdapter extends DatabaseAdapter {
             return Array.from(schemas).sort();
         }
         catch (error) {
-            throw new DatabaseError('listSchemas', error);
+            throw new errors_1.DatabaseError('listSchemas', error);
         }
     }
     // ===== SQLite-specific query builders =====
@@ -538,4 +541,5 @@ export class SQLiteAdapter extends DatabaseAdapter {
         }
     }
 }
+exports.SQLiteAdapter = SQLiteAdapter;
 //# sourceMappingURL=sqlite.js.map

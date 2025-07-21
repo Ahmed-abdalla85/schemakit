@@ -1,15 +1,18 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.PostgresAdapter = void 0;
 /**
  * PostgreSQL database adapter implementation
  */
-import { DatabaseAdapter } from '../adapter';
-import { DatabaseError } from '../../errors';
-import { processFilterValue } from '../../utils/query-helpers';
-import { QueryManager } from '../query-manager';
+const adapter_1 = require("../adapter");
+const errors_1 = require("../../errors");
+const query_helpers_1 = require("../../utils/query-helpers");
+const query_manager_1 = require("../query-manager");
 /**
  * PostgreSQL adapter implementation
  * Uses native PostgreSQL implementation with no external dependencies
  */
-export class PostgresAdapter extends DatabaseAdapter {
+class PostgresAdapter extends adapter_1.DatabaseAdapter {
     constructor(config = {}) {
         super(config);
         this.client = null;
@@ -20,7 +23,7 @@ export class PostgresAdapter extends DatabaseAdapter {
         this.config.port = this.config.port || 5432;
         this.config.database = this.config.database || 'postgres';
         // Initialize QueryManager (will be properly initialized after connection)
-        this.queryManager = new QueryManager(this);
+        this.queryManager = new query_manager_1.QueryManager(this);
     }
     /**
      * Connect to PostgreSQL database
@@ -42,7 +45,7 @@ export class PostgresAdapter extends DatabaseAdapter {
             this.connected = true;
         }
         catch (error) {
-            throw new DatabaseError('connect', error);
+            throw new errors_1.DatabaseError('connect', error);
         }
     }
     /**
@@ -57,7 +60,7 @@ export class PostgresAdapter extends DatabaseAdapter {
             this.connected = false;
         }
         catch (error) {
-            throw new DatabaseError('disconnect', error);
+            throw new errors_1.DatabaseError('disconnect', error);
         }
     }
     /**
@@ -78,7 +81,7 @@ export class PostgresAdapter extends DatabaseAdapter {
             return result.rows;
         }
         catch (error) {
-            throw new DatabaseError('query', error);
+            throw new errors_1.DatabaseError('query', error);
         }
     }
     /**
@@ -96,7 +99,7 @@ export class PostgresAdapter extends DatabaseAdapter {
             };
         }
         catch (error) {
-            throw new DatabaseError('execute', error);
+            throw new errors_1.DatabaseError('execute', error);
         }
     }
     /**
@@ -119,7 +122,7 @@ export class PostgresAdapter extends DatabaseAdapter {
             }
         }
         catch (error) {
-            throw new DatabaseError('transaction', error);
+            throw new errors_1.DatabaseError('transaction', error);
         }
     }
     /**
@@ -138,7 +141,7 @@ export class PostgresAdapter extends DatabaseAdapter {
             return result[0]?.exists || false;
         }
         catch (error) {
-            throw new DatabaseError('tableExists', error);
+            throw new errors_1.DatabaseError('tableExists', error);
         }
     }
     /**
@@ -174,7 +177,7 @@ export class PostgresAdapter extends DatabaseAdapter {
             await this.execute(`CREATE TABLE IF NOT EXISTS ${tableName} (${columnDefs})`);
         }
         catch (error) {
-            throw new DatabaseError('createTable', error);
+            throw new errors_1.DatabaseError('createTable', error);
         }
     }
     /**
@@ -211,7 +214,7 @@ export class PostgresAdapter extends DatabaseAdapter {
             }));
         }
         catch (error) {
-            throw new DatabaseError('getTableColumns', error);
+            throw new errors_1.DatabaseError('getTableColumns', error);
         }
     }
     // ===== EntityKit-style multi-tenant methods =====
@@ -226,14 +229,14 @@ export class PostgresAdapter extends DatabaseAdapter {
             // Process filter values for special operators
             const processedFilters = filters.map(filter => ({
                 ...filter,
-                value: processFilterValue(filter.operator || 'eq', filter.value)
+                value: (0, query_helpers_1.processFilterValue)(filter.operator || 'eq', filter.value)
             }));
             const { sql, params } = this.queryManager.buildSelectQuery(table, tenantId, processedFilters, options);
             const result = await this.client.query(sql, params);
             return result.rows;
         }
         catch (error) {
-            throw new DatabaseError('select', error);
+            throw new errors_1.DatabaseError('select', error);
         }
     }
     /**
@@ -260,7 +263,7 @@ export class PostgresAdapter extends DatabaseAdapter {
             }
         }
         catch (error) {
-            throw new DatabaseError('insert', error);
+            throw new errors_1.DatabaseError('insert', error);
         }
     }
     /**
@@ -276,7 +279,7 @@ export class PostgresAdapter extends DatabaseAdapter {
             return result.rows[0];
         }
         catch (error) {
-            throw new DatabaseError('update', error);
+            throw new errors_1.DatabaseError('update', error);
         }
     }
     /**
@@ -291,7 +294,7 @@ export class PostgresAdapter extends DatabaseAdapter {
             await this.client.query(sql, params);
         }
         catch (error) {
-            throw new DatabaseError('delete', error);
+            throw new errors_1.DatabaseError('delete', error);
         }
     }
     /**
@@ -305,14 +308,14 @@ export class PostgresAdapter extends DatabaseAdapter {
             // Process filter values for special operators
             const processedFilters = filters.map(filter => ({
                 ...filter,
-                value: processFilterValue(filter.operator || 'eq', filter.value)
+                value: (0, query_helpers_1.processFilterValue)(filter.operator || 'eq', filter.value)
             }));
             const { sql, params } = this.queryManager.buildCountQuery(table, tenantId, processedFilters);
             const result = await this.client.query(sql, params);
             return parseInt(result.rows[0].count, 10);
         }
         catch (error) {
-            throw new DatabaseError('count', error);
+            throw new errors_1.DatabaseError('count', error);
         }
     }
     /**
@@ -328,7 +331,7 @@ export class PostgresAdapter extends DatabaseAdapter {
             return result.rows[0] || null;
         }
         catch (error) {
-            throw new DatabaseError('findById', error);
+            throw new errors_1.DatabaseError('findById', error);
         }
     }
     // ===== Schema management methods =====
@@ -344,7 +347,7 @@ export class PostgresAdapter extends DatabaseAdapter {
             await this.client.query(sql, params);
         }
         catch (error) {
-            throw new DatabaseError('createSchema', error);
+            throw new errors_1.DatabaseError('createSchema', error);
         }
     }
     /**
@@ -359,7 +362,7 @@ export class PostgresAdapter extends DatabaseAdapter {
             await this.client.query(sql, params);
         }
         catch (error) {
-            throw new DatabaseError('dropSchema', error);
+            throw new errors_1.DatabaseError('dropSchema', error);
         }
     }
     /**
@@ -375,8 +378,9 @@ export class PostgresAdapter extends DatabaseAdapter {
             return result.rows.map((row) => row.schema_name);
         }
         catch (error) {
-            throw new DatabaseError('listSchemas', error);
+            throw new errors_1.DatabaseError('listSchemas', error);
         }
     }
 }
+exports.PostgresAdapter = PostgresAdapter;
 //# sourceMappingURL=postgres.js.map

@@ -37,7 +37,7 @@ var __importStar = (this && this.__importStar) || (function () {
         if (v !== undefined) module.exports = v;
     }
     else if (typeof define === "function" && define.amd) {
-        define(["require", "exports", "../errors", "./adapters/sqlite", "./adapters/postgres", "./adapters/inmemory"], factory);
+        define(["require", "exports", "../errors"], factory);
     }
 })(function (require, exports) {
     "use strict";
@@ -48,9 +48,6 @@ var __importStar = (this && this.__importStar) || (function () {
      * Database adapter interface and factory
      */
     const errors_1 = require("../errors");
-    const sqlite_1 = require("./adapters/sqlite");
-    const postgres_1 = require("./adapters/postgres");
-    const inmemory_1 = require("./adapters/inmemory");
     /**
      * Abstract database adapter class
      */
@@ -93,11 +90,17 @@ var __importStar = (this && this.__importStar) || (function () {
         static createSync(type = 'sqlite', config = {}) {
             switch (type.toLowerCase()) {
                 case 'sqlite':
-                    return new sqlite_1.SQLiteAdapter(config);
+                    // Use require for synchronous loading
+                    const { SQLiteAdapter } = require('./adapters/sqlite');
+                    return new SQLiteAdapter(config);
                 case 'postgres':
-                    return new postgres_1.PostgresAdapter(config);
+                    // Use require for synchronous loading
+                    const { PostgresAdapter } = require('./adapters/postgres');
+                    return new PostgresAdapter(config);
                 case 'inmemory':
-                    return new inmemory_1.InMemoryAdapter(config);
+                    // Use require for synchronous loading
+                    const { InMemoryAdapter } = require('./adapters/inmemory');
+                    return new InMemoryAdapter(config);
                 default:
                     throw new errors_1.DatabaseError('create', new Error(`Unsupported adapter type: ${type}`));
             }
