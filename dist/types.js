@@ -1,5 +1,6 @@
+"use strict";
 /**
  * Simplified Core Type Definitions for SchemaKit
  */
-export {};
+Object.defineProperty(exports, "__esModule", { value: true });
 //# sourceMappingURL=types.js.map

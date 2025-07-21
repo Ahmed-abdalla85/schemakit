@@ -2,9 +2,6 @@
  * Database adapter interface and factory
  */
 import { DatabaseError } from '../errors';
-import { SQLiteAdapter } from './adapters/sqlite';
-import { PostgresAdapter } from './adapters/postgres';
-import { InMemoryAdapter } from './adapters/inmemory';
 /**
  * Abstract database adapter class
  */
@@ -47,10 +44,16 @@ export class DatabaseAdapter {
     static createSync(type = 'sqlite', config = {}) {
         switch (type.toLowerCase()) {
             case 'sqlite':
+                // Use require for synchronous loading
+                const { SQLiteAdapter } = require('./adapters/sqlite');
                 return new SQLiteAdapter(config);
             case 'postgres':
+                // Use require for synchronous loading
+                const { PostgresAdapter } = require('./adapters/postgres');
                 return new PostgresAdapter(config);
             case 'inmemory':
+                // Use require for synchronous loading
+                const { InMemoryAdapter } = require('./adapters/inmemory');
                 return new InMemoryAdapter(config);
             default:
                 throw new DatabaseError('create', new Error(`Unsupported adapter type: ${type}`));

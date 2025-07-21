@@ -1,7 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.DatabaseError = exports.SchemaLoadError = exports.WorkflowError = exports.PermissionError = exports.EntityNotFoundError = exports.SchemaError = exports.ValidationError = exports.SchemaKitError = void 0;
 /**
  * Base error class for SchemaKit errors
  */
-export class SchemaKitError extends Error {
+class SchemaKitError extends Error {
     constructor(message) {
         super(message);
         this.name = 'SchemaKitError';
@@ -11,10 +14,11 @@ export class SchemaKitError extends Error {
         }
     }
 }
+exports.SchemaKitError = SchemaKitError;
 /**
  * Error thrown when validation fails
  */
-export class ValidationError extends SchemaKitError {
+class ValidationError extends SchemaKitError {
     constructor(errors, entityName) {
         super('Validation failed');
         this.name = 'ValidationError';
@@ -22,20 +26,22 @@ export class ValidationError extends SchemaKitError {
         this.errors = errors;
     }
 }
+exports.ValidationError = ValidationError;
 /**
  * Error thrown when a schema operation fails
  */
-export class SchemaError extends SchemaKitError {
+class SchemaError extends SchemaKitError {
     constructor(message, entityName) {
         super(message);
         this.name = 'SchemaError';
         this.entityName = entityName;
     }
 }
+exports.SchemaError = SchemaError;
 /**
  * Error thrown when an entity is not found
  */
-export class EntityNotFoundError extends SchemaKitError {
+class EntityNotFoundError extends SchemaKitError {
     constructor(entityName, id) {
         super(`Entity ${entityName} with id ${id} not found`);
         this.name = 'EntityNotFoundError';
@@ -43,10 +49,11 @@ export class EntityNotFoundError extends SchemaKitError {
         this.id = id;
     }
 }
+exports.EntityNotFoundError = EntityNotFoundError;
 /**
  * Error thrown when permission is denied
  */
-export class PermissionError extends SchemaKitError {
+class PermissionError extends SchemaKitError {
     constructor(action, entityName, context) {
         super(`Permission denied for ${action} on ${entityName}`);
         this.name = 'PermissionError';
@@ -55,10 +62,11 @@ export class PermissionError extends SchemaKitError {
         this.context = context;
     }
 }
+exports.PermissionError = PermissionError;
 /**
  * Error thrown when a workflow operation fails
  */
-export class WorkflowError extends SchemaKitError {
+class WorkflowError extends SchemaKitError {
     constructor(workflowName, action, originalError) {
         super(`Workflow ${workflowName} failed at action ${action}`);
         this.name = 'WorkflowError';
@@ -67,10 +75,11 @@ export class WorkflowError extends SchemaKitError {
         this.originalError = originalError;
     }
 }
+exports.WorkflowError = WorkflowError;
 /**
  * Error thrown when schema loading fails
  */
-export class SchemaLoadError extends SchemaKitError {
+class SchemaLoadError extends SchemaKitError {
     constructor(entityName, cause) {
         super(`Failed to load schema for entity ${entityName}`);
         this.name = 'SchemaLoadError';
@@ -78,10 +87,11 @@ export class SchemaLoadError extends SchemaKitError {
         this.cause = cause;
     }
 }
+exports.SchemaLoadError = SchemaLoadError;
 /**
  * Error thrown when database operations fail
  */
-export class DatabaseError extends SchemaKitError {
+class DatabaseError extends SchemaKitError {
     constructor(operation, cause) {
         super(`Database operation '${operation}' failed`);
         this.name = 'DatabaseError';
@@ -89,4 +99,5 @@ export class DatabaseError extends SchemaKitError {
         this.cause = cause;
     }
 }
+exports.DatabaseError = DatabaseError;
 //# sourceMappingURL=index.js.map
