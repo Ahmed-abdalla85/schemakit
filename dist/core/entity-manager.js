@@ -4,9 +4,15 @@ import { generateId } from '../utils/id-generation';
 import { getCurrentTimestamp } from '../utils/date-helpers';
 import { safeJsonParse } from '../utils/json-helpers';
 /**
- * EntityManager class
- * Handles CRUD operations and schema management using existing patterns
- * Enhanced with EntityBuilder functionality and uses DatabaseManager as gateway
+ * EntityManager class - Data Access Layer
+ *
+ * Responsibilities:
+ * - Entity configuration loading and caching
+ * - EntityAPI instance creation and management
+ * - Database access provision
+ * - Schema management
+ *
+ * Note: Business logic (validation, permissions, workflows) is handled by EntityAPI
  */
 export class EntityManager {
     /**
@@ -17,7 +23,7 @@ export class EntityManager {
     constructor(databaseManager, options) {
         // Schema loading and caching
         this.entityCache = new Map();
-        // EntityBuilder functionality merged in
+        // EntityAPI instance cache
         this.entityApiCache = new Map();
         this.cacheEnabled = true;
         this.cacheHits = 0;
@@ -28,7 +34,7 @@ export class EntityManager {
         this.installManager = new InstallManager(databaseAdapter);
         this.cacheEnabled = options?.cacheEnabled !== false;
     }
-    // === FLUENT DATABASE INTERFACE (CodeIgniter-style) ===
+    // === DATABASE ACCESS METHODS ===
     /**
      * Create a fluent query builder for a table
      * @param tableName Table name
@@ -47,13 +53,20 @@ export class EntityManager {
     table(tableName, tenantId = 'default') {
         return this.databaseManager.table(tableName, tenantId);
     }
-    // === ENTITY BUILDER FUNCTIONALITY (merged from EntityBuilder) ===
     /**
-     * Returns a fluent EntityAPI instance for the given entity name with optional tenant context.
+     * Get database manager for advanced operations
+     */
+    getDatabaseManager() {
+        return this.databaseManager;
+    }
+    // === ENTITYAPI FACTORY METHODS ===
+    /**
+     * Create EntityAPI instance for the given entity name with optional tenant context.
+     * This is the factory method that should be called by SchemaKit, not a business logic method.
      * @param entityName Entity name
      * @param tenantId Tenant ID (defaults to 'default')
      */
-    entity(entityName, tenantId = 'default') {
+    createEntityAPI(entityName, tenantId = 'default') {
         const cacheKey = `${tenantId}:${entityName}`;
         if (!this.entityApiCache.has(cacheKey)) {
             // Create EntityAPI instance with proper dependency injection
@@ -91,7 +104,7 @@ export class EntityManager {
             this.entityApiCache.clear();
         }
     }
-    // === SCHEMA MANAGEMENT ===
+    // === CONFIGURATION MANAGEMENT ===
     /**
      * Load entity configuration
      * @param entityName Entity name
@@ -116,7 +129,12 @@ export class EntityManager {
         const workflows = await this.loadEntityWorkflows(entity.id);
         const rls = await this.loadEntityRLS(entity.id, context);
         const entityConfig = {
-            entity, fields, permissions, views, workflows, rls
+            entity,
+            fields,
+            permissions,
+            views,
+            workflows,
+            rls
         };
         // Cache the result
         if (this.cacheEnabled) {
@@ -124,37 +142,170 @@ export class EntityManager {
         }
         return entityConfig;
     }
+    // === DATA ACCESS METHODS (for EntityAPI use) ===
     /**
-     * Reload entity configuration (bypass cache)
+     * Raw data insertion - used by EntityAPI
+     * @param entityConfig Entity configuration
+     * @param data Entity data
+     * @param context User context
+     * @returns Created entity record
      */
-    async reloadEntity(entityName, context = {}) {
-        this.clearEntityCache(entityName);
-        return this.loadEntity(entityName, context);
-    }
-    /**
-     * Check if SchemaKit is installed
-     */
-    async isSchemaKitInstalled() {
-        return this.installManager.isInstalled();
-    }
-    /**
-     * Get SchemaKit version
-     */
-    async getVersion() {
-        try {
-            const result = await this.databaseManager.query('SELECT value FROM system_settings WHERE key = ?', ['version']);
-            return result.length > 0 ? result[0].value : 'unknown';
+    async insertData(entityConfig, data, context = {}) {
+        // Ensure entity table exists
+        await this.ensureEntityTable(entityConfig);
+        // Generate ID if not provided
+        if (!data.id) {
+            data.id = generateId();
         }
-        catch {
-            return 'unknown';
+        // Add system fields
+        const timestamp = getCurrentTimestamp();
+        data.created_at = timestamp;
+        data.updated_at = timestamp;
+        // Add creator ID if available in context
+        if (context.user?.id) {
+            data.created_by = context.user.id;
+            data.updated_by = context.user.id;
         }
+        // Use fluent database interface
+        const tableName = entityConfig.entity.table_name;
+        const tenantId = context.tenantId || 'default';
+        const result = await this.db(tableName, tenantId).insert(data);
+        if (result.changes === 0) {
+            throw new Error(`Failed to create ${tableName} record`);
+        }
+        // For INSERT with RETURNING, we need to get the inserted record
+        const insertedId = result.lastInsertId;
+        if (insertedId) {
+            const insertedRecord = await this.findByIdData(entityConfig, insertedId, context);
+            return insertedRecord || { id: insertedId, ...data };
+        }
+        // Fallback: return the data with a generated ID
+        return { id: generateId(), ...data };
     }
     /**
-     * Ensure system tables exist - Only call during initialization
+     * Raw data retrieval by ID - used by EntityAPI
+     * @param entityConfig Entity configuration
+     * @param id Record ID
+     * @param context User context
+     * @param rlsConditions RLS conditions (optional)
+     * @returns Entity record or null if not found
      */
-    async ensureSystemTables() {
-        await this.installManager.ensureReady();
+    async findByIdData(entityConfig, id, context = {}, rlsConditions) {
+        const tableName = entityConfig.entity.table_name;
+        const tenantId = context.tenantId || 'default';
+        // Use fluent database interface
+        let query = this.db(tableName, tenantId).where('id', id);
+        // Add RLS conditions if provided
+        if (rlsConditions?.conditions) {
+            for (const condition of rlsConditions.conditions) {
+                query = query.where(condition.field, condition.operator, condition.value);
+            }
+        }
+        return await query.first();
     }
+    /**
+     * Raw data update - used by EntityAPI
+     * @param entityConfig Entity configuration
+     * @param id Record ID
+     * @param data Update data
+     * @param context User context
+     * @param rlsConditions RLS conditions (optional)
+     * @returns Updated entity record
+     */
+    async updateData(entityConfig, id, data, context = {}, rlsConditions) {
+        const tableName = entityConfig.entity.table_name;
+        const tenantId = context.tenantId || 'default';
+        // Add system fields
+        data.updated_at = getCurrentTimestamp();
+        // Add updater ID if available in context
+        if (context.user?.id) {
+            data.updated_by = context.user.id;
+        }
+        // Remove ID from update data if present
+        if ('id' in data) {
+            delete data.id;
+        }
+        // Use fluent database interface
+        let query = this.db(tableName, tenantId).where('id', id);
+        // Add RLS conditions if provided
+        if (rlsConditions?.conditions) {
+            for (const condition of rlsConditions.conditions) {
+                query = query.where(condition.field, condition.operator, condition.value);
+            }
+        }
+        const result = await query.update(data);
+        if (result.changes === 0) {
+            throw new Error(`Record not found or permission denied: ${tableName} with ID ${id}`);
+        }
+        // Return updated record
+        return await this.findByIdData(entityConfig, id, context, rlsConditions) || { id, ...data };
+    }
+    /**
+     * Raw data deletion - used by EntityAPI
+     * @param entityConfig Entity configuration
+     * @param id Record ID
+     * @param context User context
+     * @param rlsConditions RLS conditions (optional)
+     * @returns True if record was deleted
+     */
+    async deleteData(entityConfig, id, context = {}, rlsConditions) {
+        const tableName = entityConfig.entity.table_name;
+        const tenantId = context.tenantId || 'default';
+        // Use fluent database interface
+        let query = this.db(tableName, tenantId).where('id', id);
+        // Add RLS conditions if provided
+        if (rlsConditions?.conditions) {
+            for (const condition of rlsConditions.conditions) {
+                query = query.where(condition.field, condition.operator, condition.value);
+            }
+        }
+        const result = await query.delete();
+        return result.changes > 0;
+    }
+    /**
+     * Raw data finding with conditions - used by EntityAPI
+     * @param entityConfig Entity configuration
+     * @param conditions Query conditions
+     * @param options Query options
+     * @param context User context
+     * @param rlsConditions RLS conditions (optional)
+     * @returns Array of entity records
+     */
+    async findData(entityConfig, conditions = [], options = {}, context = {}, rlsConditions) {
+        const tableName = entityConfig.entity.table_name;
+        const tenantId = context.tenantId || 'default';
+        // Start building query
+        let query = this.db(tableName, tenantId);
+        // Add RLS conditions first
+        if (rlsConditions?.conditions) {
+            for (const condition of rlsConditions.conditions) {
+                query = query.where(condition.field, condition.operator, condition.value);
+            }
+        }
+        // Add search conditions
+        for (const condition of conditions) {
+            query = query.where(condition.field, condition.operator, condition.value);
+        }
+        // Add field selection
+        if (options.fields && options.fields.length > 0) {
+            query = query.select(options.fields);
+        }
+        // Add sorting
+        if (options.sort && options.sort.length > 0) {
+            for (const sort of options.sort) {
+                query = query.orderBy(sort.field, sort.direction);
+            }
+        }
+        // Add pagination
+        if (options.limit) {
+            query = query.limit(options.limit);
+        }
+        if (options.offset) {
+            query = query.offset(options.offset);
+        }
+        return await query.get();
+    }
+    // === SCHEMA MANAGEMENT ===
     /**
      * Reinstall SchemaKit
      */
@@ -201,191 +352,6 @@ export class EntityManager {
      */
     getLoadedEntities() {
         return Array.from(this.entityCache.keys());
-    }
-    // === CRUD OPERATIONS (Simplified - removed ensureReady calls) ===
-    /**
-     * Create a new entity record
-     * @param entityConfig Entity configuration
-     * @param data Entity data
-     * @param context User context
-     * @returns Created entity record
-     */
-    async create(entityConfig, data, context = {}) {
-        // Ensure entity table exists
-        await this.ensureEntityTable(entityConfig);
-        // Generate ID if not provided
-        if (!data.id) {
-            data.id = generateId();
-        }
-        // Add system fields
-        const timestamp = getCurrentTimestamp();
-        data.created_at = timestamp;
-        data.updated_at = timestamp;
-        // Add creator ID if available in context
-        if (context.user?.id) {
-            data.created_by = context.user.id;
-            data.updated_by = context.user.id;
-        }
-        // Use fluent database interface (CodeIgniter-style)
-        const tableName = entityConfig.entity.table_name;
-        const tenantId = context.tenantId || 'default';
-        const result = await this.db(tableName, tenantId).insert(data);
-        if (result.changes === 0) {
-            throw new Error(`Failed to create ${tableName} record`);
-        }
-        // For INSERT with RETURNING, we need to get the inserted record
-        const insertedId = result.lastInsertId;
-        if (insertedId) {
-            const insertedRecord = await this.findById(entityConfig, insertedId, context);
-            return insertedRecord || { id: insertedId, ...data };
-        }
-        // Fallback: return the data with a generated ID
-        return { id: generateId(), ...data };
-    }
-    /**
-     * Find entity record by ID
-     * @param entityConfig Entity configuration
-     * @param id Record ID
-     * @param context User context
-     * @param rlsConditions RLS conditions (optional)
-     * @returns Entity record or null if not found
-     */
-    async findById(entityConfig, id, context = {}, rlsConditions) {
-        const tableName = entityConfig.entity.table_name;
-        const tenantId = context.tenantId || 'default';
-        // Use fluent database interface (CodeIgniter-style)
-        let query = this.db(tableName, tenantId).where('id', id);
-        // Add RLS conditions if provided
-        if (rlsConditions?.conditions) {
-            for (const condition of rlsConditions.conditions) {
-                query = query.where(condition.field, condition.operator, condition.value);
-            }
-        }
-        return await query.first();
-    }
-    /**
-     * Update entity record
-     * @param entityConfig Entity configuration
-     * @param id Record ID
-     * @param data Update data
-     * @param context User context
-     * @param rlsConditions RLS conditions (optional)
-     * @returns Updated entity record
-     */
-    async update(entityConfig, id, data, context = {}, rlsConditions) {
-        const tableName = entityConfig.entity.table_name;
-        const tenantId = context.tenantId || 'default';
-        // Add system fields
-        data.updated_at = getCurrentTimestamp();
-        // Add updater ID if available in context
-        if (context.user?.id) {
-            data.updated_by = context.user.id;
-        }
-        // Remove ID from update data if present
-        if ('id' in data) {
-            delete data.id;
-        }
-        // Use fluent database interface (CodeIgniter-style)
-        let query = this.db(tableName, tenantId).where('id', id);
-        // Add RLS conditions if provided
-        if (rlsConditions?.conditions) {
-            for (const condition of rlsConditions.conditions) {
-                query = query.where(condition.field, condition.operator, condition.value);
-            }
-        }
-        const result = await query.update(data);
-        if (result.changes === 0) {
-            throw new Error(`Record not found or permission denied: ${tableName} with ID ${id}`);
-        }
-        // Return updated record
-        return await this.findById(entityConfig, id, context, rlsConditions) || { id, ...data };
-    }
-    /**
-     * Delete entity record
-     * @param entityConfig Entity configuration
-     * @param id Record ID
-     * @param context User context
-     * @param rlsConditions RLS conditions (optional)
-     * @returns True if record was deleted
-     */
-    async delete(entityConfig, id, context = {}, rlsConditions) {
-        const tableName = entityConfig.entity.table_name;
-        const tenantId = context.tenantId || 'default';
-        // Use fluent database interface (CodeIgniter-style)
-        let query = this.db(tableName, tenantId).where('id', id);
-        // Add RLS conditions if provided
-        if (rlsConditions?.conditions) {
-            for (const condition of rlsConditions.conditions) {
-                query = query.where(condition.field, condition.operator, condition.value);
-            }
-        }
-        const result = await query.delete();
-        return result.changes > 0;
-    }
-    /**
-     * Find entity records with conditions
-     * @param entityConfig Entity configuration
-     * @param conditions Query conditions
-     * @param options Query options
-     * @param context User context
-     * @param rlsConditions RLS conditions (optional)
-     * @returns Array of entity records
-     */
-    async find(entityConfig, conditions = [], options = {}, context = {}, rlsConditions) {
-        const tableName = entityConfig.entity.table_name;
-        const tenantId = context.tenantId || 'default';
-        // Use fluent database interface (CodeIgniter-style)
-        let query = this.db(tableName, tenantId);
-        // Apply field selection
-        if (options.fields && options.fields.length > 0) {
-            query = query.select(options.fields);
-        }
-        // Apply conditions
-        for (const condition of conditions) {
-            query = query.where(condition.field, condition.operator || '=', condition.value);
-        }
-        // Add RLS conditions if provided
-        if (rlsConditions?.conditions) {
-            for (const condition of rlsConditions.conditions) {
-                query = query.where(condition.field, condition.operator, condition.value);
-            }
-        }
-        // Apply sorting
-        if (options.sort) {
-            for (const sort of options.sort) {
-                query = query.orderBy(sort.field, sort.direction);
-            }
-        }
-        // Apply pagination
-        if (options.limit) {
-            query = query.limit(options.limit, options.offset);
-        }
-        return await query.get();
-    }
-    /**
-     * Count entity records with conditions
-     * @param entityConfig Entity configuration
-     * @param conditions Query conditions
-     * @param context User context
-     * @param rlsConditions RLS conditions (optional)
-     * @returns Count of records
-     */
-    async count(entityConfig, conditions = [], context = {}, rlsConditions) {
-        const tableName = entityConfig.entity.table_name;
-        const tenantId = context.tenantId || 'default';
-        // Use fluent database interface (CodeIgniter-style)
-        let query = this.db(tableName, tenantId);
-        // Apply conditions
-        for (const condition of conditions) {
-            query = query.where(condition.field, condition.operator || '=', condition.value);
-        }
-        // Add RLS conditions if provided
-        if (rlsConditions?.conditions) {
-            for (const condition of rlsConditions.conditions) {
-                query = query.where(condition.field, condition.operator, condition.value);
-            }
-        }
-        return await query.count();
     }
     // === MINIMAL TABLE MANAGEMENT ===
     /**

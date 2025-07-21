@@ -38,6 +38,7 @@ export class SchemaKit {
     }
     /**
      * Access entity with optional tenant context (unified API)
+     * Returns EntityAPI instance - the standalone gateway for entity operations
      * @param name Entity name
      * @param tenantId Tenant identifier (defaults to 'default')
      */
@@ -45,7 +46,7 @@ export class SchemaKit {
         if (!this.entityManager) {
             throw new SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
         }
-        return this.entityManager.entity(name, tenantId);
+        return this.entityManager.createEntityAPI(name, tenantId);
     }
     /**
      * Access database manager for advanced operations

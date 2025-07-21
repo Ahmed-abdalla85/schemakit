@@ -1,9 +1,12 @@
 /**
- * EntityManager
- * Responsible for CRUD operations on entities and basic schema management
+ * EntityManager - Data Access Layer
+ * Responsible for entity configuration management and data access operations
  *
- * Simplified: Uses InstallManager for system tables, focuses on core functionality
- * Enhanced: Uses DatabaseManager as the main database gateway
+ * This is the data layer that EntityAPI uses for:
+ * - Loading entity configurations
+ * - Managing entity cache
+ * - Providing database access
+ * - Creating EntityAPI instances
  */
 import { DatabaseManager } from '../database/database-manager';
 import { FluentQueryBuilder } from '../database/fluent-query-builder';
@@ -18,9 +21,15 @@ export interface CacheStats {
     missRate?: number;
 }
 /**
- * EntityManager class
- * Handles CRUD operations and schema management using existing patterns
- * Enhanced with EntityBuilder functionality and uses DatabaseManager as gateway
+ * EntityManager class - Data Access Layer
+ *
+ * Responsibilities:
+ * - Entity configuration loading and caching
+ * - EntityAPI instance creation and management
+ * - Database access provision
+ * - Schema management
+ *
+ * Note: Business logic (validation, permissions, workflows) is handled by EntityAPI
  */
 export declare class EntityManager {
     private databaseManager;
@@ -54,11 +63,16 @@ export declare class EntityManager {
      */
     table(tableName: string, tenantId?: string): FluentQueryBuilder;
     /**
-     * Returns a fluent EntityAPI instance for the given entity name with optional tenant context.
+     * Get database manager for advanced operations
+     */
+    getDatabaseManager(): DatabaseManager;
+    /**
+     * Create EntityAPI instance for the given entity name with optional tenant context.
+     * This is the factory method that should be called by SchemaKit, not a business logic method.
      * @param entityName Entity name
      * @param tenantId Tenant ID (defaults to 'default')
      */
-    entity(entityName: string, tenantId?: string): any;
+    createEntityAPI(entityName: string, tenantId?: string): any;
     /**
      * Clears the entity API cache for a specific entity or all entities.
      */
@@ -71,21 +85,59 @@ export declare class EntityManager {
      */
     loadEntity(entityName: string, context?: Context): Promise<EntityConfiguration>;
     /**
-     * Reload entity configuration (bypass cache)
+     * Raw data insertion - used by EntityAPI
+     * @param entityConfig Entity configuration
+     * @param data Entity data
+     * @param context User context
+     * @returns Created entity record
      */
-    reloadEntity(entityName: string, context?: Context): Promise<EntityConfiguration>;
+    insertData(entityConfig: EntityConfiguration, data: Record<string, any>, context?: Context): Promise<Record<string, any>>;
     /**
-     * Check if SchemaKit is installed
+     * Raw data retrieval by ID - used by EntityAPI
+     * @param entityConfig Entity configuration
+     * @param id Record ID
+     * @param context User context
+     * @param rlsConditions RLS conditions (optional)
+     * @returns Entity record or null if not found
      */
-    isSchemaKitInstalled(): Promise<boolean>;
+    findByIdData(entityConfig: EntityConfiguration, id: string | number, context?: Context, rlsConditions?: RLSConditions): Promise<Record<string, any> | null>;
     /**
-     * Get SchemaKit version
+     * Raw data update - used by EntityAPI
+     * @param entityConfig Entity configuration
+     * @param id Record ID
+     * @param data Update data
+     * @param context User context
+     * @param rlsConditions RLS conditions (optional)
+     * @returns Updated entity record
      */
-    getVersion(): Promise<string>;
+    updateData(entityConfig: EntityConfiguration, id: string | number, data: Record<string, any>, context?: Context, rlsConditions?: RLSConditions): Promise<Record<string, any>>;
     /**
-     * Ensure system tables exist - Only call during initialization
+     * Raw data deletion - used by EntityAPI
+     * @param entityConfig Entity configuration
+     * @param id Record ID
+     * @param context User context
+     * @param rlsConditions RLS conditions (optional)
+     * @returns True if record was deleted
      */
-    ensureSystemTables(): Promise<void>;
+    deleteData(entityConfig: EntityConfiguration, id: string | number, context?: Context, rlsConditions?: RLSConditions): Promise<boolean>;
+    /**
+     * Raw data finding with conditions - used by EntityAPI
+     * @param entityConfig Entity configuration
+     * @param conditions Query conditions
+     * @param options Query options
+     * @param context User context
+     * @param rlsConditions RLS conditions (optional)
+     * @returns Array of entity records
+     */
+    findData(entityConfig: EntityConfiguration, conditions?: any[], options?: {
+        fields?: string[];
+        sort?: {
+            field: string;
+            direction: 'ASC' | 'DESC';
+        }[];
+        limit?: number;
+        offset?: number;
+    }, context?: Context, rlsConditions?: RLSConditions): Promise<Record<string, any>[]>;
     /**
      * Reinstall SchemaKit
      */
@@ -106,69 +158,6 @@ export declare class EntityManager {
      * Get all loaded entities
      */
     getLoadedEntities(): string[];
-    /**
-     * Create a new entity record
-     * @param entityConfig Entity configuration
-     * @param data Entity data
-     * @param context User context
-     * @returns Created entity record
-     */
-    create(entityConfig: EntityConfiguration, data: Record<string, any>, context?: Context): Promise<Record<string, any>>;
-    /**
-     * Find entity record by ID
-     * @param entityConfig Entity configuration
-     * @param id Record ID
-     * @param context User context
-     * @param rlsConditions RLS conditions (optional)
-     * @returns Entity record or null if not found
-     */
-    findById(entityConfig: EntityConfiguration, id: string | number, context?: Context, rlsConditions?: RLSConditions): Promise<Record<string, any> | null>;
-    /**
-     * Update entity record
-     * @param entityConfig Entity configuration
-     * @param id Record ID
-     * @param data Update data
-     * @param context User context
-     * @param rlsConditions RLS conditions (optional)
-     * @returns Updated entity record
-     */
-    update(entityConfig: EntityConfiguration, id: string | number, data: Record<string, any>, context?: Context, rlsConditions?: RLSConditions): Promise<Record<string, any>>;
-    /**
-     * Delete entity record
-     * @param entityConfig Entity configuration
-     * @param id Record ID
-     * @param context User context
-     * @param rlsConditions RLS conditions (optional)
-     * @returns True if record was deleted
-     */
-    delete(entityConfig: EntityConfiguration, id: string | number, context?: Context, rlsConditions?: RLSConditions): Promise<boolean>;
-    /**
-     * Find entity records with conditions
-     * @param entityConfig Entity configuration
-     * @param conditions Query conditions
-     * @param options Query options
-     * @param context User context
-     * @param rlsConditions RLS conditions (optional)
-     * @returns Array of entity records
-     */
-    find(entityConfig: EntityConfiguration, conditions?: any[], options?: {
-        fields?: string[];
-        sort?: {
-            field: string;
-            direction: 'ASC' | 'DESC';
-        }[];
-        limit?: number;
-        offset?: number;
-    }, context?: Context, rlsConditions?: RLSConditions): Promise<Record<string, any>[]>;
-    /**
-     * Count entity records with conditions
-     * @param entityConfig Entity configuration
-     * @param conditions Query conditions
-     * @param context User context
-     * @param rlsConditions RLS conditions (optional)
-     * @returns Count of records
-     */
-    count(entityConfig: EntityConfiguration, conditions?: any[], context?: Context, rlsConditions?: RLSConditions): Promise<number>;
     /**
      * Ensure entity table exists
      */

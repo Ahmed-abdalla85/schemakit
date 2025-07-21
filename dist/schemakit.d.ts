@@ -15,6 +15,7 @@ export declare class SchemaKit {
     initialize(): Promise<this>;
     /**
      * Access entity with optional tenant context (unified API)
+     * Returns EntityAPI instance - the standalone gateway for entity operations
      * @param name Entity name
      * @param tenantId Tenant identifier (defaults to 'default')
      */
