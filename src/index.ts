@@ -9,12 +9,10 @@ export { SchemaKit } from './schemakit';
 
 // Core managers (optimized)
 export { EntityManager, CacheStats } from './core/entity-manager';
-export { QueryManager } from './core/query-manager';
 export { ValidationManager } from './core/validation-manager';
 export { PermissionManager } from './core/permission-manager';
 export { WorkflowManager } from './core/workflow-manager';
-export { InstallManager } from './core/install-manager';
-export { EntityBuilder } from './core/entity-builder';
+export { EntityBuilder } from './core/entity-builder'; // @deprecated
 
 // Query components (new split)
 export { QueryBuilder } from './core/query/query-builder';
@@ -30,12 +28,16 @@ export { WorkflowActions } from './core/workflows/workflow-actions';
 // Core utilities
 export { FileLoader } from './core/file-loader';
 
-// Database adapters (optimized)
-export { DatabaseAdapter, DatabaseAdapterConfig } from './database/adapter';
-export { BaseAdapter } from './database/base-adapter';
-export { InMemoryAdapter } from './database/adapters/inmemory-simplified';
-export { PostgresAdapter } from './database/adapters/postgres';
-export { SQLiteAdapter } from './database/adapters/sqlite';
+// Database module (new structure) - Main gateway for all database operations
+export * from './database';
+export {
+  DatabaseManager,
+  FluentQueryBuilder,
+  createDatabase,
+  createInMemoryDatabase,
+  createSQLiteDatabase,
+  createPostgresDatabase
+} from './database';
 
 // Types (simplified)
 export * from './types';
