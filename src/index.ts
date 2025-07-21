@@ -26,7 +26,7 @@ export { TypeValidators } from './entities/validation';
 export { WorkflowActions } from './entities/workflow';
 
 // Core utilities
-export { FileLoader } from './entities/entity';
+export { SchemaLoader } from './database/schema-loader';
 
 // Database module (new structure) - Main gateway for all database operations
 export * from './database';

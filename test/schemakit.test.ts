@@ -43,9 +43,9 @@ jest.mock('../src/database/adapters/sqlite', () => ({
   SQLiteAdapter: jest.fn().mockImplementation(() => mockDatabaseAdapter)
 }));
 
-// Mock file loader
-jest.mock('../src/entities/entity/file-loader', () => ({
-  FileLoader: {
+// Mock schema loader
+jest.mock('../src/database/schema-loader', () => ({
+  SchemaLoader: {
     loadSchemaFile: jest.fn().mockResolvedValue('CREATE TABLE system_entities (id TEXT PRIMARY KEY);'),
     loadSeedFile: jest.fn().mockResolvedValue(null)
   }

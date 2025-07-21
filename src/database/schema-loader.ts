@@ -1,11 +1,11 @@
 /**
- * FileLoader
+ * SchemaLoader
  * Handles loading of schema and seed files
  */
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-export class FileLoader {
+export class SchemaLoader {
   /**
    * Load schema file
    */
