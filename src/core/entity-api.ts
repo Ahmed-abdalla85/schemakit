@@ -27,7 +27,7 @@ export class EntityAPI {
     await this.enforcePermission(entityConfig, 'create', contextWithTenant);
     await this.validateData(entityConfig, data, 'create');
 
-    const result = await this.entityManager.create(entityConfig, data, contextWithTenant);
+    const result = await this.entityManager.insertData(entityConfig, data, contextWithTenant);
 
     await this.workflowManager.executeWorkflows(entityConfig, 'create', null, result, contextWithTenant);
 
@@ -47,7 +47,7 @@ export class EntityAPI {
       operator: 'eq'
     }));
 
-    return this.entityManager.find(entityConfig, conditions, {}, contextWithTenant);
+    return this.entityManager.findData(entityConfig, conditions, {}, contextWithTenant);
   }
 
   async update(id: string | number, data: Record<string, any>, context: Context = {}) {
@@ -57,8 +57,8 @@ export class EntityAPI {
     await this.enforcePermission(entityConfig, 'update', contextWithTenant);
     await this.validateData(entityConfig, data, 'update');
 
-    const oldData = await this.entityManager.findById(entityConfig, id, contextWithTenant);
-    const result = await this.entityManager.update(entityConfig, id, data, contextWithTenant);
+    const oldData = await this.entityManager.findByIdData(entityConfig, id, contextWithTenant);
+    const result = await this.entityManager.updateData(entityConfig, id, data, contextWithTenant);
 
     await this.workflowManager.executeWorkflows(entityConfig, 'update', oldData, result, contextWithTenant);
 
@@ -71,8 +71,8 @@ export class EntityAPI {
 
     await this.enforcePermission(entityConfig, 'delete', contextWithTenant);
 
-    const oldData = await this.entityManager.findById(entityConfig, id, contextWithTenant);
-    const result = await this.entityManager.delete(entityConfig, id, contextWithTenant);
+    const oldData = await this.entityManager.findByIdData(entityConfig, id, contextWithTenant);
+    const result = await this.entityManager.deleteData(entityConfig, id, contextWithTenant);
 
     await this.workflowManager.executeWorkflows(entityConfig, 'delete', oldData, null, contextWithTenant);
 
@@ -85,7 +85,7 @@ export class EntityAPI {
 
     await this.enforcePermission(entityConfig, 'read', contextWithTenant);
 
-    return this.entityManager.findById(entityConfig, id, contextWithTenant);
+    return this.entityManager.findByIdData(entityConfig, id, contextWithTenant);
   }
 
   // ----- Schema and Configuration getters -----

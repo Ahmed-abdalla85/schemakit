@@ -1,31 +1,33 @@
-import { DatabaseAdapter } from './database/adapter';
 import { SchemaKitOptions } from './types';
-import { InstallManager } from './core/install-manager';
-import { EntityBuilder } from './core/entity-builder';
+import { DatabaseManager, DatabaseConfig } from './database/database-manager';
+import { InstallManager } from './database/install-manager';
 import { EntityManager } from './core/entity-manager';
 import { ValidationManager } from './core/validation-manager';
 import { PermissionManager } from './core/permission-manager';
 import { WorkflowManager } from './core/workflow-manager';
-import { QueryManager } from './core/query-manager';
 import { SchemaKitError } from './errors';
-
-// Database adapters
-import { PostgresAdapter } from './database/adapters/postgres';
-import { SQLiteAdapter } from './database/adapters/sqlite';
-import { InMemoryAdapter } from './database/adapters/inmemory-simplified';
 
 export class SchemaKit {
   private readonly options: Readonly<SchemaKitOptions>;
-  private readonly databaseAdapter: DatabaseAdapter;
+  private readonly databaseManager: DatabaseManager;
 
   private installManager?: InstallManager;
-  private entityBuilder?: EntityBuilder;
+  private entityManager?: EntityManager;
+  private validationManager?: ValidationManager;
+  private permissionManager?: PermissionManager;
+  private workflowManager?: WorkflowManager;
 
   constructor(options: SchemaKitOptions = {}) {
     this.options = options;
-    const type = options.adapter?.type || 'inmemory';
-    const config = options.adapter?.config || {};
-    this.databaseAdapter = this.createDatabaseAdapter(type, config);
+    
+    // Create database configuration from options
+    const adapterConfig = options.adapter || {};
+    const databaseConfig: DatabaseConfig = {
+      type: (adapterConfig.type as any) || 'inmemory-simplified',
+      ...adapterConfig.config
+    };
+    
+    this.databaseManager = new DatabaseManager(databaseConfig);
   }
 
   /**
@@ -33,21 +35,16 @@ export class SchemaKit {
    */
   async initialize(): Promise<this> {
     try {
-      await this.databaseAdapter.connect();
+      await this.databaseManager.connect();
 
-      const entityManager = new EntityManager(this.databaseAdapter);
-      const validationManager = new ValidationManager();
-      const permissionManager = new PermissionManager(this.databaseAdapter);
-      const workflowManager = new WorkflowManager(this.databaseAdapter);
+      // Initialize managers with DatabaseManager
+      this.entityManager = new EntityManager(this.databaseManager);
+      this.validationManager = new ValidationManager();
+      this.permissionManager = new PermissionManager(this.databaseManager.getAdapter());
+      this.workflowManager = new WorkflowManager(this.databaseManager.getAdapter());
 
-      this.installManager = new InstallManager(this.databaseAdapter);
-      this.entityBuilder = new EntityBuilder(
-        entityManager,
-        validationManager,
-        permissionManager,
-        workflowManager
-      );
-
+      // Initialize system tables
+      this.installManager = new InstallManager(this.databaseManager.getAdapter());
       await this.installManager.ensureReady();
 
       return this;
@@ -57,55 +54,57 @@ export class SchemaKit {
   }
 
   /**
-   * Access entity proxy directly (fluent API)
+   * Access entity with optional tenant context (unified API)
+   * Returns EntityAPI instance - the standalone gateway for entity operations
+   * @param name Entity name
+   * @param tenantId Tenant identifier (defaults to 'default')
    */
-  entity(name: string) {
-    if (!this.entityBuilder) {
+  entity(name: string, tenantId: string = 'default') {
+    if (!this.entityManager) {
       throw new SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
     }
-    return this.entityBuilder.entity(name);
+    return this.entityManager.createEntityAPI(name, tenantId);
   }
 
   /**
-   * Access entity proxy with tenant context (multi-tenant API)
-   * @param name Entity name
-   * @param tenantId Tenant identifier
+   * Access database manager for advanced operations
    */
-  entityForTenant(name: string, tenantId: string) {
-    if (!this.entityBuilder) {
-      throw new SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
-    }
-    return this.entityBuilder.entityForTenant(name, tenantId);
+  getDatabase(): DatabaseManager {
+    return this.databaseManager;
   }
 
   /**
    * Disconnect from database
    */
   async disconnect(): Promise<void> {
-    await this.databaseAdapter.disconnect();
+    await this.databaseManager.disconnect();
   }
 
   /**
    * Clear cached entity definitions
    */
   clearEntityCache(entityName?: string, tenantId?: string): void {
-    this.entityBuilder?.clearEntityCache(entityName, tenantId);
-  }
-
-  getCacheStats(): { entityCacheSize: number; entities: string[] } {
-    return this.entityBuilder?.getCacheStats() || { entityCacheSize: 0, entities: [] };
+    this.entityManager?.clearEntityCache(entityName, tenantId);
   }
 
   /**
-   * Create appropriate DB adapter
+   * Get cache statistics
    */
-  private createDatabaseAdapter(type: string, config: Record<string, any>): DatabaseAdapter {
-    const adapterMap: Record<string, new (config: any) => DatabaseAdapter> = {
-      postgres: PostgresAdapter,
-      sqlite: SQLiteAdapter,
-      inmemory: InMemoryAdapter,
-    };
-    const AdapterClass = adapterMap[type.toLowerCase()] || InMemoryAdapter;
-    return new AdapterClass(config);
+  getCacheStats(): { entityCacheSize: number; entities: string[] } {
+    return this.entityManager?.getCacheStats() || { entityCacheSize: 0, entities: [] };
+  }
+
+  /**
+   * Get connection information
+   */
+  getConnectionInfo() {
+    return this.databaseManager.getConnectionInfo();
+  }
+
+  /**
+   * Test database connection
+   */
+  async testConnection(): Promise<boolean> {
+    return this.databaseManager.testConnection();
   }
 }

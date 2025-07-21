@@ -1,11 +1,15 @@
 /**
- * EntityManager
- * Responsible for CRUD operations on entities and schema management
+ * EntityManager - Data Access Layer
+ * Responsible for entity configuration management and data access operations
  *
- * Phase 2 Refactoring: Delegates query building to QueryManager
- * Phase 3 Refactoring: Integrated SchemaLoader functionality
+ * This is the data layer that EntityAPI uses for:
+ * - Loading entity configurations
+ * - Managing entity cache
+ * - Providing database access
+ * - Creating EntityAPI instances
  */
-import { DatabaseAdapter } from '../database/adapter';
+import { DatabaseManager } from '../database/database-manager';
+import { FluentQueryBuilder } from '../database/fluent-query-builder';
 import { EntityConfiguration, Context, RLSConditions } from '../types';
 /**
  * Cache statistics interface
@@ -17,24 +21,62 @@ export interface CacheStats {
     missRate?: number;
 }
 /**
- * EntityManager class
- * Single responsibility: Handle CRUD operations on entities and schema management
+ * EntityManager class - Data Access Layer
+ *
+ * Responsibilities:
+ * - Entity configuration loading and caching
+ * - EntityAPI instance creation and management
+ * - Database access provision
+ * - Schema management
+ *
+ * Note: Business logic (validation, permissions, workflows) is handled by EntityAPI
  */
 export declare class EntityManager {
-    private databaseAdapter;
+    private databaseManager;
     private queryManager;
+    private installManager;
     private entityCache;
+    private entityApiCache;
     private cacheEnabled;
     private cacheHits;
     private cacheMisses;
     /**
      * Create a new EntityManager instance
-     * @param databaseAdapter Database adapter
+     * @param databaseManager Database manager
      * @param options Options
      */
-    constructor(databaseAdapter: DatabaseAdapter, options?: {
+    constructor(databaseManager: DatabaseManager, options?: {
         cacheEnabled?: boolean;
     });
+    /**
+     * Create a fluent query builder for a table
+     * @param tableName Table name
+     * @param tenantId Tenant ID
+     * @returns FluentQueryBuilder instance
+     */
+    db(tableName: string, tenantId?: string): FluentQueryBuilder;
+    /**
+     * Get table reference for fluent queries
+     * @param tableName Table name
+     * @param tenantId Tenant ID
+     * @returns FluentQueryBuilder instance
+     */
+    table(tableName: string, tenantId?: string): FluentQueryBuilder;
+    /**
+     * Get database manager for advanced operations
+     */
+    getDatabaseManager(): DatabaseManager;
+    /**
+     * Create EntityAPI instance for the given entity name with optional tenant context.
+     * This is the factory method that should be called by SchemaKit, not a business logic method.
+     * @param entityName Entity name
+     * @param tenantId Tenant ID (defaults to 'default')
+     */
+    createEntityAPI(entityName: string, tenantId?: string): any;
+    /**
+     * Clears the entity API cache for a specific entity or all entities.
+     */
+    clearEntityApiCache(entityName?: string, tenantId?: string): void;
     /**
      * Load entity configuration
      * @param entityName Entity name
@@ -43,69 +85,24 @@ export declare class EntityManager {
      */
     loadEntity(entityName: string, context?: Context): Promise<EntityConfiguration>;
     /**
-     * Reload entity configuration (bypass cache)
-     * @param entityName Entity name
-     * @param context User context
-     * @returns Entity configuration
-     */
-    reloadEntity(entityName: string, context?: Context): Promise<EntityConfiguration>;
-    /**
-     * Check if SchemaKit is installed
-     * @returns True if installed
-     */
-    isSchemaKitInstalled(): Promise<boolean>;
-    /**
-     * Get SchemaKit version
-     * @returns Version string
-     */
-    getVersion(): Promise<string>;
-    /**
-     * Ensure system tables exist
-     */
-    ensureSystemTables(): Promise<void>;
-    /**
-     * Reinstall SchemaKit
-     * WARNING: This will delete all system tables and recreate them
-     */
-    reinstall(): Promise<void>;
-    /**
-     * Clear entity cache for a specific entity or all entities
-     * @param entityName Optional entity name to clear
-     */
-    clearEntityCache(entityName?: string): void;
-    /**
-     * Clear all caches
-     */
-    clearAllCache(): void;
-    /**
-     * Get cache statistics
-     * @returns Cache statistics
-     */
-    getCacheStats(): CacheStats;
-    /**
-     * Get all loaded entities
-     * @returns Array of entity names
-     */
-    getLoadedEntities(): string[];
-    /**
-     * Create a new entity record
+     * Raw data insertion - used by EntityAPI
      * @param entityConfig Entity configuration
      * @param data Entity data
      * @param context User context
      * @returns Created entity record
      */
-    create(entityConfig: EntityConfiguration, data: Record<string, any>, context?: Context): Promise<Record<string, any>>;
+    insertData(entityConfig: EntityConfiguration, data: Record<string, any>, context?: Context): Promise<Record<string, any>>;
     /**
-     * Find entity record by ID
+     * Raw data retrieval by ID - used by EntityAPI
      * @param entityConfig Entity configuration
      * @param id Record ID
      * @param context User context
      * @param rlsConditions RLS conditions (optional)
      * @returns Entity record or null if not found
      */
-    findById(entityConfig: EntityConfiguration, id: string | number, context?: Context, rlsConditions?: RLSConditions): Promise<Record<string, any> | null>;
+    findByIdData(entityConfig: EntityConfiguration, id: string | number, context?: Context, rlsConditions?: RLSConditions): Promise<Record<string, any> | null>;
     /**
-     * Update entity record
+     * Raw data update - used by EntityAPI
      * @param entityConfig Entity configuration
      * @param id Record ID
      * @param data Update data
@@ -113,18 +110,18 @@ export declare class EntityManager {
      * @param rlsConditions RLS conditions (optional)
      * @returns Updated entity record
      */
-    update(entityConfig: EntityConfiguration, id: string | number, data: Record<string, any>, context?: Context, rlsConditions?: RLSConditions): Promise<Record<string, any>>;
+    updateData(entityConfig: EntityConfiguration, id: string | number, data: Record<string, any>, context?: Context, rlsConditions?: RLSConditions): Promise<Record<string, any>>;
     /**
-     * Delete entity record
+     * Raw data deletion - used by EntityAPI
      * @param entityConfig Entity configuration
      * @param id Record ID
      * @param context User context
      * @param rlsConditions RLS conditions (optional)
      * @returns True if record was deleted
      */
-    delete(entityConfig: EntityConfiguration, id: string | number, context?: Context, rlsConditions?: RLSConditions): Promise<boolean>;
+    deleteData(entityConfig: EntityConfiguration, id: string | number, context?: Context, rlsConditions?: RLSConditions): Promise<boolean>;
     /**
-     * Find entity records with conditions
+     * Raw data finding with conditions - used by EntityAPI
      * @param entityConfig Entity configuration
      * @param conditions Query conditions
      * @param options Query options
@@ -132,7 +129,7 @@ export declare class EntityManager {
      * @param rlsConditions RLS conditions (optional)
      * @returns Array of entity records
      */
-    find(entityConfig: EntityConfiguration, conditions?: any[], options?: {
+    findData(entityConfig: EntityConfiguration, conditions?: any[], options?: {
         fields?: string[];
         sort?: {
             field: string;
@@ -142,90 +139,37 @@ export declare class EntityManager {
         offset?: number;
     }, context?: Context, rlsConditions?: RLSConditions): Promise<Record<string, any>[]>;
     /**
-     * Count entity records with conditions
-     * @param entityConfig Entity configuration
-     * @param conditions Query conditions
-     * @param context User context
-     * @param rlsConditions RLS conditions (optional)
-     * @returns Count of records
+     * Reinstall SchemaKit
      */
-    count(entityConfig: EntityConfiguration, conditions?: any[], context?: Context, rlsConditions?: RLSConditions): Promise<number>;
+    reinstall(): Promise<void>;
+    /**
+     * Clear entity cache
+     */
+    clearEntityCache(entityName?: string, tenantId?: string): void;
+    /**
+     * Clear all caches
+     */
+    clearAllCache(): void;
+    /**
+     * Get cache statistics
+     */
+    getCacheStats(): CacheStats;
+    /**
+     * Get all loaded entities
+     */
+    getLoadedEntities(): string[];
     /**
      * Ensure entity table exists
-     * @param entityConfig Entity configuration
      */
-    ensureEntityTable(entityConfig: EntityConfiguration): Promise<void>;
-    /**
-     * Create entity table
-     * @param entityConfig Entity configuration
-     */
-    private createEntityTable;
-    /**
-     * Update entity table with new fields
-     * @param entityConfig Entity configuration
-     */
-    private updateEntityTable;
+    private ensureEntityTable;
     /**
      * Get SQL type for field type
-     * @param fieldType Field type
-     * @returns SQL type
      */
     private getSqlType;
-    /**
-     * Load entity definition
-     * @param entityName Entity name
-     * @returns Entity definition or null if not found
-     * @private
-     */
     private loadEntityDefinition;
-    /**
-     * Load entity fields
-     * @param entityId Entity ID
-     * @returns Array of field definitions
-     * @private
-     */
     private loadEntityFields;
-    /**
-     * Load entity permissions
-     * @param entityId Entity ID
-     * @param context User context
-     * @returns Array of permission definitions
-     * @private
-     */
     private loadEntityPermissions;
-    /**
-     * Load entity views
-     * @param entityId Entity ID
-     * @returns Array of view definitions
-     * @private
-     */
     private loadEntityViews;
-    /**
-     * Load entity workflows
-     * @param entityId Entity ID
-     * @returns Array of workflow definitions
-     * @private
-     */
     private loadEntityWorkflows;
-    /**
-     * Load entity RLS (Row-Level Security)
-     * @param entityId Entity ID
-     * @param context User context
-     * @returns Array of RLS definitions
-     * @private
-     */
     private loadEntityRLS;
-    /**
-     * Check if a table exists
-     * @param tableName Table name
-     * @returns True if table exists
-     * @private
-     */
-    private tableExists;
-    /**
-     * Create a system table
-     * @param tableName Table name
-     * @private
-     */
-    private createSystemTable;
 }

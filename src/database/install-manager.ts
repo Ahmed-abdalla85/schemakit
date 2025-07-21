@@ -2,7 +2,7 @@
  * InstallManager - Database installation and setup
  */
 import { DatabaseAdapter } from '../database/adapter';
-import { FileLoader } from './file-loader';
+import { FileLoader } from '../core/file-loader';
 import { SchemaKitError } from '../errors';
 
 export class InstallManager {

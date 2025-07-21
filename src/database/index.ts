@@ -5,7 +5,9 @@
  */
 
 // Main database gateway
-export { DatabaseManager, DatabaseConfig, ConnectionInfo, TableInfo, ColumnInfo } from './database-manager';
+export { DatabaseManager } from './database-manager';
+export type { DatabaseConfig, ConnectionInfo, TableInfo, ColumnInfo } from './database-manager';
+import { DatabaseManager, DatabaseConfig } from './database-manager';
 
 // Fluent query builder
 export { FluentQueryBuilder } from './fluent-query-builder';
@@ -18,7 +20,7 @@ export { BaseAdapter } from './base-adapter';
 export { SQLiteAdapter } from './adapters/sqlite';
 export { PostgresAdapter } from './adapters/postgres';
 export { InMemoryAdapter } from './adapters/inmemory';
-export { InMemorySimplifiedAdapter } from './adapters/inmemory-simplified';
+export { InMemoryAdapter as InMemorySimplifiedAdapter } from './adapters/inmemory-simplified';
 
 // Database management utilities
 export { QueryManager } from './query-manager';

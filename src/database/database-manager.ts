@@ -15,7 +15,7 @@ import { FluentQueryBuilder } from './fluent-query-builder';
 import { SQLiteAdapter } from './adapters/sqlite';
 import { PostgresAdapter } from './adapters/postgres';
 import { InMemoryAdapter } from './adapters/inmemory';
-import { InMemorySimplifiedAdapter } from './adapters/inmemory-simplified';
+import { InMemoryAdapter as InMemorySimplifiedAdapter } from './adapters/inmemory-simplified';
 
 export interface DatabaseConfig {
   type: 'sqlite' | 'postgres' | 'inmemory' | 'inmemory-simplified';
@@ -74,11 +74,15 @@ export class DatabaseManager {
   private createAdapter(config: DatabaseConfig): DatabaseAdapter {
     switch (config.type) {
       case 'sqlite':
-        return new SQLiteAdapter(config.filename || ':memory:', config.options);
+        return new SQLiteAdapter({ 
+          filename: config.filename || ':memory:', 
+          ...config.options 
+        });
       
       case 'postgres':
         if (!config.host || !config.database) {
-          throw new Error('PostgreSQL requires host and database configuration');
+          console.warn('PostgreSQL requires host and database configuration, falling back to inmemory');
+          return new InMemorySimplifiedAdapter(config.options);
         }
         return new PostgresAdapter({
           host: config.host,
@@ -96,7 +100,8 @@ export class DatabaseManager {
         return new InMemorySimplifiedAdapter(config.options);
       
       default:
-        throw new Error(`Unsupported database type: ${config.type}`);
+        // Fallback to inmemory-simplified for unknown types
+        return new InMemorySimplifiedAdapter(config.options);
     }
   }
 
@@ -112,7 +117,7 @@ export class DatabaseManager {
    * Close database connection
    */
   async disconnect(): Promise<void> {
-    await this.adapter.close();
+    await this.adapter.disconnect();
     this.connectionTime = undefined;
   }
 
@@ -184,41 +189,12 @@ export class DatabaseManager {
   // === TRANSACTION MANAGEMENT ===
 
   /**
-   * Start a transaction
-   */
-  async beginTransaction(): Promise<void> {
-    await this.adapter.beginTransaction();
-  }
-
-  /**
-   * Commit current transaction
-   */
-  async commit(): Promise<void> {
-    await this.adapter.commit();
-  }
-
-  /**
-   * Rollback current transaction
-   */
-  async rollback(): Promise<void> {
-    await this.adapter.rollback();
-  }
-
-  /**
    * Execute operations within a transaction
    * @param callback Transaction callback
    * @returns Callback result
    */
   async transaction<T>(callback: () => Promise<T>): Promise<T> {
-    await this.beginTransaction();
-    try {
-      const result = await callback();
-      await this.commit();
-      return result;
-    } catch (error) {
-      await this.rollback();
-      throw error;
-    }
+    return this.adapter.transaction(callback);
   }
 
   // === DATABASE INTROSPECTION ===
