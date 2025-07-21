@@ -51,7 +51,7 @@ export function parseDate(value: any): Date | null {
  * @param format Format string (default: 'iso')
  * @returns Formatted date string
  */
-export function formatDate(date: Date, format: string = 'iso'): string {
+export function formatDate(date: Date, format = 'iso'): string {
   if (!date || isNaN(date.getTime())) {
     throw new Error('Invalid date provided');
   }

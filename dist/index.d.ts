@@ -13,7 +13,7 @@ export { PaginationManager } from './entities/query';
 export { QueryExecutor } from './entities/query';
 export { TypeValidators } from './entities/validation';
 export { WorkflowActions } from './entities/workflow';
-export { FileLoader } from './entities/entity';
+export { SchemaLoader } from './database/schema-loader';
 export * from './database';
 export { DatabaseManager, FluentQueryBuilder, createDatabase, createInMemoryDatabase, createSQLiteDatabase, createPostgresDatabase } from './database';
 export * from './types';

@@ -45,7 +45,7 @@ export function createInMemoryDatabase(): DatabaseManager {
 /**
  * Convenience function to create a SQLite database
  */
-export function createSQLiteDatabase(filename: string = ':memory:'): DatabaseManager {
+export function createSQLiteDatabase(filename = ':memory:'): DatabaseManager {
   return new DatabaseManager({
     type: 'sqlite',
     filename

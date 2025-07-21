@@ -30,8 +30,8 @@ export class EntityFactory {
    */
   async entity(
     entityName: string, 
-    tenantId: string = 'default',
-    autoInitialize: boolean = true,
+    tenantId = 'default',
+    autoInitialize = true,
     context: Context = {}
   ): Promise<Entity> {
     const cacheKey = `${tenantId}:${entityName}`;
@@ -61,8 +61,8 @@ export class EntityFactory {
    */
   async createEntity(
     entityName: string,
-    tenantId: string = 'default',
-    autoInitialize: boolean = true,
+    tenantId = 'default',
+    autoInitialize = true,
     context: Context = {}
   ): Promise<Entity> {
     const entity = new Entity(entityName, this.databaseManager, tenantId);

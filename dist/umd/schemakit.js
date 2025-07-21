@@ -4,46 +4,37 @@
         if (v !== undefined) module.exports = v;
     }
     else if (typeof define === "function" && define.amd) {
-        define(["require", "exports", "./core/install-manager", "./core/entity-builder", "./core/schema-loader", "./core/entity-manager", "./core/validation-manager", "./core/permission-manager", "./core/workflow-manager", "./core/query-manager", "./errors", "./database/adapters/postgres", "./database/adapters/sqlite", "./database/adapters/inmemory-simplified"], factory);
+        define(["require", "exports", "./database/database-manager", "./database/install-manager", "./entities/entity/entity-api-factory", "./errors"], factory);
     }
 })(function (require, exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.SchemaKit = void 0;
-    const install_manager_1 = require("./core/install-manager");
-    const entity_builder_1 = require("./core/entity-builder");
-    const schema_loader_1 = require("./core/schema-loader");
-    const entity_manager_1 = require("./core/entity-manager");
-    const validation_manager_1 = require("./core/validation-manager");
-    const permission_manager_1 = require("./core/permission-manager");
-    const workflow_manager_1 = require("./core/workflow-manager");
-    const query_manager_1 = require("./core/query-manager");
+    const database_manager_1 = require("./database/database-manager");
+    const install_manager_1 = require("./database/install-manager");
+    const entity_api_factory_1 = require("./entities/entity/entity-api-factory");
     const errors_1 = require("./errors");
-    // Database adapters
-    const postgres_1 = require("./database/adapters/postgres");
-    const sqlite_1 = require("./database/adapters/sqlite");
-    const inmemory_simplified_1 = require("./database/adapters/inmemory-simplified");
     class SchemaKit {
         constructor(options = {}) {
             this.options = options;
-            const type = options.adapter?.type || 'inmemory';
-            const config = options.adapter?.config || {};
-            this.databaseAdapter = this.createDatabaseAdapter(type, config);
+            // Create database configuration from options
+            const adapterConfig = options.adapter || {};
+            const databaseConfig = {
+                type: adapterConfig.type || 'inmemory-simplified',
+                ...adapterConfig.config
+            };
+            this.databaseManager = new database_manager_1.DatabaseManager(databaseConfig);
         }
         /**
          * Initialize all services
          */
         async initialize() {
             try {
-                await this.databaseAdapter.connect();
-                const schemaLoader = new schema_loader_1.SchemaLoader(this.databaseAdapter);
-                const entityManager = new entity_manager_1.EntityManager(this.databaseAdapter);
-                const validationManager = new validation_manager_1.ValidationManager();
-                const permissionManager = new permission_manager_1.PermissionManager(this.databaseAdapter);
-                const workflowManager = new workflow_manager_1.WorkflowManager(this.databaseAdapter);
-                const queryManager = new query_manager_1.QueryManager(this.databaseAdapter); // Future use
-                this.installManager = new install_manager_1.InstallManager(this.databaseAdapter);
-                this.entityBuilder = new entity_builder_1.EntityBuilder(schemaLoader, entityManager, validationManager, permissionManager, workflowManager);
+                await this.databaseManager.connect();
+                // Initialize EntityAPIFactory with DatabaseManager (handles all manager creation)
+                this.entityAPIFactory = new entity_api_factory_1.EntityAPIFactory(this.databaseManager);
+                // Initialize system tables
+                this.installManager = new install_manager_1.InstallManager(this.databaseManager.getAdapter());
                 await this.installManager.ensureReady();
                 return this;
             }
@@ -52,40 +43,61 @@
             }
         }
         /**
-         * Access entity proxy directly (fluent API)
+         * Access entity with optional tenant context (unified API)
+         * Returns EntityAPI instance - the standalone gateway for entity operations
+         * @param name Entity name
+         * @param tenantId Tenant identifier (defaults to 'default')
          */
-        entity(name) {
-            if (!this.entityBuilder) {
+        entity(name, tenantId = 'default') {
+            if (!this.entityAPIFactory) {
                 throw new errors_1.SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
             }
-            return this.entityBuilder.entity(name);
+            return this.entityAPIFactory.createEntityAPI(name, tenantId);
+        }
+        /**
+         * Access database manager for advanced operations
+         */
+        getDatabase() {
+            return this.databaseManager;
+        }
+        /**
+         * Access entity manager for configuration management
+         */
+        getEntityManager() {
+            if (!this.entityAPIFactory) {
+                throw new errors_1.SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
+            }
+            return this.entityAPIFactory.getEntityManager();
         }
         /**
          * Disconnect from database
          */
         async disconnect() {
-            await this.databaseAdapter.disconnect();
+            await this.databaseManager.disconnect();
         }
         /**
          * Clear cached entity definitions
          */
-        clearEntityCache(entityName) {
-            this.entityBuilder?.clearEntityCache(entityName);
-        }
-        getCacheStats() {
-            return this.entityBuilder?.getCacheStats() || { entityCacheSize: 0, entities: [] };
+        clearEntityCache(entityName, tenantId) {
+            this.getEntityManager()?.clearEntityCache(entityName);
         }
         /**
-         * Create appropriate DB adapter
+         * Get cache statistics
          */
-        createDatabaseAdapter(type, config) {
-            const adapterMap = {
-                postgres: postgres_1.PostgresAdapter,
-                sqlite: sqlite_1.SQLiteAdapter,
-                inmemory: inmemory_simplified_1.InMemoryAdapter,
-            };
-            const AdapterClass = adapterMap[type.toLowerCase()] || inmemory_simplified_1.InMemoryAdapter;
-            return new AdapterClass(config);
+        getCacheStats() {
+            return this.getEntityManager()?.getCacheStats() || { entityCacheSize: 0, entities: [] };
+        }
+        /**
+         * Get connection information
+         */
+        getConnectionInfo() {
+            return this.databaseManager.getConnectionInfo();
+        }
+        /**
+         * Test database connection
+         */
+        async testConnection() {
+            return this.databaseManager.testConnection();
         }
     }
     exports.SchemaKit = SchemaKit;

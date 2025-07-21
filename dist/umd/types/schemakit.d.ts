@@ -1,31 +1,30 @@
 import { SchemaKitOptions } from './types';
+import { DatabaseManager } from './database/database-manager';
 export declare class SchemaKit {
     private readonly options;
-    private readonly databaseAdapter;
+    private readonly databaseManager;
     private installManager?;
-    private entityBuilder?;
+    private entityAPIFactory?;
     constructor(options?: SchemaKitOptions);
     /**
      * Initialize all services
      */
     initialize(): Promise<this>;
     /**
-     * Access entity proxy directly (fluent API)
+     * Access entity with optional tenant context (unified API)
+     * Returns EntityAPI instance - the standalone gateway for entity operations
+     * @param name Entity name
+     * @param tenantId Tenant identifier (defaults to 'default')
      */
-    entity(name: string): {
-        create(data: Record<string, any>, context?: import("./types").Context): Promise<Record<string, any>>;
-        read(filters?: Record<string, any>, context?: import("./types").Context): Promise<any>;
-        update(id: string | number, data: Record<string, any>, context?: import("./types").Context): Promise<Record<string, any>>;
-        delete(id: string | number, context?: import("./types").Context): Promise<boolean>;
-        findById(id: string | number, context?: import("./types").Context): Promise<Record<string, any> | null>;
-        readonly schema: Promise<any>;
-        readonly fields: Promise<any>;
-        readonly permissions: Promise<any>;
-        readonly workflows: Promise<any>;
-        readonly views: Promise<any>;
-        clearCache(): void;
-        reload(): Promise<void>;
-    };
+    entity(name: string, tenantId?: string): import("./entities").EntityAPI;
+    /**
+     * Access database manager for advanced operations
+     */
+    getDatabase(): DatabaseManager;
+    /**
+     * Access entity manager for configuration management
+     */
+    getEntityManager(): import(".").EntityManager;
     /**
      * Disconnect from database
      */
@@ -33,13 +32,20 @@ export declare class SchemaKit {
     /**
      * Clear cached entity definitions
      */
-    clearEntityCache(entityName?: string): void;
+    clearEntityCache(entityName?: string, tenantId?: string): void;
+    /**
+     * Get cache statistics
+     */
     getCacheStats(): {
         entityCacheSize: number;
         entities: string[];
     };
     /**
-     * Create appropriate DB adapter
+     * Get connection information
      */
-    private createDatabaseAdapter;
+    getConnectionInfo(): import("./database/database-manager").ConnectionInfo;
+    /**
+     * Test database connection
+     */
+    testConnection(): Promise<boolean>;
 }

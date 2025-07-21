@@ -27,7 +27,7 @@ export function safeJsonParse<T>(value: string, defaultValue: T): T {
  * @param pretty Whether to format with indentation
  * @returns JSON string or empty string if stringify fails
  */
-export function safeJsonStringify(value: any, pretty: boolean = false): string {
+export function safeJsonStringify(value: any, pretty = false): string {
   try {
     return JSON.stringify(value, null, pretty ? 2 : 0);
   } catch (e) {
@@ -187,7 +187,7 @@ export function setNestedProperty<T extends Record<string, any>>(obj: T, path: s
  * @param removeNull Whether to remove null values (default: false)
  * @returns Cleaned object
  */
-export function removeUndefinedValues<T extends Record<string, any>>(obj: T, removeNull: boolean = false): Partial<T> {
+export function removeUndefinedValues<T extends Record<string, any>>(obj: T, removeNull = false): Partial<T> {
   const result: Partial<T> = {};
 
   for (const key in obj) {
@@ -363,7 +363,7 @@ export function deepEqual(obj1: any, obj2: any): boolean {
  * @param prefix Prefix for keys
  * @returns Flattened object
  */
-export function flattenObject(obj: Record<string, any>, prefix: string = ''): Record<string, any> {
+export function flattenObject(obj: Record<string, any>, prefix = ''): Record<string, any> {
   const result: Record<string, any> = {};
 
   for (const key in obj) {

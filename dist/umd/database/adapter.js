@@ -37,7 +37,7 @@ var __importStar = (this && this.__importStar) || (function () {
         if (v !== undefined) module.exports = v;
     }
     else if (typeof define === "function" && define.amd) {
-        define(["require", "exports", "../errors"], factory);
+        define(["require", "exports", "../errors", "./adapters/sqlite", "./adapters/postgres", "./adapters/inmemory"], factory);
     }
 })(function (require, exports) {
     "use strict";
@@ -48,6 +48,9 @@ var __importStar = (this && this.__importStar) || (function () {
      * Database adapter interface and factory
      */
     const errors_1 = require("../errors");
+    const sqlite_1 = require("./adapters/sqlite");
+    const postgres_1 = require("./adapters/postgres");
+    const inmemory_1 = require("./adapters/inmemory");
     /**
      * Abstract database adapter class
      */
@@ -90,21 +93,11 @@ var __importStar = (this && this.__importStar) || (function () {
         static createSync(type = 'sqlite', config = {}) {
             switch (type.toLowerCase()) {
                 case 'sqlite':
-                    // Import SQLiteAdapter
-                    // Using dynamic import would be better but we need synchronous behavior here
-                    // eslint-disable-next-line @typescript-eslint/no-var-requires
-                    const { SQLiteAdapter } = require('./adapters/sqlite');
-                    return new SQLiteAdapter(config);
+                    return new sqlite_1.SQLiteAdapter(config);
                 case 'postgres':
-                    // Import PostgresAdapter
-                    // eslint-disable-next-line @typescript-eslint/no-var-requires
-                    const { PostgresAdapter } = require('./adapters/postgres');
-                    return new PostgresAdapter(config);
+                    return new postgres_1.PostgresAdapter(config);
                 case 'inmemory':
-                    // Import InMemoryAdapter
-                    // eslint-disable-next-line @typescript-eslint/no-var-requires
-                    const { InMemoryAdapter } = require('./adapters/inmemory');
-                    return new InMemoryAdapter(config);
+                    return new inmemory_1.InMemoryAdapter(config);
                 default:
                     throw new errors_1.DatabaseError('create', new Error(`Unsupported adapter type: ${type}`));
             }

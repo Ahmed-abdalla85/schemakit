@@ -92,8 +92,13 @@ export interface RLSCondition {
     value: any;
 }
 export interface RLSConditions {
-    sql: string;
-    params: any[];
+    sql?: string;
+    params?: any[];
+    conditions?: Array<{
+        field: string;
+        operator: string;
+        value: any;
+    }>;
 }
 export interface ViewDefinition {
     id: string;
