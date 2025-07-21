@@ -4,7 +4,7 @@
 import { DatabaseAdapter } from '../adapter';
 import { DatabaseError } from '../../errors';
 import { processFilterValue } from '../../utils/query-helpers';
-import { QueryManager } from '../../core/query-manager';
+import { QueryManager } from '../query-manager';
 /**
  * PostgreSQL adapter implementation
  * Uses native PostgreSQL implementation with no external dependencies

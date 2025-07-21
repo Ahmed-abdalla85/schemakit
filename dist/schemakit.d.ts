@@ -1,24 +1,28 @@
 import { SchemaKitOptions } from './types';
+import { DatabaseManager } from './database/database-manager';
 export declare class SchemaKit {
     private readonly options;
-    private readonly databaseAdapter;
+    private readonly databaseManager;
     private installManager?;
-    private entityBuilder?;
+    private entityManager?;
+    private validationManager?;
+    private permissionManager?;
+    private workflowManager?;
     constructor(options?: SchemaKitOptions);
     /**
      * Initialize all services
      */
     initialize(): Promise<this>;
     /**
-     * Access entity proxy directly (fluent API)
-     */
-    entity(name: string): import("./core/entity-api").EntityAPI;
-    /**
-     * Access entity proxy with tenant context (multi-tenant API)
+     * Access entity with optional tenant context (unified API)
      * @param name Entity name
-     * @param tenantId Tenant identifier
+     * @param tenantId Tenant identifier (defaults to 'default')
      */
-    entityForTenant(name: string, tenantId: string): import("./core/entity-api").EntityAPI;
+    entity(name: string, tenantId?: string): any;
+    /**
+     * Access database manager for advanced operations
+     */
+    getDatabase(): DatabaseManager;
     /**
      * Disconnect from database
      */
@@ -27,12 +31,19 @@ export declare class SchemaKit {
      * Clear cached entity definitions
      */
     clearEntityCache(entityName?: string, tenantId?: string): void;
+    /**
+     * Get cache statistics
+     */
     getCacheStats(): {
         entityCacheSize: number;
         entities: string[];
     };
     /**
-     * Create appropriate DB adapter
+     * Get connection information
      */
-    private createDatabaseAdapter;
+    getConnectionInfo(): import("./database/database-manager").ConnectionInfo;
+    /**
+     * Test database connection
+     */
+    testConnection(): Promise<boolean>;
 }

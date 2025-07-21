@@ -64,8 +64,8 @@ async function main() {
     console.log('\n4. Multi-tenant Operations:');
     
     // Get entities for different tenants
-    const userEntityTenantA = schemaKit.entityForTenant('user', 'tenant-a');
-    const userEntityTenantB = schemaKit.entityForTenant('user', 'tenant-b');
+    const userEntityTenantA = schemaKit.entity('user', 'tenant-a');
+    const userEntityTenantB = schemaKit.entity('user', 'tenant-b');
     
     console.log('   ✅ Created tenant-specific entity instances');
     console.log('     • userEntityTenantA for tenant "tenant-a"');

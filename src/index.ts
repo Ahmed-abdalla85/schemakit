@@ -12,7 +12,7 @@ export { EntityManager, CacheStats } from './core/entity-manager';
 export { ValidationManager } from './core/validation-manager';
 export { PermissionManager } from './core/permission-manager';
 export { WorkflowManager } from './core/workflow-manager';
-export { EntityBuilder } from './core/entity-builder'; // @deprecated
+// EntityBuilder has been removed - use EntityManager.entity() instead
 
 // Query components (new split)
 export { QueryBuilder } from './core/query/query-builder';

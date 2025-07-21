@@ -84,22 +84,34 @@ export class EntityManager {
   // === ENTITY BUILDER FUNCTIONALITY (merged from EntityBuilder) ===
 
   /**
-   * Returns a fluent EntityAPI instance for the given entity name.
+   * Returns a fluent EntityAPI instance for the given entity name with optional tenant context.
+   * @param entityName Entity name
+   * @param tenantId Tenant ID (defaults to 'default')
    */
-  entity(entityName: string): any {
-    return this.entityForTenant(entityName, 'default');
-  }
-
-  /**
-   * Returns a fluent EntityAPI instance for the given entity name with tenant context.
-   */
-  entityForTenant(entityName: string, tenantId = 'default'): any {
+  entity(entityName: string, tenantId: string = 'default'): any {
     const cacheKey = `${tenantId}:${entityName}`;
     
     if (!this.entityApiCache.has(cacheKey)) {
-      // Note: This would need to be implemented with proper EntityAPI dependency injection
-      // For now, returning a placeholder that indicates this needs to be properly wired
-      throw new Error(`EntityAPI creation needs proper dependency injection setup for ${cacheKey}`);
+      // Create EntityAPI instance with proper dependency injection
+      const { EntityAPI } = require('./entity-api');
+      const { ValidationManager } = require('./validation-manager');
+      const { PermissionManager } = require('./permission-manager');
+      const { WorkflowManager } = require('./workflow-manager');
+      
+      // Create the required managers if they don't exist
+      const validationManager = new ValidationManager();
+      const permissionManager = new PermissionManager(this.databaseManager.getAdapter());
+      const workflowManager = new WorkflowManager(this.databaseManager.getAdapter());
+      
+      const entityApi = new EntityAPI(
+        entityName,
+        this,
+        validationManager,
+        permissionManager,
+        workflowManager,
+        tenantId
+      );
+      this.entityApiCache.set(cacheKey, entityApi);
     }
     
     const cachedEntity = this.entityApiCache.get(cacheKey);
@@ -213,12 +225,15 @@ export class EntityManager {
   /**
    * Clear entity cache
    */
-  clearEntityCache(entityName?: string): void {
+  clearEntityCache(entityName?: string, tenantId?: string): void {
     if (entityName) {
       this.entityCache.delete(entityName);
     } else {
       this.entityCache.clear();
     }
+    
+    // Also clear entity API cache
+    this.clearEntityApiCache(entityName, tenantId);
   }
 
   /**
