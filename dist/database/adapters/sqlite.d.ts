@@ -1,15 +1,17 @@
 /**
  * SQLite database adapter implementation
+ * Supports better-sqlite3 when available, falls back to in-memory mock for zero-dependency
  */
 import { DatabaseAdapter, DatabaseAdapterConfig, ColumnDefinition, TransactionCallback, QueryFilter, QueryOptions } from '../adapter';
 /**
  * SQLite adapter implementation
- * Uses native SQLite implementation with no external dependencies
+ * Uses better-sqlite3 when available, with fallback to in-memory implementation
  */
 export declare class SQLiteAdapter extends DatabaseAdapter {
     private db;
     private connected;
-    private statements;
+    private inTransaction;
+    private Database;
     constructor(config?: DatabaseAdapterConfig);
     /**
      * Connect to SQLite database
@@ -20,7 +22,7 @@ export declare class SQLiteAdapter extends DatabaseAdapter {
      */
     disconnect(): Promise<void>;
     /**
-     * Check if connected to SQLite database
+     * Check if connected to the database
      */
     isConnected(): boolean;
     /**
@@ -51,44 +53,51 @@ export declare class SQLiteAdapter extends DatabaseAdapter {
      */
     getTableColumns(tableName: string): Promise<ColumnDefinition[]>;
     /**
-     * Select records with tenant-aware filtering (EntityKit pattern)
+     * Select records with tenant-aware filtering
      */
     select(table: string, filters: QueryFilter[], options: QueryOptions, tenantId: string): Promise<any[]>;
     /**
-     * Insert a record with tenant context (EntityKit pattern)
+     * Insert a record with tenant context
      */
     insert(table: string, data: Record<string, any>, tenantId?: string): Promise<any>;
     /**
-     * Update a record with tenant context (EntityKit pattern)
+     * Update a record with tenant context
      */
     update(table: string, id: string, data: Record<string, any>, tenantId: string): Promise<any>;
     /**
-     * Delete a record with tenant context (EntityKit pattern)
+     * Delete a record with tenant context
      */
     delete(table: string, id: string, tenantId: string): Promise<void>;
     /**
-     * Count records with tenant-aware filtering (EntityKit pattern)
+     * Count records with tenant-aware filtering
      */
     count(table: string, filters: QueryFilter[], tenantId: string): Promise<number>;
     /**
-     * Find a record by ID with tenant context (EntityKit pattern)
+     * Find a record by ID with tenant context
      */
     findById(table: string, id: string, tenantId: string): Promise<any | null>;
     /**
-     * Create a database schema (simulated with table prefix validation)
+     * Create a database schema (SQLite doesn't support schemas, so this is a no-op)
      */
     createSchema(schemaName: string): Promise<void>;
     /**
-     * Drop a database schema (simulated by dropping all prefixed tables)
+     * Drop a database schema (SQLite doesn't support schemas, so this is a no-op)
      */
     dropSchema(schemaName: string): Promise<void>;
     /**
-     * List all database schemas (simulated by extracting prefixes from table names)
+     * List all database schemas (SQLite doesn't support schemas)
      */
     listSchemas(): Promise<string[]>;
-    private buildSQLiteSelectQuery;
-    private buildSQLiteInsertQuery;
-    private buildSQLiteUpdateQuery;
-    private buildSQLiteCountQuery;
-    private mapSQLiteOperator;
+    /**
+     * Map generic column types to SQLite types
+     */
+    private mapColumnType;
+    /**
+     * Build filter clause for a QueryFilter
+     */
+    private buildFilterClause;
 }
+/**
+ * Factory function to create SQLite adapter
+ */
+export declare function createSQLiteAdapter(config?: DatabaseAdapterConfig): SQLiteAdapter;

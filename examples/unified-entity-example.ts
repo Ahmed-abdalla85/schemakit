@@ -13,12 +13,14 @@ async function workingExample() {
   try {
     // Initialize SchemaKit with in-memory database
     console.log('1. Initializing SchemaKit...');
-    const schemaKit = new SchemaKit({
-      adapter: {
-        type: 'inmemory',
-        config: {}
+      const schemaKit = new SchemaKit({
+    adapter: {
+      type: 'sqlite',
+      config: {
+        filename: ':memory:' // Use in-memory SQLite for examples
       }
-    });
+    }
+  });
 
     await schemaKit.initialize();
     console.log('✅ SchemaKit initialized with seeded user entity\n');
