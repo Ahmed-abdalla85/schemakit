@@ -21,9 +21,12 @@ async function main() {
     console.log('1. Initializing SchemaKit...');
     schemaKit = new SchemaKit({
       adapter: {
-        type: 'inmemory',
-        config: {}
+        type: 'sqlite',
+        config: {
+          filename: ':memory:' // Use in-memory SQLite for examples
+        }
       }
+      // Note: SQLite adapter requires 'better-sqlite3' to be installed
     });
 
     await schemaKit.initialize();

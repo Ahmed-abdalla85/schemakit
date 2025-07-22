@@ -274,6 +274,11 @@ const schemaKit = new SchemaKit({
 });
 ```
 
+**Note:** SQLite adapter requires `better-sqlite3` to be installed separately:
+```bash
+npm install better-sqlite3
+```
+
 ### PostgreSQL
 
 ```typescript

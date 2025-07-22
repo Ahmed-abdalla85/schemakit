@@ -14,7 +14,9 @@ async function simpleExample() {
   try {
     // Create a database adapter
     console.log('1. Creating database adapter...');
-    const databaseAdapter = await DatabaseAdapter.create('inmemory', {});
+    const databaseAdapter = await DatabaseAdapter.create('sqlite', {
+      filename: ':memory:' // Use in-memory SQLite for examples
+    });
     await databaseAdapter.connect();
     const dbAdapter = createDbAdapter(databaseAdapter);
     console.log('✅ Database adapter created\n');
