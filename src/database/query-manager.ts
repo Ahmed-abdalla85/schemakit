@@ -46,14 +46,37 @@ export class QueryManager {
     let sql = `SELECT * FROM ${qualifiedTable}`;
     const params: any[] = [];
 
+    // Collect all conditions
+    const conditions: string[] = [];
+
+    // Add tenant filter
+    if (tenantId && tenantId !== 'default') {
+      let placeholder;
+      if (this.databaseType === 'postgres') {
+        placeholder = `$${params.length + 1}`;
+      } else {
+        placeholder = '?';
+      }
+      // conditions.push(`tenant_id = ${placeholder}`);
+      // params.push(tenantId);
+    }
+
     // Add custom filters
     if (filters.length > 0) {
-      const filterConditions = filters.map((filter, index) => {
+      filters.forEach((filter, idx) => {
+        let placeholder;
+        if (this.databaseType === 'postgres') {
+          placeholder = `$${params.length + 1}`;
+        } else {
+          placeholder = '?';
+        }
+        conditions.push(`${filter.field} ${filter.operator} ${placeholder}`);
         params.push(filter.value);
-        return `${filter.field} ${filter.operator} ?`;
-      }).join(' AND ');
-      
-      sql += ` WHERE ${filterConditions}`;
+      });
+    }
+
+    if (conditions.length > 0) {
+      sql += ` WHERE ${conditions.join(' AND ')}`;
     }
 
     // Add ordering

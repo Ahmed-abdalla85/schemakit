@@ -59,15 +59,15 @@ export interface Context {
 // ===== ENTITY DEFINITIONS =====
 
 export interface EntityDefinition {
-  id: string;
-  name: string;
-  table_name: string;
-  display_name: string;
-  description: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  metadata?: Record<string, any>;
+  entity_id: string;
+  entity_name: string;
+  entity_table_name: string;
+  entity_display_name: string;
+  entity_description: string;
+  entity_is_active: boolean;
+  entity_created_at: string;
+  entity_updated_at: string;
+  entity_metadata?: Record<string, any>;
 }
 
 export interface FieldDefinition {

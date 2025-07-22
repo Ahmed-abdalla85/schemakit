@@ -45,11 +45,21 @@ export class PostgresAdapter extends DatabaseAdapter {
         connectionTimeoutMillis: this.config.connectionTimeout || 30000,
         query_timeout: this.config.queryTimeout || 30000,
       });
-      
       // Connect to the database
       await this.client.connect();
       this.connected = true;
     } catch (error) {
+      // Enhanced logging for debugging connection failures
+      console.error('[PostgresAdapter.connect] Connection error:', error);
+      if (error instanceof Error) {
+        console.error('Message:', error.message);
+        if ((error as any).code) {
+          console.error('Error code:', (error as any).code);
+        }
+        if ((error as any).stack) {
+          console.error('Stack:', (error as any).stack);
+        }
+      }
       throw new DatabaseError('connect', error);
     }
   }
@@ -89,6 +99,7 @@ export class PostgresAdapter extends DatabaseAdapter {
       const result = await this.client!.query(sql, params);
       return result.rows;
     } catch (error) {
+      console.log(sql,params,"error")
       throw new DatabaseError('query', error);
     }
   }

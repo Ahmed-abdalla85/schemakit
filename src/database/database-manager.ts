@@ -15,13 +15,12 @@ import { FluentQueryBuilder } from './fluent-query-builder';
 import { SQLiteAdapter } from './adapters/sqlite';
 import { PostgresAdapter } from './adapters/postgres';
 import { InMemoryAdapter } from './adapters/inmemory';
-import { InMemoryAdapter as InMemorySimplifiedAdapter } from './adapters/inmemory-simplified';
 
 export interface DatabaseConfig {
   type: 'sqlite' | 'postgres' | 'inmemory' | 'inmemory-simplified';
   host?: string;
   port?: number;
-  username?: string;
+  user?: string;
   password?: string;
   database?: string;
   filename?: string;  // For SQLite
@@ -71,6 +70,19 @@ export class DatabaseManager {
    * @param config Database configuration
    * @returns DatabaseAdapter instance
    */
+  /**
+   * Create a database adapter instance based on the provided configuration.
+   * 
+   * @param config - The database configuration object, which includes the type of adapter 
+   *                 ('sqlite', 'postgres', 'inmemory'), connection parameters, and additional options.
+   * 
+   * @returns A DatabaseAdapter instance corresponding to the specified type. If the adapter 
+   *          type is 'sqlite', a SQLiteAdapter is returned. If the type is 'postgres', a 
+   *          PostgresAdapter is returned, provided that the host and database are configured; 
+   *          otherwise, it falls back to an InMemorySimplifiedAdapter. If the type is 'inmemory', 
+   *          an InMemoryAdapter is returned. For any unknown types, the method defaults to 
+   *          returning an InMemoryAdapter.
+   */
   private createAdapter(config: DatabaseConfig): DatabaseAdapter {
     switch (config.type) {
       case 'sqlite':
@@ -82,12 +94,12 @@ export class DatabaseManager {
       case 'postgres':
         if (!config.host || !config.database) {
           console.warn('PostgreSQL requires host and database configuration, falling back to inmemory');
-          return new InMemorySimplifiedAdapter(config.options);
+          return new InMemoryAdapter(config.options);
         }
         return new PostgresAdapter({
           host: config.host,
           port: config.port || 5432,
-          user: config.username,
+          user: config.user,
           password: config.password,
           database: config.database,
           ...config.options
@@ -95,13 +107,10 @@ export class DatabaseManager {
       
       case 'inmemory':
         return new InMemoryAdapter(config.options);
-      
-      case 'inmemory-simplified':
-        return new InMemorySimplifiedAdapter(config.options);
-      
+  
       default:
         // Fallback to inmemory-simplified for unknown types
-        return new InMemorySimplifiedAdapter(config.options);
+        return new InMemoryAdapter(config.options);
     }
   }
 

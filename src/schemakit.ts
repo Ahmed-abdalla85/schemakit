@@ -1,114 +1,63 @@
 import { SchemaKitOptions } from './types';
-import { DatabaseManager, DatabaseConfig } from './database/database-manager';
-import { InstallManager } from './database/install-manager';
-import { UnifiedEntityFactory } from './entities/unified';
+import { DB } from './database/db';
+import { Entity } from './entities/entity/entity';
 import { SchemaKitError } from './errors';
 
 export class SchemaKit {
   private readonly options: Readonly<SchemaKitOptions>;
-  private readonly databaseManager: DatabaseManager;
-
-  private installManager?: InstallManager;
-  private entityFactory?: UnifiedEntityFactory;
+  private readonly db: DB;
 
   constructor(options: SchemaKitOptions = {}) {
     this.options = options;
-    
-    // Create database configuration from options
     const adapterConfig = options.adapter || {};
-    const databaseConfig: DatabaseConfig = {
-      type: (adapterConfig.type as any) || 'inmemory-simplified',
-      ...adapterConfig.config
-    };
-    
-    this.databaseManager = new DatabaseManager(databaseConfig);
+    // Allow tenantId in config, but fallback to 'system'
+    this.db = new DB({
+      adapter: adapterConfig.type || 'inmemory',
+      tenantId: (adapterConfig as any).tenantId || 'system',
+      config: adapterConfig.config || {}
+    });
   }
 
   /**
    * Initialize all services
    */
   async initialize(): Promise<this> {
-    try {
-      await this.databaseManager.connect();
-
-      // Initialize UnifiedEntityFactory with DatabaseAdapter
-      this.entityFactory = new UnifiedEntityFactory(this.databaseManager.getAdapter(), {
-        cacheEnabled: this.options.cache?.enabled !== false,
-        tenantId: 'default'
-      });
-
-      // Initialize system tables
-      this.installManager = new InstallManager(this.databaseManager.getAdapter());
-      await this.installManager.ensureReady();
-
-      return this;
-    } catch (error: any) {
-      throw new SchemaKitError(`Failed to initialize SchemaKit: ${error.message}`);
-    }
+    // No-op for now; could connect DB if needed
+    return this;
   }
 
   /**
-   * Access entity with optional tenant context (unified API)
-   * Returns UnifiedEntityHandler instance - the standalone gateway for entity operations
+   * Get or create an Entity instance
+   * Returns Entity instance - the standalone gateway for entity operations
    * @param name Entity name
    * @param tenantId Tenant identifier (defaults to 'default')
    */
-  async entity(name: string, tenantId = 'default') {
-    if (!this.entityFactory) {
-      throw new SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
-    }
-    return this.entityFactory.createHandler(name, tenantId);
+  async entity(name: string, tenantId = 'default'): Promise<Entity> {
+    const entity = Entity.create(name, tenantId, this.db);
+    await entity.initialize();
+    return entity;
   }
 
   /**
-   * Access database manager for advanced operations
-   */
-  getDatabase(): DatabaseManager {
-    return this.databaseManager;
-  }
-
-  /**
-   * Access entity factory for handler creation and cache management
-   */
-  getEntityFactory() {
-    if (!this.entityFactory) {
-      throw new SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
-    }
-    return this.entityFactory;
-  }
-
-  /**
-   * Disconnect from database
-   */
-  async disconnect(): Promise<void> {
-    await this.databaseManager.disconnect();
-  }
-
-  /**
-   * Clear cached entity handlers
+   * Clear cached entity definitions
    */
   clearEntityCache(entityName?: string, tenantId?: string): void {
-    this.getEntityFactory()?.clearCache(entityName, tenantId);
+    Entity.clearCache(entityName, tenantId);
   }
 
   /**
    * Get cache statistics
    */
-  getCacheStats(): { handlerCacheSize: number; cachedEntities: string[] } {
-    return this.getEntityFactory()?.getCacheStats() || { handlerCacheSize: 0, cachedEntities: [] };
+  getCacheStats(): { size: number; entities: string[] } {
+    return Entity.getCacheStats();
   }
 
-  /**
-   * Get connection information
-   */
-  getConnectionInfo() {
-    return this.databaseManager.getConnectionInfo();
+
+  static clearCache(entityName?: string, tenantId?: string): void {
+    Entity.clearCache(entityName, tenantId);
   }
 
-  /**
-   * Test database connection
-   */
-  async testConnection(): Promise<boolean> {
-    return this.databaseManager.testConnection();
+  static getCacheStats(): { size: number; entities: string[] } {
+    return Entity.getCacheStats();
   }
 }
