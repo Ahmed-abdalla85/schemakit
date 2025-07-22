@@ -143,4 +143,21 @@ export class QueryManager {
 
     return { sql, params };
   }
+
+  // ===== SCHEMA MANAGEMENT QUERIES =====
+
+  buildCreateSchemaQuery(schemaName: string): BuiltQuery {
+    const sql = `CREATE SCHEMA IF NOT EXISTS ${schemaName}`;
+    return { sql, params: [] };
+  }
+
+  buildDropSchemaQuery(schemaName: string): BuiltQuery {
+    const sql = `DROP SCHEMA IF EXISTS ${schemaName} CASCADE`;
+    return { sql, params: [] };
+  }
+
+  buildListSchemasQuery(): BuiltQuery {
+    const sql = `SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('information_schema', 'pg_catalog', 'pg_toast')`;
+    return { sql, params: [] };
+  }
 }

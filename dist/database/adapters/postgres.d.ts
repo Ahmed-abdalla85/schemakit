@@ -4,7 +4,7 @@
 import { DatabaseAdapter, DatabaseAdapterConfig, ColumnDefinition, TransactionCallback, QueryFilter, QueryOptions } from '../adapter';
 /**
  * PostgreSQL adapter implementation
- * Uses native PostgreSQL implementation with no external dependencies
+ * Uses the pg package for PostgreSQL connectivity
  */
 export declare class PostgresAdapter extends DatabaseAdapter {
     private client;
