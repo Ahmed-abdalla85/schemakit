@@ -16,7 +16,6 @@ export { WorkflowManager } from './entities/workflow';
 // Query components (organized)
 export { QueryBuilder } from './entities/query';
 export { PaginationManager } from './entities/query';
-export { QueryExecutor } from './entities/query';
 
 // Validators (organized)
 export { TypeValidators } from './entities/validation';
@@ -29,15 +28,6 @@ export { SchemaLoader } from './database/schema-loader';
 
 // Database module (new structure) - Main gateway for all database operations
 export * from './database';
-export {
-  DatabaseManager,
-  FluentQueryBuilder,
-  createDatabase,
-  createInMemoryDatabase,
-  createSQLiteDatabase,
-  createPostgresDatabase
-} from './database';
-
 // Types (simplified)
 export * from './types';
 
