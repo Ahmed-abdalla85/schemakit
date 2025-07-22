@@ -8,16 +8,16 @@ const adapter_1 = require("../adapter");
 const errors_1 = require("../../errors");
 const query_helpers_1 = require("../../utils/query-helpers");
 const query_manager_1 = require("../query-manager");
+const pg_1 = require("pg");
 /**
  * PostgreSQL adapter implementation
- * Uses native PostgreSQL implementation with no external dependencies
+ * Uses the pg package for PostgreSQL connectivity
  */
 class PostgresAdapter extends adapter_1.DatabaseAdapter {
     constructor(config = {}) {
         super(config);
         this.client = null;
         this.connected = false;
-        this.queryManager = null; // Will be initialized with QueryManager
         // Set default PostgreSQL connection options
         this.config.host = this.config.host || 'localhost';
         this.config.port = this.config.port || 5432;
@@ -32,16 +32,19 @@ class PostgresAdapter extends adapter_1.DatabaseAdapter {
         if (this.connected)
             return;
         try {
-            // We'll implement a minimal PostgreSQL interface
-            // This is a placeholder for the actual implementation
-            this.client = {
-                // Placeholder for PostgreSQL client connection
-                query: async (sql, params = []) => {
-                    // Implementation will be added
-                    console.log(`Executing SQL: ${sql} with params: ${JSON.stringify(params)}`);
-                    return { rows: [], rowCount: 0 };
-                }
-            };
+            // Create a new PostgreSQL client with the configuration
+            this.client = new pg_1.Client({
+                host: this.config.host,
+                port: this.config.port,
+                database: this.config.database,
+                user: this.config.user,
+                password: this.config.password,
+                ssl: this.config.ssl ? { rejectUnauthorized: false } : undefined,
+                connectionTimeoutMillis: this.config.connectionTimeout || 30000,
+                query_timeout: this.config.queryTimeout || 30000,
+            });
+            // Connect to the database
+            await this.client.connect();
             this.connected = true;
         }
         catch (error) {
@@ -52,10 +55,11 @@ class PostgresAdapter extends adapter_1.DatabaseAdapter {
      * Disconnect from PostgreSQL database
      */
     async disconnect() {
-        if (!this.connected)
+        if (!this.connected || !this.client)
             return;
         try {
             // Close the database connection
+            await this.client.end();
             this.client = null;
             this.connected = false;
         }
@@ -94,7 +98,7 @@ class PostgresAdapter extends adapter_1.DatabaseAdapter {
         try {
             const result = await this.client.query(sql, params);
             return {
-                changes: result.rowCount,
+                changes: result.rowCount || 0,
                 lastInsertId: result.rows?.[0]?.id
             };
         }
@@ -229,6 +233,7 @@ class PostgresAdapter extends adapter_1.DatabaseAdapter {
             // Process filter values for special operators
             const processedFilters = filters.map(filter => ({
                 ...filter,
+                operator: filter.operator || 'eq',
                 value: (0, query_helpers_1.processFilterValue)(filter.operator || 'eq', filter.value)
             }));
             const { sql, params } = this.queryManager.buildSelectQuery(table, tenantId, processedFilters, options);
@@ -308,6 +313,7 @@ class PostgresAdapter extends adapter_1.DatabaseAdapter {
             // Process filter values for special operators
             const processedFilters = filters.map(filter => ({
                 ...filter,
+                operator: filter.operator || 'eq',
                 value: (0, query_helpers_1.processFilterValue)(filter.operator || 'eq', filter.value)
             }));
             const { sql, params } = this.queryManager.buildCountQuery(table, tenantId, processedFilters);

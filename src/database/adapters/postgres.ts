@@ -5,15 +5,16 @@ import { DatabaseAdapter, DatabaseAdapterConfig, ColumnDefinition, TransactionCa
 import { DatabaseError } from '../../errors';
 import { processFilterValue } from '../../utils/query-helpers';
 import { QueryManager } from '../query-manager';
+import { Client } from 'pg';
 
 /**
  * PostgreSQL adapter implementation
- * Uses native PostgreSQL implementation with no external dependencies
+ * Uses the pg package for PostgreSQL connectivity
  */
 export class PostgresAdapter extends DatabaseAdapter {
-  private client: any = null;
+  private client: Client | null = null;
   private connected = false;
-  private queryManager: any = null; // Will be initialized with QueryManager
+  private queryManager: QueryManager;
 
   constructor(config: DatabaseAdapterConfig = {}) {
     super(config);
@@ -33,17 +34,20 @@ export class PostgresAdapter extends DatabaseAdapter {
     if (this.connected) return;
 
     try {
-      // We'll implement a minimal PostgreSQL interface
-      // This is a placeholder for the actual implementation
-      this.client = {
-        // Placeholder for PostgreSQL client connection
-        query: async (sql: string, params: any[] = []) => {
-          // Implementation will be added
-          console.log(`Executing SQL: ${sql} with params: ${JSON.stringify(params)}`);
-          return { rows: [], rowCount: 0 };
-        }
-      };
+      // Create a new PostgreSQL client with the configuration
+      this.client = new Client({
+        host: this.config.host,
+        port: this.config.port,
+        database: this.config.database,
+        user: this.config.user,
+        password: this.config.password,
+        ssl: this.config.ssl ? { rejectUnauthorized: false } : undefined,
+        connectionTimeoutMillis: this.config.connectionTimeout || 30000,
+        query_timeout: this.config.queryTimeout || 30000,
+      });
       
+      // Connect to the database
+      await this.client.connect();
       this.connected = true;
     } catch (error) {
       throw new DatabaseError('connect', error);
@@ -54,10 +58,11 @@ export class PostgresAdapter extends DatabaseAdapter {
    * Disconnect from PostgreSQL database
    */
   async disconnect(): Promise<void> {
-    if (!this.connected) return;
+    if (!this.connected || !this.client) return;
 
     try {
       // Close the database connection
+      await this.client.end();
       this.client = null;
       this.connected = false;
     } catch (error) {
@@ -81,7 +86,7 @@ export class PostgresAdapter extends DatabaseAdapter {
     }
 
     try {
-      const result = await this.client.query(sql, params);
+      const result = await this.client!.query(sql, params);
       return result.rows;
     } catch (error) {
       throw new DatabaseError('query', error);
@@ -97,9 +102,9 @@ export class PostgresAdapter extends DatabaseAdapter {
     }
 
     try {
-      const result = await this.client.query(sql, params);
+      const result = await this.client!.query(sql, params);
       return { 
-        changes: result.rowCount,
+        changes: result.rowCount || 0,
         lastInsertId: result.rows?.[0]?.id
       };
     } catch (error) {
@@ -258,11 +263,12 @@ export class PostgresAdapter extends DatabaseAdapter {
       // Process filter values for special operators
       const processedFilters = filters.map(filter => ({
         ...filter,
+        operator: filter.operator || 'eq',
         value: processFilterValue(filter.operator || 'eq', filter.value)
       }));
 
       const { sql, params } = this.queryManager.buildSelectQuery(table, tenantId, processedFilters, options);
-      const result = await this.client.query(sql, params);
+      const result = await this.client!.query(sql, params);
       return result.rows;
     } catch (error) {
       throw new DatabaseError('select', error);
@@ -280,7 +286,7 @@ export class PostgresAdapter extends DatabaseAdapter {
     try {
       if (tenantId) {
         const { sql, params } = this.queryManager.buildInsertQuery(table, tenantId, data);
-        const result = await this.client.query(sql, params);
+        const result = await this.client!.query(sql, params);
         return result.rows[0];
       } else {
         // Fallback to non-tenant insert for backward compatibility
@@ -289,7 +295,7 @@ export class PostgresAdapter extends DatabaseAdapter {
         const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
         
         const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`;
-        const result = await this.client.query(query, values);
+        const result = await this.client!.query(query, values);
         return result.rows[0];
       }
     } catch (error) {
@@ -307,7 +313,7 @@ export class PostgresAdapter extends DatabaseAdapter {
 
     try {
       const { sql, params } = this.queryManager.buildUpdateQuery(table, tenantId, id, data);
-      const result = await this.client.query(sql, params);
+      const result = await this.client!.query(sql, params);
       return result.rows[0];
     } catch (error) {
       throw new DatabaseError('update', error);
@@ -324,7 +330,7 @@ export class PostgresAdapter extends DatabaseAdapter {
 
     try {
       const { sql, params } = this.queryManager.buildDeleteQuery(table, tenantId, id);
-      await this.client.query(sql, params);
+      await this.client!.query(sql, params);
     } catch (error) {
       throw new DatabaseError('delete', error);
     }
@@ -342,11 +348,12 @@ export class PostgresAdapter extends DatabaseAdapter {
       // Process filter values for special operators
       const processedFilters = filters.map(filter => ({
         ...filter,
+        operator: filter.operator || 'eq',
         value: processFilterValue(filter.operator || 'eq', filter.value)
       }));
 
       const { sql, params } = this.queryManager.buildCountQuery(table, tenantId, processedFilters);
-      const result = await this.client.query(sql, params);
+      const result = await this.client!.query(sql, params);
       return parseInt(result.rows[0].count, 10);
     } catch (error) {
       throw new DatabaseError('count', error);
@@ -363,7 +370,7 @@ export class PostgresAdapter extends DatabaseAdapter {
 
     try {
       const { sql, params } = this.queryManager.buildFindByIdQuery(table, tenantId, id);
-      const result = await this.client.query(sql, params);
+      const result = await this.client!.query(sql, params);
       return result.rows[0] || null;
     } catch (error) {
       throw new DatabaseError('findById', error);
@@ -382,7 +389,7 @@ export class PostgresAdapter extends DatabaseAdapter {
 
     try {
       const { sql, params } = this.queryManager.buildCreateSchemaQuery(schemaName);
-      await this.client.query(sql, params);
+      await this.client!.query(sql, params);
     } catch (error) {
       throw new DatabaseError('createSchema', error);
     }
@@ -398,7 +405,7 @@ export class PostgresAdapter extends DatabaseAdapter {
 
     try {
       const { sql, params } = this.queryManager.buildDropSchemaQuery(schemaName);
-      await this.client.query(sql, params);
+      await this.client!.query(sql, params);
     } catch (error) {
       throw new DatabaseError('dropSchema', error);
     }
@@ -414,7 +421,7 @@ export class PostgresAdapter extends DatabaseAdapter {
 
     try {
       const { sql, params } = this.queryManager.buildListSchemasQuery();
-      const result = await this.client.query(sql, params);
+      const result = await this.client!.query(sql, params);
       return result.rows.map((row: any) => row.schema_name);
     } catch (error) {
       throw new DatabaseError('listSchemas', error);
