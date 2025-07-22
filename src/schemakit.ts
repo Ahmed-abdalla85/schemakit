@@ -1,7 +1,7 @@
 import { SchemaKitOptions } from './types';
 import { DatabaseManager, DatabaseConfig } from './database/database-manager';
 import { InstallManager } from './database/install-manager';
-import { EntityAPIFactory } from './entities/entity/entity-api-factory';
+import { Entity } from './entities/entity/entity';
 import { SchemaKitError } from './errors';
 
 export class SchemaKit {
@@ -9,7 +9,6 @@ export class SchemaKit {
   private readonly databaseManager: DatabaseManager;
 
   private installManager?: InstallManager;
-  private entityAPIFactory?: EntityAPIFactory;
 
   constructor(options: SchemaKitOptions = {}) {
     this.options = options;
@@ -31,9 +30,6 @@ export class SchemaKit {
     try {
       await this.databaseManager.connect();
 
-      // Initialize EntityAPIFactory with DatabaseManager (handles all manager creation)
-      this.entityAPIFactory = new EntityAPIFactory(this.databaseManager);
-
       // Initialize system tables
       this.installManager = new InstallManager(this.databaseManager.getAdapter());
       await this.installManager.ensureReady();
@@ -46,15 +42,15 @@ export class SchemaKit {
 
   /**
    * Access entity with optional tenant context (unified API)
-   * Returns EntityAPI instance - the standalone gateway for entity operations
+   * Returns Entity instance - the standalone gateway for entity operations
    * @param name Entity name
    * @param tenantId Tenant identifier (defaults to 'default')
    */
-  entity(name: string, tenantId = 'default') {
-    if (!this.entityAPIFactory) {
+  entity(name: string, tenantId = 'default'): Entity {
+    if (!this.installManager) {
       throw new SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
     }
-    return this.entityAPIFactory.createEntityAPI(name, tenantId);
+    return Entity.create(name, tenantId, this.databaseManager);
   }
 
   /**
@@ -65,13 +61,10 @@ export class SchemaKit {
   }
 
   /**
-   * Access entity manager for configuration management
+   * Access database manager for configuration management
    */
-  getEntityManager() {
-    if (!this.entityAPIFactory) {
-      throw new SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
-    }
-    return this.entityAPIFactory.getEntityManager();
+  getDatabaseManager(): DatabaseManager {
+    return this.databaseManager;
   }
 
   /**
@@ -85,14 +78,14 @@ export class SchemaKit {
    * Clear cached entity definitions
    */
   clearEntityCache(entityName?: string, tenantId?: string): void {
-    this.getEntityManager()?.clearEntityCache(entityName);
+    Entity.clearCache(entityName, tenantId);
   }
 
   /**
    * Get cache statistics
    */
-  getCacheStats(): { entityCacheSize: number; entities: string[] } {
-    return this.getEntityManager()?.getCacheStats() || { entityCacheSize: 0, entities: [] };
+  getCacheStats(): { size: number; entities: string[] } {
+    return Entity.getCacheStats();
   }
 
   /**

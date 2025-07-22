@@ -3,9 +3,8 @@
  * Core entity management functionality
  */
 
-// New streamlined entity classes (recommended)
+// New streamlined entity class (recommended)
 export { Entity } from './entity';
-export { EntityFactory, EntityCacheStats } from './entity-factory';
 
 // Legacy classes (for backward compatibility)
 export { EntityManager, CacheStats } from './entity-manager';

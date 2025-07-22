@@ -1,10 +1,10 @@
 import { SchemaKitOptions } from './types';
 import { DatabaseManager } from './database/database-manager';
+import { Entity } from './entities/entity/entity';
 export declare class SchemaKit {
     private readonly options;
     private readonly databaseManager;
     private installManager?;
-    private entityAPIFactory?;
     constructor(options?: SchemaKitOptions);
     /**
      * Initialize all services
@@ -12,19 +12,19 @@ export declare class SchemaKit {
     initialize(): Promise<this>;
     /**
      * Access entity with optional tenant context (unified API)
-     * Returns EntityAPI instance - the standalone gateway for entity operations
+     * Returns Entity instance - the standalone gateway for entity operations
      * @param name Entity name
      * @param tenantId Tenant identifier (defaults to 'default')
      */
-    entity(name: string, tenantId?: string): import("./entities").EntityAPI;
+    entity(name: string, tenantId?: string): Entity;
     /**
      * Access database manager for advanced operations
      */
     getDatabase(): DatabaseManager;
     /**
-     * Access entity manager for configuration management
+     * Access database manager for configuration management
      */
-    getEntityManager(): import(".").EntityManager;
+    getDatabaseManager(): DatabaseManager;
     /**
      * Disconnect from database
      */
@@ -37,7 +37,7 @@ export declare class SchemaKit {
      * Get cache statistics
      */
     getCacheStats(): {
-        entityCacheSize: number;
+        size: number;
         entities: string[];
     };
     /**

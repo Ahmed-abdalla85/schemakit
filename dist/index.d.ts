@@ -4,7 +4,7 @@
  * Simple, focused API for entity management with enterprise architecture underneath.
  */
 export { SchemaKit } from './schemakit';
-export { EntityManager, CacheStats } from './entities/entity';
+export { Entity, EntityManager, CacheStats } from './entities/entity';
 export { ValidationManager } from './entities/validation';
 export { PermissionManager } from './entities/permission';
 export { WorkflowManager } from './entities/workflow';

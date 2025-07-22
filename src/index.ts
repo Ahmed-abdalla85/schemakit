@@ -7,8 +7,8 @@
 // Core SchemaKit class (optimized)
 export { SchemaKit } from './schemakit';
 
-// Core managers (organized by entities)
-export { EntityManager, CacheStats } from './entities/entity';
+// Core entity classes (organized by entities)
+export { Entity, EntityManager, CacheStats } from './entities/entity';
 export { ValidationManager } from './entities/validation';
 export { PermissionManager } from './entities/permission';
 export { WorkflowManager } from './entities/workflow';
