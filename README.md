@@ -23,13 +23,13 @@ SchemaKit lets you create, validate, and manage entities and data at runtime, wi
 ## 📦 Installation
 
 ```bash
-npm install @MobtakronIO/schemakit
+npm install @mobtakronio/schemakit
 ```
 
 ## 🚀 Quick Start
 
 ```typescript
-import { SchemaKit } from '@MobtakronIO/schemakit';
+import { SchemaKit } from '@mobtakronio/schemakit';
 
 // Initialize SchemaKit
 const schemaKit = new SchemaKit({
@@ -56,10 +56,10 @@ const updatedUser = await user.update(1,{
 });
 
 // Find All users
-const Entities = await user.read();
+const users = await user.read();
 
 // Find user by name
-const fieldRecord = await user.read({user_name:"John Doe"});
+const userRecord = await user.read({user_name:"John Doe"});
         
 // Delete user
 await user.delete(1);
@@ -252,7 +252,7 @@ npm run build:umd
 
 ## 📄 License
 
-MIT © Ahmed Abdalla
+MIT © Mobtakron
 
 ## 🤝 Contributing
 

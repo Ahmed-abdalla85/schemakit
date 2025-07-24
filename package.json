@@ -1,5 +1,5 @@
 {
-  "name": "@MobtakronIO/schemakit",
+  "name": "@mobtakronio/schemakit",
   "version": "0.1.2",
   "description": "Dynamic entity management system with runtime schema creation, validation, and CRUD operations for Node.js backends.",
   "main": "dist/index.mjs",
@@ -22,9 +22,8 @@
     "test:coverage": "jest --coverage",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
-    "clean": "rimraf dist",
-    "prepublishOnly": "npm run test && npm run build:all",
-    "prepare": "npm run build"
+    "prepublishOnly": "npm run test && npm run build:vite",
+    "prepare": "npm run build:vite"
   },
   "keywords": [
     "schema",
