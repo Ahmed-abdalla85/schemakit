@@ -26,6 +26,7 @@ export class Entity {
   public rls: RLSDefinition[] = [];
   public views: ViewDefinition[] = [];
   private entityDefinition: EntityDefinition | null = null;
+  private tableName: string = '';
   static create(entityName: string, tenantId: string, db: DB): Entity {
     const cacheKey = `${tenantId}:${entityName}`;
     if (Entity.cache.has(cacheKey)) return Entity.cache.get(cacheKey)!;
@@ -65,6 +66,7 @@ export class Entity {
       this.workflow = workflows;
       this.rls = [];
       this.views = views;
+      this.tableName = this.entityDefinition.entity_table_name || this.entityName;
       await this.ensureTable();
       this.initialized = true;
     } catch (error) {
@@ -76,7 +78,7 @@ export class Entity {
   /**
    * Create a new record
    */
-  async create(data: Record<string, any>, context: Context = {}): Promise<Record<string, any>> {
+  async insert(data: Record<string, any>, context: Context = {}): Promise<Record<string, any>> {
     await this.ensureInitialized();
     const contextWithTenant = { ...context, tenantId: this.tenantId };
 
@@ -96,7 +98,7 @@ export class Entity {
     };
 
     // Use DB insert
-    await this.db.insert(this.getTableName(), enrichedData);
+    await this.db.insert(this.tableName, enrichedData);
 
     await this.executeWorkflows('create', null, enrichedData, contextWithTenant);
     return enrichedData;
@@ -105,13 +107,13 @@ export class Entity {
   /**
    * Read records with optional filters
    */
-  async read(filters: Record<string, any> = {}, context: Context = {}): Promise<Record<string, any>[]> {
+  async get(filters: Record<string, any> = {}, context: Context = {}): Promise<Record<string, any>[]> {
     await this.ensureInitialized();
     const contextWithTenant = { ...context, tenantId: this.tenantId };
 
     await this.checkPermission('read', contextWithTenant);
 
-    let query = this.db.select('*').from(this.getTableName());
+    let query = this.db.select('*').from(this.tableName);
 
     // Apply filters
     for (const [field, value] of Object.entries(filters)) {
@@ -152,7 +154,7 @@ export class Entity {
     delete updateData.id; // Remove ID from update data
 
     // Use DB update
-    await this.db.update(this.getTableName(), updateData);
+    await this.db.update(this.tableName, updateData);
 
     const newData = { ...oldData, ...updateData };
     await this.executeWorkflows('update', oldData, newData, contextWithTenant);
@@ -175,7 +177,7 @@ export class Entity {
     }
 
     // Use DB delete
-    await this.db.delete(this.getTableName());
+    await this.db.delete(this.tableName);
 
     await this.executeWorkflows('delete', oldData, null, contextWithTenant);
     return true;
@@ -184,13 +186,13 @@ export class Entity {
   /**
    * Find a record by ID
    */
-  async findById(id: string | number, context: Context = {}): Promise<Record<string, any> | null> {
+  async getById(id: string | number, context: Context = {}): Promise<Record<string, any> | null> {
     await this.ensureInitialized();
     const contextWithTenant = { ...context, tenantId: this.tenantId };
 
     await this.checkPermission('read', contextWithTenant);
 
-    let query = this.db.select('*').from(this.getTableName()).where({ id });
+    let query = this.db.select('*').from(this.tableName).where({ id });
 
     // Apply RLS conditions
     const rlsConditions = this.buildRLSConditions(contextWithTenant);

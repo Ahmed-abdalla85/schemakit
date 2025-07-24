@@ -1,52 +1,34 @@
 import { SchemaKitOptions } from './types';
-import { DatabaseManager } from './database/database-manager';
-import { UnifiedEntityFactory } from './entities/unified';
+import { Entity } from './entities/entity/entity';
 export declare class SchemaKit {
     private readonly options;
-    private readonly databaseManager;
-    private installManager?;
-    private entityFactory?;
+    private readonly db;
     constructor(options?: SchemaKitOptions);
     /**
      * Initialize all services
      */
     initialize(): Promise<this>;
     /**
-     * Access entity with optional tenant context (unified API)
-     * Returns UnifiedEntityHandler instance - the standalone gateway for entity operations
+     * Get or create an Entity instance
+     * Returns Entity instance - the standalone gateway for entity operations
      * @param name Entity name
      * @param tenantId Tenant identifier (defaults to 'default')
      */
-    entity(name: string, tenantId?: string): Promise<import("./entities/unified").UnifiedEntityHandler>;
+    entity(name: string, tenantId?: string): Promise<Entity>;
     /**
-     * Access database manager for advanced operations
-     */
-    getDatabase(): DatabaseManager;
-    /**
-     * Access entity factory for handler creation and cache management
-     */
-    getEntityFactory(): UnifiedEntityFactory;
-    /**
-     * Disconnect from database
-     */
-    disconnect(): Promise<void>;
-    /**
-     * Clear cached entity handlers
+     * Clear cached entity definitions
      */
     clearEntityCache(entityName?: string, tenantId?: string): void;
     /**
      * Get cache statistics
      */
     getCacheStats(): {
-        handlerCacheSize: number;
-        cachedEntities: string[];
+        size: number;
+        entities: string[];
     };
-    /**
-     * Get connection information
-     */
-    getConnectionInfo(): import("./database/database-manager").ConnectionInfo;
-    /**
-     * Test database connection
-     */
-    testConnection(): Promise<boolean>;
+    static clearCache(entityName?: string, tenantId?: string): void;
+    static getCacheStats(): {
+        size: number;
+        entities: string[];
+    };
 }

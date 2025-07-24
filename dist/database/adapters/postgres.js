@@ -48,6 +48,17 @@ class PostgresAdapter extends adapter_1.DatabaseAdapter {
             this.connected = true;
         }
         catch (error) {
+            // Enhanced logging for debugging connection failures
+            console.error('[PostgresAdapter.connect] Connection error:', error);
+            if (error instanceof Error) {
+                console.error('Message:', error.message);
+                if (error.code) {
+                    console.error('Error code:', error.code);
+                }
+                if (error.stack) {
+                    console.error('Stack:', error.stack);
+                }
+            }
             throw new errors_1.DatabaseError('connect', error);
         }
     }
@@ -85,6 +96,7 @@ class PostgresAdapter extends adapter_1.DatabaseAdapter {
             return result.rows;
         }
         catch (error) {
+            console.log(sql, params, "error");
             throw new errors_1.DatabaseError('query', error);
         }
     }

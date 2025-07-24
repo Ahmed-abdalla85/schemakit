@@ -33,7 +33,7 @@ async function main() {
     });
 
 
-    await schemaKit.initialize();
+    // await schemaKit.initialize();
 
     
     // Get entity instance (now async and auto-initialized)

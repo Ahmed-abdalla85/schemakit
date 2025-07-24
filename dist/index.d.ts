@@ -4,19 +4,16 @@
  * Simple, focused API for entity management with enterprise architecture underneath.
  */
 export { SchemaKit } from './schemakit';
-export { UnifiedEntityHandler, UnifiedEntityFactory, UnifiedEntityFactoryOptions, DbAdapter, DatabaseAdapterBridge, createDbAdapter } from './entities/unified';
-export { EntityManager, CacheStats } from './entities/entity';
+export { Entity } from './entities/entity';
 export { ValidationManager } from './entities/validation';
 export { PermissionManager } from './entities/permission';
 export { WorkflowManager } from './entities/workflow';
 export { QueryBuilder } from './entities/query';
 export { PaginationManager } from './entities/query';
-export { QueryExecutor } from './entities/query';
 export { TypeValidators } from './entities/validation';
 export { WorkflowActions } from './entities/workflow';
 export { SchemaLoader } from './database/schema-loader';
 export * from './database';
-export { DatabaseManager, FluentQueryBuilder, createDatabase, createInMemoryDatabase, createSQLiteDatabase, createPostgresDatabase } from './database';
 export * from './types';
 export { SchemaKitError } from './errors';
 export * from './utils/date-helpers';
