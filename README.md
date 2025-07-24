@@ -5,6 +5,10 @@
 > 🚧 **ACTIVE DEVELOPMENT** - This library is actively under development. Functionality may change and features are under testing. Expect bugs and incomplete features.
 
 SchemaKit lets you create, validate, and manage entities and data at runtime, with built-in permissions and support for SQLite and PostgreSQL. Written in TypeScript.
+>
+> 🚧 **ACTIVE DEVELOPMENT** - This library is actively under development. Functionality may change and features are under testing. Expect bugs and incomplete features.
+
+SchemaKit lets you create, validate, and manage entities and data at runtime, with built-in permissions and support for SQLite and PostgreSQL. Written in TypeScript.
 
 ## Features
 - Dynamic entities and fields (no migrations)
@@ -43,14 +47,17 @@ const schemaKit = new SchemaKit({
 await schemaKit.initialize();
 
 const user = await schemaKit.entity('users','system');
+const user = await schemaKit.entity('users','system');
 
 // Create a user entity
+await user.create({
 await user.create({
   name: 'John Doe',
   email: 'john@example.com'
 });
 
 // Update user
+const updatedUser = await user.update(1,{
 const updatedUser = await user.update(1,{
   name: 'John Smith'
 });
@@ -62,6 +69,7 @@ const users = await user.read();
 const userRecord = await user.read({user_name:"John Doe"});
         
 // Delete user
+await user.delete(1);
 await user.delete(1);
 ```
 
@@ -262,6 +270,8 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 - 🐛 Issues: [GitHub Issues](https://github.com/MobtakronIO/schemakit/issues)
 - 📖 Documentation: [GitHub Wiki](https://github.com/MobtakronIO/schemakit/wiki)
+- 🐛 Issues: [GitHub Issues](https://github.com/MobtakronIO/schemakit/issues)
+- 📖 Documentation: [GitHub Wiki](https://github.com/MobtakronIO/schemakit/wiki)
 
 ## 🗺️ Roadmap
 
@@ -275,4 +285,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
+Made with ❤️ by Mobtakron
 Made with ❤️ by Mobtakron
