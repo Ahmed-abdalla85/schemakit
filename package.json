@@ -4,10 +4,16 @@
   "description": "Dynamic entity management system with runtime schema creation, validation, and CRUD operations for Node.js backends.",
   "main": "dist/index.mjs",
   "module": "dist/index.mjs",
+  "name": "@mobtakronio/schemakit",
+  "version": "0.1.2",
+  "description": "Dynamic entity management system with runtime schema creation, validation, and CRUD operations for Node.js backends.",
+  "main": "dist/index.mjs",
+  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "files": [
     "dist",
     "sql",
+    "README.md"
     "README.md"
   ],
   "scripts": {
@@ -17,11 +23,15 @@
     "build:all": "npm run clean && npm run build && npm run build:esm && npm run build:umd",
     "build:vite": "vite build",
     "analyze": "npm run build:vite && echo 'Bundle analysis available at dist/bundle-analysis.html'",
+    "build:vite": "vite build",
+    "analyze": "npm run build:vite && echo 'Bundle analysis available at dist/bundle-analysis.html'",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
+    "prepublishOnly": "npm run test && npm run build:vite",
+    "prepare": "npm run build:vite"
     "prepublishOnly": "npm run test && npm run build:vite",
     "prepare": "npm run build:vite"
   },
@@ -65,7 +75,11 @@
     "jest": "^29.5.0",
     "rollup-plugin-visualizer": "^6.0.3",
     "terser": "^5.43.1",
+    "rollup-plugin-visualizer": "^6.0.3",
+    "terser": "^5.43.1",
     "ts-jest": "^29.1.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
   },
