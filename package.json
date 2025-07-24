@@ -40,18 +40,14 @@
     "runtime-schema",
     "entity-management"
   ],
-  "author": "MobtakronIO",
-  "author": "MobtakronIO",
+  "author": "MobtakronIO",  
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/MobtakronIO/schemakit.git"
-    "url": "https://github.com/MobtakronIO/schemakit.git"
   },
   "homepage": "https://github.com/MobtakronIO/schemakit#readme",
-  "homepage": "https://github.com/MobtakronIO/schemakit#readme",
   "bugs": {
-    "url": "https://github.com/MobtakronIO/schemakit/issues"
     "url": "https://github.com/MobtakronIO/schemakit/issues"
   },
   "engines": {
