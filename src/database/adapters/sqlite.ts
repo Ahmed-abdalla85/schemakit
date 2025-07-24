@@ -46,13 +46,14 @@ export class SQLiteAdapter extends DatabaseAdapter {
                 console.log(`Connected to SQLite database: ${this.config.filename}`);
             } catch (error) {
                 // If better-sqlite3 is not available, throw an error
-                throw new DatabaseError(
-                    'SQLite adapter requires better-sqlite3. Please install it: npm install better-sqlite3',
-                    'CONNECTION_ERROR'
-                );
+throw new DatabaseError('connect', {
+                    cause: new Error('SQLite adapter requires better-sqlite3. Please install it: npm install better-sqlite3')
+                });
             }
         } catch (error) {
-            throw new DatabaseError(`Failed to connect to SQLite: ${error}`, 'CONNECTION_ERROR');
+            throw new DatabaseError('connect', {
+                cause: error instanceof Error ? error : new Error(String(error))
+            });
         }
     }
 
@@ -69,7 +70,9 @@ export class SQLiteAdapter extends DatabaseAdapter {
             this.db = null;
             this.connected = false;
         } catch (error) {
-            throw new DatabaseError(`Failed to disconnect from SQLite: ${error}`, 'CONNECTION_ERROR');
+            throw new DatabaseError('disconnect', { 
+                cause: error instanceof Error ? error : new Error(String(error))
+            });
         }
     }
 
@@ -93,7 +96,10 @@ export class SQLiteAdapter extends DatabaseAdapter {
             const result = params ? stmt.all(...params) : stmt.all();
             return result as T[];
         } catch (error) {
-            throw new DatabaseError(`Query failed: ${error}\nSQL: ${sql}`, 'QUERY_ERROR');
+            throw new DatabaseError('query', { 
+                cause: error instanceof Error ? error : new Error(String(error)),
+                context: { sql }
+            });
         }
     }
 
@@ -114,7 +120,10 @@ export class SQLiteAdapter extends DatabaseAdapter {
                 lastInsertId: result.lastInsertRowid
             };
         } catch (error) {
-            throw new DatabaseError(`Execute failed: ${error}\nSQL: ${sql}`, 'EXECUTE_ERROR');
+            throw new DatabaseError('execute', { 
+                cause: error instanceof Error ? error : new Error(String(error)),
+                context: { sql }
+            });
         }
     }
 
@@ -142,7 +151,9 @@ export class SQLiteAdapter extends DatabaseAdapter {
             return result;
         } catch (error) {
             this.inTransaction = false;
-            throw new DatabaseError(`Transaction failed: ${error}`, 'TRANSACTION_ERROR');
+            throw new DatabaseError('transaction', { 
+                cause: error instanceof Error ? error : new Error(String(error))
+            });
         }
     }
 
@@ -161,7 +172,9 @@ export class SQLiteAdapter extends DatabaseAdapter {
             );
             return result.length > 0;
         } catch (error) {
-            throw new DatabaseError(`Failed to check table existence: ${error}`, 'QUERY_ERROR');
+            throw new DatabaseError('table_exists_check', { 
+                cause: error instanceof Error ? error : new Error(String(error))
+            });
         }
     }
 
@@ -222,7 +235,9 @@ export class SQLiteAdapter extends DatabaseAdapter {
             
             await this.execute(sql);
         } catch (error) {
-            throw new DatabaseError(`Failed to create table: ${error}`, 'EXECUTE_ERROR');
+            throw new DatabaseError('create_table', { 
+                cause: error instanceof Error ? error : new Error(String(error))
+            });
         }
     }
 
@@ -252,7 +267,9 @@ export class SQLiteAdapter extends DatabaseAdapter {
                 default: col.dflt_value
             }));
         } catch (error) {
-            throw new DatabaseError(`Failed to get table columns: ${error}`, 'QUERY_ERROR');
+            throw new DatabaseError('get_table_columns', { 
+                cause: error instanceof Error ? error : new Error(String(error))
+            });
         }
     }
 
@@ -306,7 +323,9 @@ export class SQLiteAdapter extends DatabaseAdapter {
 
             return await this.query(sql, params);
         } catch (error) {
-            throw new DatabaseError(`Select failed: ${error}`, 'QUERY_ERROR');
+            throw new DatabaseError('select', { 
+                cause: error instanceof Error ? error : new Error(String(error))
+            });
         }
     }
 
@@ -343,7 +362,9 @@ export class SQLiteAdapter extends DatabaseAdapter {
 
             return insertData;
         } catch (error) {
-            throw new DatabaseError(`Insert failed: ${error}`, 'EXECUTE_ERROR');
+            throw new DatabaseError('insert', { 
+                cause: error instanceof Error ? error : new Error(String(error))
+            });
         }
     }
 
@@ -387,7 +408,9 @@ export class SQLiteAdapter extends DatabaseAdapter {
             }
             return null;
         } catch (error) {
-            throw new DatabaseError(`Update failed: ${error}`, 'EXECUTE_ERROR');
+            throw new DatabaseError('update', { 
+                cause: error instanceof Error ? error : new Error(String(error))
+            });
         }
     }
 
@@ -411,7 +434,9 @@ export class SQLiteAdapter extends DatabaseAdapter {
             const sql = `DELETE FROM ${table} WHERE ${whereClauses.join(' AND ')}`;
             await this.execute(sql, params);
         } catch (error) {
-            throw new DatabaseError(`Delete failed: ${error}`, 'EXECUTE_ERROR');
+            throw new DatabaseError('delete', { 
+                cause: error instanceof Error ? error : new Error(String(error))
+            });
         }
     }
 
@@ -450,7 +475,9 @@ export class SQLiteAdapter extends DatabaseAdapter {
             const result = await this.query<{ count: number }>(sql, params);
             return result[0]?.count || 0;
         } catch (error) {
-            throw new DatabaseError(`Count failed: ${error}`, 'QUERY_ERROR');
+            throw new DatabaseError('count', { 
+                cause: error instanceof Error ? error : new Error(String(error))
+            });
         }
     }
 
@@ -476,7 +503,9 @@ export class SQLiteAdapter extends DatabaseAdapter {
             
             return results[0] || null;
         } catch (error) {
-            throw new DatabaseError(`FindById failed: ${error}`, 'QUERY_ERROR');
+            throw new DatabaseError('find_by_id', { 
+                cause: error instanceof Error ? error : new Error(String(error))
+            });
         }
     }
 
@@ -581,7 +610,10 @@ export class SQLiteAdapter extends DatabaseAdapter {
                 }
                 return { sql: `${field} != ?`, params: [value] };
             default:
-                throw new DatabaseError(`Unsupported operator: ${operator}`, 'QUERY_ERROR');
+                throw new DatabaseError('unsupported_operator', { 
+                cause: new Error(`Unsupported operator: ${operator}`),
+                context: { operator }
+            });
         }
     }
 }

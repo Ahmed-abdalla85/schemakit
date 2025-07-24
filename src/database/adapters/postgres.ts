@@ -60,7 +60,9 @@ export class PostgresAdapter extends DatabaseAdapter {
           console.error('Stack:', (error as any).stack);
         }
       }
-      throw new DatabaseError('connect', error);
+      throw new DatabaseError('connect', { 
+        cause: error instanceof Error ? error : new Error(String(error))
+      });
     }
   }
 
@@ -76,7 +78,9 @@ export class PostgresAdapter extends DatabaseAdapter {
       this.client = null;
       this.connected = false;
     } catch (error) {
-      throw new DatabaseError('disconnect', error);
+      throw new DatabaseError('disconnect', { 
+        cause: error instanceof Error ? error : new Error(String(error))
+      });
     }
   }
 
@@ -100,7 +104,10 @@ export class PostgresAdapter extends DatabaseAdapter {
       return result.rows;
     } catch (error) {
       console.log(sql,params,"error")
-      throw new DatabaseError('query', error);
+      throw new DatabaseError('query', { 
+        cause: error instanceof Error ? error : new Error(String(error)),
+        context: { sql, params }
+      });
     }
   }
 
@@ -119,7 +126,10 @@ export class PostgresAdapter extends DatabaseAdapter {
         lastInsertId: result.rows?.[0]?.id
       };
     } catch (error) {
-      throw new DatabaseError('execute', error);
+      throw new DatabaseError('execute', { 
+        cause: error instanceof Error ? error : new Error(String(error)),
+        context: { sql, params }
+      });
     }
   }
 
@@ -143,7 +153,9 @@ export class PostgresAdapter extends DatabaseAdapter {
         throw error;
       }
     } catch (error) {
-      throw new DatabaseError('transaction', error);
+      throw new DatabaseError('transaction', { 
+        cause: error instanceof Error ? error : new Error(String(error))
+      });
     }
   }
 
@@ -166,7 +178,10 @@ export class PostgresAdapter extends DatabaseAdapter {
       );
       return result[0]?.exists || false;
     } catch (error) {
-      throw new DatabaseError('tableExists', error);
+      throw new DatabaseError('table_exists_check', { 
+        cause: error instanceof Error ? error : new Error(String(error)),
+        context: { tableName }
+      });
     }
   }
 
@@ -211,7 +226,10 @@ export class PostgresAdapter extends DatabaseAdapter {
       
       await this.execute(`CREATE TABLE IF NOT EXISTS ${tableName} (${columnDefs})`);
     } catch (error) {
-      throw new DatabaseError('createTable', error);
+      throw new DatabaseError('create_table', { 
+        cause: error instanceof Error ? error : new Error(String(error)),
+        context: { tableName }
+      });
     }
   }
 
@@ -256,7 +274,10 @@ export class PostgresAdapter extends DatabaseAdapter {
         default: col.column_default
       }));
     } catch (error) {
-      throw new DatabaseError('getTableColumns', error);
+      throw new DatabaseError('get_table_columns', { 
+        cause: error instanceof Error ? error : new Error(String(error)),
+        context: { tableName }
+      });
     }
   }
 
@@ -282,7 +303,10 @@ export class PostgresAdapter extends DatabaseAdapter {
       const result = await this.client!.query(sql, params);
       return result.rows;
     } catch (error) {
-      throw new DatabaseError('select', error);
+      throw new DatabaseError('select', { 
+        cause: error instanceof Error ? error : new Error(String(error)),
+        context: { table, filters, options, tenantId }
+      });
     }
   }
 
@@ -310,7 +334,10 @@ export class PostgresAdapter extends DatabaseAdapter {
         return result.rows[0];
       }
     } catch (error) {
-      throw new DatabaseError('insert', error);
+      throw new DatabaseError('insert', { 
+        cause: error instanceof Error ? error : new Error(String(error)),
+        context: { table, data, tenantId }
+      });
     }
   }
 
@@ -327,7 +354,10 @@ export class PostgresAdapter extends DatabaseAdapter {
       const result = await this.client!.query(sql, params);
       return result.rows[0];
     } catch (error) {
-      throw new DatabaseError('update', error);
+      throw new DatabaseError('update', { 
+        cause: error instanceof Error ? error : new Error(String(error)),
+        context: { table, id, data, tenantId }
+      });
     }
   }
 
@@ -343,7 +373,10 @@ export class PostgresAdapter extends DatabaseAdapter {
       const { sql, params } = this.queryManager.buildDeleteQuery(table, tenantId, id);
       await this.client!.query(sql, params);
     } catch (error) {
-      throw new DatabaseError('delete', error);
+      throw new DatabaseError('delete', { 
+        cause: error instanceof Error ? error : new Error(String(error)),
+        context: { table, id, tenantId }
+      });
     }
   }
 
@@ -367,7 +400,10 @@ export class PostgresAdapter extends DatabaseAdapter {
       const result = await this.client!.query(sql, params);
       return parseInt(result.rows[0].count, 10);
     } catch (error) {
-      throw new DatabaseError('count', error);
+      throw new DatabaseError('count', { 
+        cause: error instanceof Error ? error : new Error(String(error)),
+        context: { table, filters, tenantId }
+      });
     }
   }
 
@@ -384,7 +420,10 @@ export class PostgresAdapter extends DatabaseAdapter {
       const result = await this.client!.query(sql, params);
       return result.rows[0] || null;
     } catch (error) {
-      throw new DatabaseError('findById', error);
+      throw new DatabaseError('find_by_id', { 
+        cause: error instanceof Error ? error : new Error(String(error)),
+        context: { table, id, tenantId }
+      });
     }
   }
 
@@ -402,7 +441,10 @@ export class PostgresAdapter extends DatabaseAdapter {
       const { sql, params } = this.queryManager.buildCreateSchemaQuery(schemaName);
       await this.client!.query(sql, params);
     } catch (error) {
-      throw new DatabaseError('createSchema', error);
+      throw new DatabaseError('create_schema', { 
+        cause: error instanceof Error ? error : new Error(String(error)),
+        context: { schemaName }
+      });
     }
   }
 
@@ -418,7 +460,10 @@ export class PostgresAdapter extends DatabaseAdapter {
       const { sql, params } = this.queryManager.buildDropSchemaQuery(schemaName);
       await this.client!.query(sql, params);
     } catch (error) {
-      throw new DatabaseError('dropSchema', error);
+      throw new DatabaseError('drop_schema', { 
+        cause: error instanceof Error ? error : new Error(String(error)),
+        context: { schemaName }
+      });
     }
   }
 
@@ -435,7 +480,9 @@ export class PostgresAdapter extends DatabaseAdapter {
       const result = await this.client!.query(sql, params);
       return result.rows.map((row: any) => row.schema_name);
     } catch (error) {
-      throw new DatabaseError('listSchemas', error);
+      throw new DatabaseError('list_schemas', { 
+        cause: error instanceof Error ? error : new Error(String(error))
+      });
     }
   }
 }

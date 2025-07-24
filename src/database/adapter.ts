@@ -217,7 +217,9 @@ export abstract class DatabaseAdapter {
         const { InMemoryAdapter } = await import('./adapters/inmemory');
         return new InMemoryAdapter(config);
       default:
-        throw new DatabaseError('create', new Error(`Unsupported adapter type: ${type}`));
+        throw new DatabaseError('create', { 
+            cause: new Error(`Unsupported adapter type: ${type}`) 
+        });
     }
   }
   
@@ -241,7 +243,9 @@ export abstract class DatabaseAdapter {
         const { InMemoryAdapter } = require('./adapters/inmemory');
         return new InMemoryAdapter(config);
       default:
-        throw new DatabaseError('create', new Error(`Unsupported adapter type: ${type}`));
+        throw new DatabaseError('create', { 
+            cause: new Error(`Unsupported adapter type: ${type}`) 
+        });
     }
   }
 }

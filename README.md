@@ -5,6 +5,10 @@
 > 🚧 **ACTIVE DEVELOPMENT** - This library is actively under development. Functionality may change and features are under testing. Expect bugs and incomplete features.
 
 SchemaKit lets you create, validate, and manage entities and data at runtime, with built-in permissions and support for SQLite and PostgreSQL. Written in TypeScript.
+>
+> 🚧 **ACTIVE DEVELOPMENT** - This library is actively under development. Functionality may change and features are under testing. Expect bugs and incomplete features.
+
+SchemaKit lets you create, validate, and manage entities and data at runtime, with built-in permissions and support for SQLite and PostgreSQL. Written in TypeScript.
 
 ## Features
 - Dynamic entities and fields (no migrations)
@@ -12,8 +16,6 @@ SchemaKit lets you create, validate, and manage entities and data at runtime, wi
 - Role-based permissions and RLS
 - Multi-database: SQLite & Postgres
 - TypeScript-first, zero dependencies
-
-## Install
 - ✅ **Built-in Validation** - Comprehensive data validation with custom rules
 - 🔐 **Permission System** - Role-based access control with row-level security
 - 🔄 **Workflow Engine** - Automated actions on entity lifecycle events
@@ -25,13 +27,13 @@ SchemaKit lets you create, validate, and manage entities and data at runtime, wi
 ## 📦 Installation
 
 ```bash
-npm install @ahmedabdalla_85/schemakit
+npm install @mobtakronio/schemakit
 ```
 
 ## 🚀 Quick Start
 
 ```typescript
-import { SchemaKit } from '@ahmedabdalla_85/schemakit';
+import { SchemaKit } from '@mobtakronio/schemakit';
 
 // Initialize SchemaKit
 const schemaKit = new SchemaKit({
@@ -44,10 +46,11 @@ const schemaKit = new SchemaKit({
 // Initialize (automatically installs SchemaKit if not already installed)
 await schemaKit.initialize();
 
-
+const user = await schemaKit.entity('users','system');
 const user = await schemaKit.entity('users','system');
 
 // Create a user entity
+await user.create({
 await user.create({
   name: 'John Doe',
   email: 'john@example.com'
@@ -55,16 +58,18 @@ await user.create({
 
 // Update user
 const updatedUser = await user.update(1,{
+const updatedUser = await user.update(1,{
   name: 'John Smith'
 });
 
 // Find All users
-const Entities = await user.read();
+const users = await user.read();
 
 // Find user by name
-const fieldRecord = await user.read({user_name:"John Doe"});
+const userRecord = await user.read({user_name:"John Doe"});
         
 // Delete user
+await user.delete(1);
 await user.delete(1);
 ```
 
@@ -255,7 +260,7 @@ npm run build:umd
 
 ## 📄 License
 
-MIT © Ahmed Abdalla
+MIT © Mobtakron
 
 ## 🤝 Contributing
 
@@ -263,8 +268,10 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📞 Support
 
-- 🐛 Issues: [GitHub Issues](https://github.com/ahmedabdalla_85/schemakit/issues)
-- 📖 Documentation: [GitHub Wiki](https://github.com/ahmedabdalla_85/schemakit/wiki)
+- 🐛 Issues: [GitHub Issues](https://github.com/MobtakronIO/schemakit/issues)
+- 📖 Documentation: [GitHub Wiki](https://github.com/MobtakronIO/schemakit/wiki)
+- 🐛 Issues: [GitHub Issues](https://github.com/MobtakronIO/schemakit/issues)
+- 📖 Documentation: [GitHub Wiki](https://github.com/MobtakronIO/schemakit/wiki)
 
 ## 🗺️ Roadmap
 
@@ -278,4 +285,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-Made with ❤️ by Ahmed Abdalla
+Made with ❤️ by Mobtakron
+Made with ❤️ by Mobtakron

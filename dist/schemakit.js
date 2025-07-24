@@ -1,97 +1,54 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SchemaKit = void 0;
-const database_manager_1 = require("./database/database-manager");
-const install_manager_1 = require("./database/install-manager");
-const unified_1 = require("./entities/unified");
-const errors_1 = require("./errors");
+const db_1 = require("./database/db");
+const entity_1 = require("./entities/entity/entity");
 class SchemaKit {
     constructor(options = {}) {
         this.options = options;
-        // Create database configuration from options
         const adapterConfig = options.adapter || {};
-        const databaseConfig = {
-            type: adapterConfig.type || 'inmemory-simplified',
-            ...adapterConfig.config
-        };
-        this.databaseManager = new database_manager_1.DatabaseManager(databaseConfig);
+        // Allow tenantId in config, but fallback to 'system'
+        this.db = new db_1.DB({
+            adapter: adapterConfig.type || 'inmemory',
+            tenantId: adapterConfig.tenantId || 'system',
+            config: adapterConfig.config || {}
+        });
     }
     /**
      * Initialize all services
      */
     async initialize() {
-        try {
-            await this.databaseManager.connect();
-            // Initialize UnifiedEntityFactory with DatabaseAdapter
-            this.entityFactory = new unified_1.UnifiedEntityFactory(this.databaseManager.getAdapter(), {
-                cacheEnabled: this.options.cache?.enabled !== false,
-                tenantId: 'default'
-            });
-            // Initialize system tables
-            this.installManager = new install_manager_1.InstallManager(this.databaseManager.getAdapter());
-            await this.installManager.ensureReady();
-            return this;
-        }
-        catch (error) {
-            throw new errors_1.SchemaKitError(`Failed to initialize SchemaKit: ${error.message}`);
-        }
+        // No-op for now; could connect DB if needed
+        return this;
     }
     /**
-     * Access entity with optional tenant context (unified API)
-     * Returns UnifiedEntityHandler instance - the standalone gateway for entity operations
+     * Get or create an Entity instance
+     * Returns Entity instance - the standalone gateway for entity operations
      * @param name Entity name
      * @param tenantId Tenant identifier (defaults to 'default')
      */
     async entity(name, tenantId = 'default') {
-        if (!this.entityFactory) {
-            throw new errors_1.SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
-        }
-        return this.entityFactory.createHandler(name, tenantId);
+        const entity = entity_1.Entity.create(name, tenantId, this.db);
+        await entity.initialize();
+        return entity;
     }
     /**
-     * Access database manager for advanced operations
-     */
-    getDatabase() {
-        return this.databaseManager;
-    }
-    /**
-     * Access entity factory for handler creation and cache management
-     */
-    getEntityFactory() {
-        if (!this.entityFactory) {
-            throw new errors_1.SchemaKitError('SchemaKit is not initialized. Call `initialize()` first.');
-        }
-        return this.entityFactory;
-    }
-    /**
-     * Disconnect from database
-     */
-    async disconnect() {
-        await this.databaseManager.disconnect();
-    }
-    /**
-     * Clear cached entity handlers
+     * Clear cached entity definitions
      */
     clearEntityCache(entityName, tenantId) {
-        this.getEntityFactory()?.clearCache(entityName, tenantId);
+        entity_1.Entity.clearCache(entityName, tenantId);
     }
     /**
      * Get cache statistics
      */
     getCacheStats() {
-        return this.getEntityFactory()?.getCacheStats() || { handlerCacheSize: 0, cachedEntities: [] };
+        return entity_1.Entity.getCacheStats();
     }
-    /**
-     * Get connection information
-     */
-    getConnectionInfo() {
-        return this.databaseManager.getConnectionInfo();
+    static clearCache(entityName, tenantId) {
+        entity_1.Entity.clearCache(entityName, tenantId);
     }
-    /**
-     * Test database connection
-     */
-    async testConnection() {
-        return this.databaseManager.testConnection();
+    static getCacheStats() {
+        return entity_1.Entity.getCacheStats();
     }
 }
 exports.SchemaKit = SchemaKit;

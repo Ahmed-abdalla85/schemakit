@@ -19,19 +19,13 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Logger = exports.SchemaKitError = exports.createPostgresDatabase = exports.createSQLiteDatabase = exports.createInMemoryDatabase = exports.createDatabase = exports.FluentQueryBuilder = exports.DatabaseManager = exports.SchemaLoader = exports.WorkflowActions = exports.TypeValidators = exports.QueryExecutor = exports.PaginationManager = exports.QueryBuilder = exports.WorkflowManager = exports.PermissionManager = exports.ValidationManager = exports.EntityManager = exports.createDbAdapter = exports.DatabaseAdapterBridge = exports.UnifiedEntityFactory = exports.UnifiedEntityHandler = exports.SchemaKit = void 0;
+exports.Logger = exports.SchemaKitError = exports.SchemaLoader = exports.WorkflowActions = exports.TypeValidators = exports.PaginationManager = exports.QueryBuilder = exports.WorkflowManager = exports.PermissionManager = exports.ValidationManager = exports.Entity = exports.SchemaKit = void 0;
 // Core SchemaKit class (optimized)
 var schemakit_1 = require("./schemakit");
 Object.defineProperty(exports, "SchemaKit", { enumerable: true, get: function () { return schemakit_1.SchemaKit; } });
-// Unified entity module (recommended)
-var unified_1 = require("./entities/unified");
-Object.defineProperty(exports, "UnifiedEntityHandler", { enumerable: true, get: function () { return unified_1.UnifiedEntityHandler; } });
-Object.defineProperty(exports, "UnifiedEntityFactory", { enumerable: true, get: function () { return unified_1.UnifiedEntityFactory; } });
-Object.defineProperty(exports, "DatabaseAdapterBridge", { enumerable: true, get: function () { return unified_1.DatabaseAdapterBridge; } });
-Object.defineProperty(exports, "createDbAdapter", { enumerable: true, get: function () { return unified_1.createDbAdapter; } });
 // Legacy managers (organized by entities) - for backward compatibility
 var entity_1 = require("./entities/entity");
-Object.defineProperty(exports, "EntityManager", { enumerable: true, get: function () { return entity_1.EntityManager; } });
+Object.defineProperty(exports, "Entity", { enumerable: true, get: function () { return entity_1.Entity; } });
 var validation_1 = require("./entities/validation");
 Object.defineProperty(exports, "ValidationManager", { enumerable: true, get: function () { return validation_1.ValidationManager; } });
 var permission_1 = require("./entities/permission");
@@ -44,8 +38,6 @@ var query_1 = require("./entities/query");
 Object.defineProperty(exports, "QueryBuilder", { enumerable: true, get: function () { return query_1.QueryBuilder; } });
 var query_2 = require("./entities/query");
 Object.defineProperty(exports, "PaginationManager", { enumerable: true, get: function () { return query_2.PaginationManager; } });
-var query_3 = require("./entities/query");
-Object.defineProperty(exports, "QueryExecutor", { enumerable: true, get: function () { return query_3.QueryExecutor; } });
 // Validators (organized)
 var validation_2 = require("./entities/validation");
 Object.defineProperty(exports, "TypeValidators", { enumerable: true, get: function () { return validation_2.TypeValidators; } });
@@ -57,13 +49,6 @@ var schema_loader_1 = require("./database/schema-loader");
 Object.defineProperty(exports, "SchemaLoader", { enumerable: true, get: function () { return schema_loader_1.SchemaLoader; } });
 // Database module (new structure) - Main gateway for all database operations
 __exportStar(require("./database"), exports);
-var database_1 = require("./database");
-Object.defineProperty(exports, "DatabaseManager", { enumerable: true, get: function () { return database_1.DatabaseManager; } });
-Object.defineProperty(exports, "FluentQueryBuilder", { enumerable: true, get: function () { return database_1.FluentQueryBuilder; } });
-Object.defineProperty(exports, "createDatabase", { enumerable: true, get: function () { return database_1.createDatabase; } });
-Object.defineProperty(exports, "createInMemoryDatabase", { enumerable: true, get: function () { return database_1.createInMemoryDatabase; } });
-Object.defineProperty(exports, "createSQLiteDatabase", { enumerable: true, get: function () { return database_1.createSQLiteDatabase; } });
-Object.defineProperty(exports, "createPostgresDatabase", { enumerable: true, get: function () { return database_1.createPostgresDatabase; } });
 // Types (simplified)
 __exportStar(require("./types"), exports);
 // Errors

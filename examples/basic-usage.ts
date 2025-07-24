@@ -33,7 +33,7 @@ async function main() {
     });
 
 
-    await schemaKit.initialize();
+    // await schemaKit.initialize();
 
     
     // Get entity instance (now async and auto-initialized)
@@ -42,8 +42,8 @@ async function main() {
       console.log("userEntity");
       // Try to create a new user (may fail due to missing configuration)
       try {
-        const Entities = await Entity.read();
-        const fieldRecord = await Entity.read({entity_name:"fields"});
+        const Entities = await Entity.get();
+        const fieldRecord = await Entity.get({entity_name:"fields"});
         console.log('   ✅ Users read', Entities);
         console.log('   ✅ Users read', fieldRecord);
       } catch (createError) {
