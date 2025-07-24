@@ -5,10 +5,6 @@
 > 🚧 **ACTIVE DEVELOPMENT** - This library is actively under development. Functionality may change and features are under testing. Expect bugs and incomplete features.
 
 SchemaKit lets you create, validate, and manage entities and data at runtime, with built-in permissions and support for SQLite and PostgreSQL. Written in TypeScript.
->
-> 🚧 **ACTIVE DEVELOPMENT** - This library is actively under development. Functionality may change and features are under testing. Expect bugs and incomplete features.
-
-SchemaKit lets you create, validate, and manage entities and data at runtime, with built-in permissions and support for SQLite and PostgreSQL. Written in TypeScript.
 
 ## Features
 - Dynamic entities and fields (no migrations)
