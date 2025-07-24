@@ -25,13 +25,13 @@ SchemaKit lets you create, validate, and manage entities and data at runtime, wi
 ## 📦 Installation
 
 ```bash
-npm install @ahmedabdalla_85/schemakit
+npm install @MobtakronIO/schemakit
 ```
 
 ## 🚀 Quick Start
 
 ```typescript
-import { SchemaKit } from '@ahmedabdalla_85/schemakit';
+import { SchemaKit } from '@MobtakronIO/schemakit';
 
 // Initialize SchemaKit
 const schemaKit = new SchemaKit({
@@ -40,9 +40,6 @@ const schemaKit = new SchemaKit({
     config: { filename: 'database.db' }
   }
 });
-
-// Initialize (automatically installs SchemaKit if not already installed)
-await schemaKit.initialize();
 
 
 const user = await schemaKit.entity('users','system');
@@ -263,8 +260,8 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📞 Support
 
-- 🐛 Issues: [GitHub Issues](https://github.com/ahmedabdalla_85/schemakit/issues)
-- 📖 Documentation: [GitHub Wiki](https://github.com/ahmedabdalla_85/schemakit/wiki)
+- 🐛 Issues: [GitHub Issues](https://github.com/MobtakronIO/schemakit/issues)
+- 📖 Documentation: [GitHub Wiki](https://github.com/MobtakronIO/schemakit/wiki)
 
 ## 🗺️ Roadmap
 
@@ -278,4 +275,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-Made with ❤️ by Ahmed Abdalla
+Made with ❤️ by Mobtakron

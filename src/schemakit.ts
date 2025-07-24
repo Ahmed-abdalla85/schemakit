@@ -17,18 +17,9 @@ export class SchemaKit {
       config: adapterConfig.config || {}
     });
   }
-
-  /**
-   * Initialize all services
-   */
-  async initialize(): Promise<this> {
-    // No-op for now; could connect DB if needed
-    return this;
-  }
-
+  
   /**
    * Get or create an Entity instance
-   * Returns Entity instance - the standalone gateway for entity operations
    * @param name Entity name
    * @param tenantId Tenant identifier (defaults to 'default')
    */
@@ -52,12 +43,4 @@ export class SchemaKit {
     return Entity.getCacheStats();
   }
 
-
-  static clearCache(entityName?: string, tenantId?: string): void {
-    Entity.clearCache(entityName, tenantId);
-  }
-
-  static getCacheStats(): { size: number; entities: string[] } {
-    return Entity.getCacheStats();
-  }
 }
