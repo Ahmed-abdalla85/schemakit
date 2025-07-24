@@ -120,7 +120,10 @@ export class InMemoryAdapter extends DatabaseAdapter {
 
             return [];
         } catch (error) {
-            throw new DatabaseError('query', error);
+            throw new DatabaseError('query', { 
+                cause: error instanceof Error ? error : new Error(String(error)),
+                context: { sql, params }
+            });
         }
     }
 
@@ -210,7 +213,10 @@ export class InMemoryAdapter extends DatabaseAdapter {
 
             return { changes: 0 };
         } catch (error) {
-            throw new DatabaseError('execute', error);
+            throw new DatabaseError('execute', { 
+                cause: error instanceof Error ? error : new Error(String(error)),
+                context: { sql, params }
+            });
         }
     }
 
@@ -227,7 +233,9 @@ export class InMemoryAdapter extends DatabaseAdapter {
             // Just execute the callback
             return await callback(this);
         } catch (error) {
-            throw new DatabaseError('transaction', error);
+            throw new DatabaseError('transaction', { 
+                cause: error instanceof Error ? error : new Error(String(error))
+            });
         }
     }
 
@@ -246,7 +254,10 @@ export class InMemoryAdapter extends DatabaseAdapter {
             const tenantTables = this.tenantData.get(tenant);
             return tenantTables?.has(actualTable) || false;
         } catch (error) {
-            throw new DatabaseError('tableExists', error);
+            throw new DatabaseError('table_exists_check', { 
+                cause: error instanceof Error ? error : new Error(String(error)),
+                context: { tableName }
+            });
         }
     }
 
@@ -264,7 +275,10 @@ export class InMemoryAdapter extends DatabaseAdapter {
             
             this.ensureTableExists(tenant, actualTable);
         } catch (error) {
-            throw new DatabaseError('createTable', error);
+            throw new DatabaseError('create_table', { 
+                cause: error instanceof Error ? error : new Error(String(error)),
+                context: { tableName }
+            });
         }
     }
 
@@ -284,7 +298,10 @@ export class InMemoryAdapter extends DatabaseAdapter {
                 { name: 'updated_at', type: 'TEXT', notNull: true }
             ];
         } catch (error) {
-            throw new DatabaseError('getTableColumns', error);
+            throw new DatabaseError('get_table_columns', { 
+                cause: error instanceof Error ? error : new Error(String(error)),
+                context: { tableName }
+            });
         }
     }
 
@@ -336,7 +353,10 @@ export class InMemoryAdapter extends DatabaseAdapter {
 
             return records;
         } catch (error) {
-            throw new DatabaseError('select', error);
+            throw new DatabaseError('select', { 
+                cause: error instanceof Error ? error : new Error(String(error)),
+                context: { table, filters, options, tenantId }
+            });
         }
     }
 
@@ -368,7 +388,10 @@ export class InMemoryAdapter extends DatabaseAdapter {
 
             return record;
         } catch (error) {
-            throw new DatabaseError('insert', error);
+            throw new DatabaseError('insert', { 
+                cause: error instanceof Error ? error : new Error(String(error)),
+                context: { table, data, tenantId }
+            });
         }
     }
 
@@ -401,7 +424,10 @@ export class InMemoryAdapter extends DatabaseAdapter {
             records[recordIndex] = updatedRecord;
             return updatedRecord;
         } catch (error) {
-            throw new DatabaseError('update', error);
+            throw new DatabaseError('update', { 
+                cause: error instanceof Error ? error : new Error(String(error)),
+                context: { table, id, data, tenantId }
+            });
         }
     }
 
@@ -423,7 +449,10 @@ export class InMemoryAdapter extends DatabaseAdapter {
 
             records.splice(recordIndex, 1);
         } catch (error) {
-            throw new DatabaseError('delete', error);
+            throw new DatabaseError('delete', { 
+                cause: error instanceof Error ? error : new Error(String(error)),
+                context: { table, id, tenantId }
+            });
         }
     }
 
@@ -452,7 +481,10 @@ export class InMemoryAdapter extends DatabaseAdapter {
 
             return records.length;
         } catch (error) {
-            throw new DatabaseError('count', error);
+            throw new DatabaseError('count', { 
+                cause: error instanceof Error ? error : new Error(String(error)),
+                context: { table, filters, tenantId }
+            });
         }
     }
 
@@ -468,7 +500,10 @@ export class InMemoryAdapter extends DatabaseAdapter {
             const records = this.getTableData(tenantId, table);
             return records.find(r => r.id === id) || null;
         } catch (error) {
-            throw new DatabaseError('findById', error);
+            throw new DatabaseError('find_by_id', { 
+                cause: error instanceof Error ? error : new Error(String(error)),
+                context: { table, id, tenantId }
+            });
         }
     }
 

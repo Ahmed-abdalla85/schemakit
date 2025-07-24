@@ -140,7 +140,7 @@ export class Entity {
     this.validateData(data, 'update');
 
     // Get old data for workflow
-    const oldData = await this.findById(id, contextWithTenant);
+    const oldData = await this.getById(id, contextWithTenant);
     if (!oldData) {
       throw new SchemaKitError(`Record not found: ${this.entityName} with ID ${id}`);
     }
@@ -171,7 +171,7 @@ export class Entity {
     await this.checkPermission('delete', contextWithTenant);
 
     // Get old data for workflow
-    const oldData = await this.findById(id, contextWithTenant);
+    const oldData = await this.getById(id, contextWithTenant);
     if (!oldData) {
       throw new SchemaKitError(`Record not found: ${this.entityName} with ID ${id}`);
     }

@@ -66,19 +66,23 @@ export class SchemaKitError extends Error {
 
   constructor(
     message: string,
-    options?: {
+    options: {
       code?: string;
       context?: Record<string, any>;
       cause?: Error | unknown;
-    }
+    } = {}
   ) {
     super(message);
     this.name = 'SchemaKitError';
-    if (options?.cause !== undefined) {
+    this.code = options.code || ErrorCode.UNEXPECTED_ERROR;
+    
+    if (options.cause !== undefined) {
       (this as any).cause = options.cause;
     }
-    if (options?.code) this.code = options.code;
-    if (options?.context) this.context = options.context;
+    
+    if (options.context) {
+      this.context = options.context;
+    }
   }
 
   toJSON() {
