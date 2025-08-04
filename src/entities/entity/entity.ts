@@ -48,6 +48,8 @@ export class Entity {
   }
 
   get isInitialized(): boolean { return this.initialized; }
+  get name(): string { return this.entityName; }
+  get tenant(): string { return this.tenantId; }
   async initialize(context: Context = {}): Promise<void> {
     if (this.initialized) return;
 
