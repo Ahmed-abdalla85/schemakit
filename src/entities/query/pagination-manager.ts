@@ -4,24 +4,7 @@
  */
 import { DatabaseAdapter } from '../../database/adapter';
 import { QueryBuilder, BuiltQuery, QueryFilter } from './query-builder';
-
-export interface PaginationOptions {
-  page?: number;
-  pageSize?: number;
-  limit?: number;
-  offset?: number;
-}
-
-export interface PaginationResult {
-  data: any[];
-  meta: {
-    total: number;
-    page: number;
-    per_page: number;
-    has_more: boolean;
-    total_pages: number;
-  };
-}
+import { PaginationOptions, PaginationResult } from '../../types/views';
 
 /**
  * PaginationManager class

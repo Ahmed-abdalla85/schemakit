@@ -4,7 +4,7 @@
  */
 
 import { RowRestrictionManager } from '../../src/entities/permission/row-restriction-manager';
-import { RoleRestrictions } from '../../src/entities/permission/rls-types';
+import { RoleRestrictions } from '../../src/types/permissions';
 
 describe('Row Level Security', () => {
   let rlsManager: RowRestrictionManager;

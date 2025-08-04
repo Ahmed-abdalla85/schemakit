@@ -3,14 +3,18 @@
  */
 import { DB } from '../../database/db';
 import { 
-  EntityConfiguration, EntityDefinition, FieldDefinition, PermissionDefinition, 
-  ViewDefinition, WorkflowDefinition, RLSDefinition, Context, ValidationResult 
-} from '../../types';
+  EntityConfiguration, EntityDefinition, FieldDefinition, Context 
+} from '../../types/core';
+import { PermissionDefinition, RLSDefinition } from '../../types/permissions';
+import { ViewDefinition } from '../../types/views';
+import { WorkflowDefinition } from '../../types/workflows';
+import { ValidationResult } from '../../types/validation';
 import { SchemaKitError } from '../../errors';
 import { generateId } from '../../utils/id-generation';
 import { getCurrentTimestamp } from '../../utils/date-helpers';
 import { safeJsonParse } from '../../utils/json-helpers';
-import { ViewManager, ViewOptions, ViewResult } from '../views/view-manager';
+import { ViewManager } from '../views/view-manager';
+import { ViewOptions, ViewResult } from '../../types/views';
 
 
 export class Entity {

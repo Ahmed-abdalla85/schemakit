@@ -13,7 +13,7 @@ export interface QueryFilter {
 export interface QueryOptions {
   orderBy?: Array<{
     field: string;
-    dir: SortDirection;
+    direction: 'ASC' | 'DESC';
   }>;
   limit?: number;
   offset?: number;
@@ -24,8 +24,6 @@ export interface QueryOptions {
 export interface BuiltQuery {
   sql: string;
   params: any[];
-  filters: QueryFilter[];
-  options: QueryOptions;
 }
 
 export interface QueryResult<T = any> {

@@ -2,28 +2,12 @@
  * ViewManager - Execute views using loaded Entity metadata
  */
 import { DB } from '../../database/db';
-import { Context, ViewDefinition, FieldDefinition } from '../../types';
+import { Context, FieldDefinition } from '../../types/core';
+import { ViewDefinition, ViewOptions, ViewResult } from '../../types/views';
 import { RLSPermissionManager } from '../permission/rls-integration';
-import { RoleRestrictions } from '../permission/rls-types';
+import { RoleRestrictions } from '../../types/permissions';
 
-export interface ViewOptions {
-  filters?: Record<string, any>;
-  pagination?: {
-    page: number;
-    limit: number;
-  };
-}
-
-export interface ViewResult {
-  results: any[];
-  total: number;
-  fields: FieldDefinition[];
-  meta: {
-    entityName: string;
-    viewName: string;
-    query?: string; // For debugging
-  };
-}
+// ViewOptions and ViewResult are now imported from '../../types/views'
 
 export class ViewManager {
   private rlsManager: RLSPermissionManager | null = null;

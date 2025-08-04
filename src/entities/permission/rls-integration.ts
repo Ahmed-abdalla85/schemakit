@@ -5,8 +5,8 @@
 
 import { PermissionManager } from './permission-manager';
 import { RowRestrictionManager } from './row-restriction-manager';
-import { RoleRestrictions } from './rls-types';
-import { EntityConfiguration, Context } from '../../types';
+import { RoleRestrictions } from '../../types/permissions';
+import { EntityConfiguration, Context } from '../../types/core';
 
 export class RLSPermissionManager extends PermissionManager {
   private rowRestrictionManager: RowRestrictionManager;

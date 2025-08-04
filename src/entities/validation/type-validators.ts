@@ -2,8 +2,8 @@
  * TypeValidators
  * Handles type-specific validation logic
  */
-import { FieldDefinition } from '../../types';
-import { ValidationError } from './validation-manager';
+import { FieldDefinition } from '../../types/core';
+import { ValidationError } from '../../types/validation';
 
 export class TypeValidators {
   /**

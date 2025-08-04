@@ -3,7 +3,7 @@
  * Handles dynamic row-level security based on user roles and context
  */
 
-import { IRLSManager, RoleRestrictions, RLSRule, RLSCondition } from './rls-types';
+import { IRLSManager, RoleRestrictions, RLSRule, RLSCondition } from '../../types/permissions';
 
 export class RowRestrictionManager implements IRLSManager {
   private restrictions: RoleRestrictions;

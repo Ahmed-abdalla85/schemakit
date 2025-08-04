@@ -2,19 +2,8 @@
  * ValidationManager - Simplified
  * Essential validation functionality only
  */
-import { EntityConfiguration, FieldDefinition } from '../../types';
-
-export interface ValidationResult {
-  isValid: boolean;
-  errors: ValidationError[];
-}
-
-export interface ValidationError {
-  field: string;
-  code: string;
-  message: string;
-  value?: any;
-}
+import { EntityConfiguration, FieldDefinition } from '../../types/core';
+import { ValidationResult, ValidationError } from '../../types/validation';
 
 /**
  * Simplified ValidationManager class
