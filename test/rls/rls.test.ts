@@ -28,7 +28,7 @@ describe('Row Level Security', () => {
         'admin': [{
           conditions: [{
             field: 'department',
-            operator: 'eq',
+            op: 'eq',
             value: 'currentUser.department',
             exposed: false
           }],
@@ -55,7 +55,7 @@ describe('Row Level Security', () => {
         '5': [{ // Higher role number
           conditions: [{
             field: 'status',
-            operator: 'in',
+            op: 'in',
             value: ['active', 'pending'],
             exposed: false
           }],
@@ -64,7 +64,7 @@ describe('Row Level Security', () => {
         '3': [{ // Lower role number
           conditions: [{
             field: 'created_by',
-            operator: 'eq',
+            op: 'eq',
             value: 'currentUser.id',
             exposed: false
           }],
@@ -92,13 +92,13 @@ describe('Row Level Security', () => {
           conditions: [
             {
               field: 'department',
-              operator: 'eq',
+              op: 'eq',
               value: 'currentUser.department',
               exposed: false
             },
             {
               field: 'priority',
-              operator: 'eq',
+              op: 'eq',
               value: 'high',
               exposed: true
             }
@@ -130,13 +130,13 @@ describe('Row Level Security', () => {
           conditions: [
             {
               field: 'created_at',
-              operator: 'gte',
+              op: 'gte',
               value: '2024-01-01',
               exposed: false
             },
             {
               field: 'status',
-              operator: 'notIn',
+              op: 'notIn',
               value: ['deleted', 'archived'],
               exposed: false
             }
@@ -164,13 +164,13 @@ describe('Row Level Security', () => {
           conditions: [
             {
               field: 'priority',
-              operator: 'eq',
+              op: 'eq',
               value: 'medium',
               exposed: true
             },
             {
               field: 'department',
-              operator: 'eq',
+              op: 'eq',
               value: 'currentUser.department',
               exposed: false
             }

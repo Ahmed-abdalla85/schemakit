@@ -89,7 +89,7 @@ export class RowRestrictionManager implements IRLSManager {
 
     const userInputConditions = Object.entries(userInputs).map(([field, value]) => {
       const operator = Number.isInteger(Number(value)) ? 'eq' : 'like';
-      return this.generateCondition({ field, operator, value, exposed: true }, userInputs, user);
+      return this.generateCondition({ field, op: operator, value, exposed: true }, userInputs, user);
     }).flat();
 
     const allConditions = [...ruleConditions, ...userInputConditions].filter(Boolean);
@@ -108,11 +108,11 @@ export class RowRestrictionManager implements IRLSManager {
       value = user[userProperty];
     }
 
-    if (Array.isArray(value) && condition.operator !== 'notIn') {
-      condition.operator = "in";
+    if (Array.isArray(value) && condition.op !== 'notIn') {
+      condition.op = "in";
     }
 
-    switch (condition.operator) {
+    switch (condition.op) {
       case 'eq':
         conditions.push(`${condition.field} = ${this.formatValue(value)}`);
         break;
@@ -147,7 +147,7 @@ export class RowRestrictionManager implements IRLSManager {
         conditions.push(`${condition.field} IS NOT NULL`);
         break;  
       default:
-        throw new Error(`Unsupported operator: ${condition.operator}`);
+        throw new Error(`Unsupported operator: ${condition.op}`);
     }
 
     return conditions;
