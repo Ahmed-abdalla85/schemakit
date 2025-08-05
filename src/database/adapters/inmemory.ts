@@ -74,7 +74,7 @@ export class InMemoryAdapter extends DatabaseAdapter {
 
         try {
             // Simple query parsing for in-memory operations
-            console.log(`In-Memory Query: ${sql} with params: ${JSON.stringify(params)}`);
+            // console.log(`In-Memory Query: ${sql} with params: ${JSON.stringify(params)}`);
             
             // Handle SELECT queries
             const selectMatch = sql.match(/SELECT\s+(.+)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+))?/i);
@@ -151,7 +151,7 @@ export class InMemoryAdapter extends DatabaseAdapter {
         }
 
         try {
-            console.log(`In-Memory Execute: ${sql} with params: ${JSON.stringify(params)}`);
+            // console.log(`In-Memory Execute: ${sql} with params: ${JSON.stringify(params)}`);
             
             // Handle CREATE TABLE
             const createTableMatch = sql.match(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)/i);
@@ -181,8 +181,8 @@ export class InMemoryAdapter extends DatabaseAdapter {
                 return { changes: 1 };
             }
 
-            // Handle INSERT statements (including multi-row inserts)
-            const insertMatch = sql.match(/INSERT\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(.+?)(?:\s+RETURNING\s+.+)?$/is);
+            // Handle INSERT statements (including multi-row inserts and INSERT OR IGNORE)
+            const insertMatch = sql.match(/INSERT(?:\s+OR\s+IGNORE)?\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*(.+?)(?:\s+RETURNING\s+.+)?$/is);
             if (insertMatch) {
                 const tableName = insertMatch[1];
                 const columns = insertMatch[2].split(',').map(col => col.trim());
@@ -650,6 +650,15 @@ export class InMemoryAdapter extends DatabaseAdapter {
 
 
     private parseValue(value: string): any {
+        // Handle SQL functions first
+        if (value.toLowerCase() === "datetime('now')") {
+            return getCurrentTimestamp();
+        }
+        
+        if (value.toLowerCase() === 'null') {
+            return null;
+        }
+        
         // Remove quotes if present
         if ((value.startsWith("'") && value.endsWith("'")) || 
             (value.startsWith('"') && value.endsWith('"'))) {

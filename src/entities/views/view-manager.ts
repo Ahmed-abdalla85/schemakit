@@ -85,9 +85,9 @@ export class ViewManager {
    */
   private applyViewSelect(query: DB, viewDef: ViewDefinition): DB {
     // If view specifies specific fields, select only those
-    if (viewDef.fields && viewDef.fields.length > 0) {
+    if (viewDef.view_fields && viewDef.view_fields.length > 0) {
       // Create new query with specific field selection
-      query = this.db.select(viewDef.fields).from(this.tableName);
+      query = this.db.select(viewDef.view_fields).from(this.tableName);
     }
     // Otherwise keep the default SELECT * 
     return query;
@@ -97,8 +97,8 @@ export class ViewManager {
    * Apply view-defined filters to query
    */
   private applyViewFilters(query: DB, viewDef: ViewDefinition): DB {
-    if (viewDef.query_config.filters) {
-      for (const [field, value] of Object.entries(viewDef.query_config.filters)) {
+    if (viewDef.view_query_config.filters) {
+      for (const [field, value] of Object.entries(viewDef.view_query_config.filters)) {
         query = query.where({ [field]: value });
       }
     }
@@ -121,8 +121,8 @@ export class ViewManager {
    * Apply sorting from view definition
    */
   private applySorting(query: DB, viewDef: ViewDefinition): DB {
-    if (viewDef.query_config.sorting && viewDef.query_config.sorting.length > 0) {
-      for (const sort of viewDef.query_config.sorting) {
+    if (viewDef.view_query_config.sorting && viewDef.view_query_config.sorting.length > 0) {
+      for (const sort of viewDef.view_query_config.sorting) {
         // Convert lowercase direction to uppercase for DB class
         const direction = sort.direction.toUpperCase() as "ASC" | "DESC";
         query = query.orderBy(sort.field, direction);

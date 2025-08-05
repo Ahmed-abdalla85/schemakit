@@ -356,9 +356,9 @@ export class Entity {
   private async checkPermission(action: string, context: Context): Promise<void> {
     const userRoles = context.user?.roles || ['public'];
     const hasPermission = this.permissions.some(p => 
-      userRoles.includes(p.role) && 
-      p.action === action && 
-      p.is_allowed
+            userRoles.includes(p.permission_role) &&
+      p.permission_action === action &&
+      p.permission_is_allowed
     );
 
     // if (!hasPermission) {
@@ -372,7 +372,7 @@ export class Entity {
     for (const field of this.fields) {
       const value = data[field.field_name];
       
-      if (action === 'create' && field.is_required && (value === undefined || value === null)) {
+      if (action === 'create' && field.field_is_required && (value === undefined || value === null)) {
         errors.push(`Field '${field.field_name}' is required`);
         continue;
       }
@@ -419,7 +419,7 @@ export class Entity {
   }
 
   private async executeWorkflows(event: string, oldData: any, newData: any, context: Context): Promise<void> {
-    const applicableWorkflows = this.workflow.filter(w => w.trigger_event === event);
+    const applicableWorkflows = this.workflow.filter(w => w.workflow_trigger_event === event);
     
     for (const workflow of applicableWorkflows) {
               console.log(`Executing workflow: ${workflow.workflow_name} for event: ${event}`);
