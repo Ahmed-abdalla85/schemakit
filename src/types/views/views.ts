@@ -118,13 +118,13 @@ export interface PaginationDefinition {
  */
 export interface ViewDefinition {
   /** Unique identifier for this view */
-  id: string;
+  view_id: string;
   /** Entity this view applies to */
-  entity_id: string;
+  view_entity_id: string;
   /** View name for reference */
-  name: string;
+  view_name: string;
   /** Query configuration */
-  query_config: {
+  view_query_config: {
     /** Fixed filters applied to all executions */
     filters?: Record<string, any>;
     /** Entity joins to include related data */
@@ -135,15 +135,15 @@ export interface ViewDefinition {
     pagination?: PaginationDefinition;
   };
   /** Fields to include in results (empty = all fields) */
-  fields: string[];
+  view_fields: string[];
   /** Whether this is the default view for the entity */
-  is_default: boolean;
+  view_is_default: boolean;
   /** User who created this view */
-  created_by?: string;
+  view_created_by?: string;
   /** Whether other users can use this view */
-  is_public: boolean;
+  view_is_public: boolean;
   /** Additional metadata */
-  metadata?: Record<string, any>;
+  view_metadata?: Record<string, any>;
 }
 
 /**

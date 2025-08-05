@@ -12,13 +12,13 @@ export class TypeValidators {
   static validateFieldType(field: FieldDefinition, value: any): ValidationError[] {
     const errors: ValidationError[] = [];
 
-    switch (field.type) {
+    switch (field.field_type) {
       case 'string':
         if (typeof value !== 'string') {
           errors.push({
-            field: field.name,
+            field: field.field_name,
             code: 'type',
-            message: `Field '${field.name}' must be a string`,
+            message: `Field '${field.field_name}' must be a string`,
             value
           });
         }
@@ -28,17 +28,17 @@ export class TypeValidators {
       case 'integer':
         if (typeof value !== 'number' || isNaN(value)) {
           errors.push({
-            field: field.name,
+            field: field.field_name,
             code: 'type',
-            message: `Field '${field.name}' must be a number`,
+            message: `Field '${field.field_name}' must be a number`,
             value
           });
         }
-        if (field.type === 'integer' && !Number.isInteger(value)) {
+        if (field.field_type === 'integer' && !Number.isInteger(value)) {
           errors.push({
-            field: field.name,
+            field: field.field_name,
             code: 'type',
-            message: `Field '${field.name}' must be an integer`,
+            message: `Field '${field.field_name}' must be an integer`,
             value
           });
         }
@@ -47,9 +47,9 @@ export class TypeValidators {
       case 'boolean':
         if (typeof value !== 'boolean') {
           errors.push({
-            field: field.name,
+            field: field.field_name,
             code: 'type',
-            message: `Field '${field.name}' must be a boolean`,
+            message: `Field '${field.field_name}' must be a boolean`,
             value
           });
         }
@@ -59,9 +59,9 @@ export class TypeValidators {
       case 'datetime':
         if (!this.isValidDate(value)) {
           errors.push({
-            field: field.name,
+            field: field.field_name,
             code: 'type',
-            message: `Field '${field.name}' must be a valid date`,
+            message: `Field '${field.field_name}' must be a valid date`,
             value
           });
         }
@@ -71,9 +71,9 @@ export class TypeValidators {
       case 'object':
         if (!this.isValidJson(value)) {
           errors.push({
-            field: field.name,
+            field: field.field_name,
             code: 'type',
-            message: `Field '${field.name}' must be valid JSON`,
+            message: `Field '${field.field_name}' must be valid JSON`,
             value
           });
         }
@@ -82,9 +82,9 @@ export class TypeValidators {
       case 'array':
         if (!Array.isArray(value)) {
           errors.push({
-            field: field.name,
+            field: field.field_name,
             code: 'type',
-            message: `Field '${field.name}' must be an array`,
+            message: `Field '${field.field_name}' must be an array`,
             value
           });
         }
@@ -93,9 +93,9 @@ export class TypeValidators {
       case 'reference':
         if (typeof value !== 'string' && typeof value !== 'number') {
           errors.push({
-            field: field.name,
+            field: field.field_name,
             code: 'type',
-            message: `Field '${field.name}' must be a valid reference ID`,
+            message: `Field '${field.field_name}' must be a valid reference ID`,
             value
           });
         }

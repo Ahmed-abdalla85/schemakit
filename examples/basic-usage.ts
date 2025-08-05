@@ -27,19 +27,14 @@ async function main() {
           port: 5852,
           user: 'postgres',
           password: 'postgrespassword',
-          database: 'processkit'
+          database: 'postgres'
         }
       }
     });
-
-
-    // await schemaKit.initialize();
-
     
     // Get entity instance (now async and auto-initialized)
     try {
-      const Entity = await schemaKit.entity('entities','system');
-      console.log("userEntity");
+      const Entity = await schemaKit.entity('products','system');
       // Try to create a new user (may fail due to missing configuration)
       try {
         const Entities = await Entity.get();

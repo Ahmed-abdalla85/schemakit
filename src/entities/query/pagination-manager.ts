@@ -3,7 +3,8 @@
  * Handles pagination logic and calculations
  */
 import { DatabaseAdapter } from '../../database/adapter';
-import { QueryBuilder, BuiltQuery, QueryFilter } from './query-builder';
+import { QueryBuilder } from './query-builder';
+import { BuiltQuery, QueryFilter } from '../../types/database';
 import { PaginationOptions, PaginationResult } from '../../types/views';
 
 /**

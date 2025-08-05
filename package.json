@@ -11,19 +11,14 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc",
-    "build:esm": "tsc -p tsconfig.esm.json",
-    "build:umd": "tsc -p tsconfig.umd.json",
-    "build:all": "npm run clean && npm run build && npm run build:esm && npm run build:umd",
-    "build:vite": "vite build",
-    "analyze": "npm run build:vite && echo 'Bundle analysis available at dist/bundle-analysis.html'",
+    "build": "vite build",
+    "analyze": "npm run build && echo 'Bundle analysis available at dist/bundle-analysis.html'",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
-    "prepublishOnly": "npm run test && npm run build:vite",
-    "prepare": "npm run build:vite"
+    "prepublishOnly": "npm run test && npm run build"
   },
   "keywords": [
     "schema",
@@ -40,7 +35,7 @@
     "runtime-schema",
     "entity-management"
   ],
-  "author": "MobtakronIO",  
+  "author": "MobtakronIO",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -66,6 +61,7 @@
     "rollup-plugin-visualizer": "^6.0.3",
     "terser": "^5.43.1",
     "ts-jest": "^29.1.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
   },
