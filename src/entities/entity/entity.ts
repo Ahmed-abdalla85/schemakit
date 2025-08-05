@@ -3,13 +3,18 @@
  */
 import { DB } from '../../database/db';
 import { 
-  EntityConfiguration, EntityDefinition, FieldDefinition, PermissionDefinition, 
-  ViewDefinition, WorkflowDefinition, RLSDefinition, Context, ValidationResult 
-} from '../../types';
+  EntityConfiguration, EntityDefinition, FieldDefinition, Context 
+} from '../../types/core';
+import { PermissionDefinition, RLSDefinition } from '../../types/permissions';
+import { ViewDefinition } from '../../types/views';
+import { WorkflowDefinition } from '../../types/workflows';
+import { ValidationResult } from '../../types/validation';
 import { SchemaKitError } from '../../errors';
 import { generateId } from '../../utils/id-generation';
 import { getCurrentTimestamp } from '../../utils/date-helpers';
 import { safeJsonParse } from '../../utils/json-helpers';
+import { ViewManager } from '../views/view-manager';
+import { ViewOptions, ViewResult } from '../../types/views';
 
 
 export class Entity {
@@ -27,6 +32,7 @@ export class Entity {
   public views: ViewDefinition[] = [];
   private entityDefinition: EntityDefinition | null = null;
   private tableName: string = '';
+  public viewManager: ViewManager | null = null;
   static create(entityName: string, tenantId: string, db: DB): Entity {
     const cacheKey = `${tenantId}:${entityName}`;
     if (Entity.cache.has(cacheKey)) return Entity.cache.get(cacheKey)!;
@@ -42,6 +48,8 @@ export class Entity {
   }
 
   get isInitialized(): boolean { return this.initialized; }
+  get name(): string { return this.entityName; }
+  get tenant(): string { return this.tenantId; }
   async initialize(context: Context = {}): Promise<void> {
     if (this.initialized) return;
 
@@ -68,11 +76,35 @@ export class Entity {
       this.views = views;
       this.tableName = this.entityDefinition.entity_table_name || this.entityName;
       await this.ensureTable();
+      
+      // Initialize ViewManager with loaded metadata
+      this.viewManager = new ViewManager(
+        this.db,
+        this.entityName,
+        this.tableName,
+        this.fields,
+        this.views
+      );
+
+      // TODO: Set up RLS restrictions if available
+      // this.setupRLSRestrictions();
+      
       this.initialized = true;
     } catch (error) {
       console.log(error,"error")
       throw new SchemaKitError(`Failed to initialize entity '${this.entityName}': ${error instanceof Error ? error.message : error}`);
     }
+  }
+
+  /**
+   * Execute a view by name
+   */
+  async view(viewName: string, options: ViewOptions = {}, context: Context = {}): Promise<ViewResult> {
+    await this.ensureInitialized();
+    if (!this.viewManager) {
+      throw new SchemaKitError('ViewManager not initialized');
+    }
+    return this.viewManager.executeView(viewName, context, options);
   }
 
   /**

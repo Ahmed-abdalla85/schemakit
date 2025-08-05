@@ -3,19 +3,9 @@
  * Essential query building functionality only
  */
 import { DatabaseAdapter } from '../database/adapter';
-import { EntityConfiguration, Context } from '../types';
+import { EntityConfiguration, Context } from '../types/core';
+import { BuiltQuery, QueryFilter } from '../types/database';
 import { resolveTableName } from '../utils/query-helpers';
-
-export interface BuiltQuery {
-  sql: string;
-  params: any[];
-}
-
-export interface QueryFilter {
-  field: string;
-  operator: string;
-  value: any;
-}
 
 /**
  * Simplified QueryManager class

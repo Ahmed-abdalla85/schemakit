@@ -2,7 +2,7 @@
  * WorkflowActions
  * Handles workflow action execution
  */
-import { Context } from '../../types';
+import { Context } from '../../types/core';
 
 export class WorkflowActions {
   /**

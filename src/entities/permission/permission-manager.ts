@@ -3,7 +3,8 @@
  * Responsible for handling permissions and RLS
  */
 import { DatabaseAdapter } from '../../database/adapter';
-import { EntityConfiguration, Context, RLSCondition, RLSConditions } from '../../types';
+import { EntityConfiguration, Context } from '../../types/core';
+import { RLSCondition, RLSConditions } from '../../types/permissions';
 
 /**
  * PermissionManager class
@@ -136,7 +137,7 @@ export class PermissionManager {
           case 'eq':
             operator = '=';
             break;
-          case 'neq':
+          case 'ne':
             operator = '!=';
             break;
           case 'gt':
@@ -154,7 +155,7 @@ export class PermissionManager {
           case 'in':
             operator = 'IN';
             break;
-          case 'nin':
+          case 'notIn':
             operator = 'NOT IN';
             break;
           case 'like':
@@ -378,7 +379,7 @@ export class PermissionManager {
       case '==':
         return contextValue === value;
       
-      case 'neq':
+      case 'ne':
       case '!=':
       case '<>':
         return contextValue !== value;
@@ -402,7 +403,7 @@ export class PermissionManager {
       case 'in':
         return Array.isArray(value) ? value.includes(contextValue) : contextValue === value;
       
-      case 'nin':
+      case 'notIn':
       case 'not_in':
         return Array.isArray(value) ? !value.includes(contextValue) : contextValue !== value;
       

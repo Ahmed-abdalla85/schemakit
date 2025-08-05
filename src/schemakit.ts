@@ -1,4 +1,4 @@
-import { SchemaKitOptions } from './types';
+import { SchemaKitOptions } from './types/core';
 import { DB } from './database/db';
 import { Entity } from './entities/entity/entity';
 import { SchemaKitError } from './errors';

@@ -4,23 +4,7 @@
  */
 import { DatabaseAdapter } from '../../database/adapter';
 import { QueryCondition } from '../../utils/query-helpers';
-
-export interface BuiltQuery {
-  sql: string;
-  params: any[];
-}
-
-export interface QueryOptions {
-  orderBy?: { field: string; direction: 'ASC' | 'DESC' }[];
-  limit?: number;
-  offset?: number;
-}
-
-export interface QueryFilter {
-  field: string;
-  value: any;
-  operator?: 'eq' | 'neq' | 'gt' | 'lt' | 'gte' | 'lte' | 'like' | 'in' | 'nin' | 'contains' | 'startswith' | 'endswith';
-}
+import { BuiltQuery, QueryOptions, QueryFilter } from '../../types/database';
 
 /**
  * QueryBuilder class
