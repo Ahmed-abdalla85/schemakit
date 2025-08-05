@@ -77,7 +77,7 @@ export class SchemaKitError extends Error {
     this.code = options.code || ErrorCode.UNEXPECTED_ERROR;
     
     if (options.cause !== undefined) {
-      (this as any).cause = options.cause;
+      this.cause = options.cause;
     }
     
     if (options.context) {

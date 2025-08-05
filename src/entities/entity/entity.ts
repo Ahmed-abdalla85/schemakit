@@ -91,8 +91,13 @@ export class Entity {
       
       this.initialized = true;
     } catch (error) {
-      console.log(error,"error")
-      throw new SchemaKitError(`Failed to initialize entity '${this.entityName}': ${error instanceof Error ? error.message : error}`);
+      throw new SchemaKitError(
+        `Failed to initialize entity '${this.entityName}': ${error instanceof Error ? error.message : String(error)}`,
+        { 
+          code: 'ENTITY_INITIALIZATION_FAILED',
+          cause: error 
+        }
+      );
     }
   }
 
