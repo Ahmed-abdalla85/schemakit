@@ -145,7 +145,7 @@ describe('Entity', () => {
 
       expect(entity.isInitialized).toBe(true);
       expect(entity.fields).toHaveLength(1);
-      expect(entity.fields[0].name).toBe('id');
+      expect(entity.fields[0].field_name).toBe('id');
     });
 
     test('should handle initialization errors', async () => {

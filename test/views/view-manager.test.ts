@@ -38,42 +38,42 @@ describe('ViewManager', () => {
     // Setup mock fields
     mockFields = [
       {
-        id: 'field_1',
-        entity_id: 'entity_1',
-        name: 'id',
-        type: 'integer',
-        is_required: true,
-        is_unique: true,
-        display_name: 'ID',
-        order_index: 0,
-        is_active: true
+        field_id: 'field_1',
+        field_entity_id: 'entity_1',
+        field_name: 'id',
+        field_type: 'integer',
+        field_is_required: true,
+        field_is_unique: true,
+        field_display_name: 'ID',
+        field_order_index: 0,
+        field_is_active: true
       },
       {
-        id: 'field_2',
-        entity_id: 'entity_1',
-        name: 'name',
-        type: 'string',
-        is_required: true,
-        is_unique: false,
-        display_name: 'Name',
-        order_index: 1,
-        is_active: true
+        field_id: 'field_2',
+        field_entity_id: 'entity_1',
+        field_name: 'name',
+        field_type: 'string',
+        field_is_required: true,
+        field_is_unique: false,
+        field_display_name: 'Name',
+        field_order_index: 1,
+        field_is_active: true
       }
     ];
 
     // Setup mock views
     mockViews = [
       {
-        id: 'view_1',
-        entity_id: 'entity_1',
-        name: 'active-records',
-        query_config: {
+        view_id: 'view_1',
+        view_entity_id: 'entity_1',
+        view_name: 'active-records',
+        view_query_config: {
           filters: { status: 'active' },
           sorting: [{ field: 'created_at', direction: 'desc' }]
         },
-        fields: ['id', 'name'],
-        is_default: false,
-        is_public: true
+        view_fields: ['id', 'name'],
+        view_is_default: false,
+        view_is_public: true
       }
     ];
 
@@ -144,13 +144,13 @@ describe('ViewManager', () => {
     test('should select all fields when no fields specified', async () => {
       // Create view with no specific fields
       const viewWithAllFields: ViewDefinition = {
-        id: 'view_all',
-        entity_id: 'entity_1',
-        name: 'all-fields',
-        query_config: {},
-        fields: [], // Empty fields array
-        is_default: false,
-        is_public: true
+        view_id: 'view_all',
+        view_entity_id: 'entity_1',
+        view_name: 'all-fields',
+        view_query_config: {},
+        view_fields: [], // Empty fields array
+        view_is_default: false,
+        view_is_public: true
       };
 
       const vmWithAllFields = new ViewManager(
