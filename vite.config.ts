@@ -30,11 +30,6 @@ export default defineConfig({
     target: 'node14'
   },
   plugins: [
-    visualizer({
-      filename: 'dist/bundle-analysis.html',
-      open: false,
-      gzipSize: true,
-      brotliSize: true
-    })
+    
   ]
 });

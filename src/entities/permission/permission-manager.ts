@@ -38,18 +38,18 @@ export class PermissionManager {
     // Check if any permission allows the action
     const hasPermission = entityConfig.permissions.some(permission => {
       // Check if permission matches action and role
-      if (permission.action !== action || !roles.includes(permission.role)) {
+      if (permission.permission_action !== action || !roles.includes(permission.permission_role)) {
         return false;
       }
       
       // Check if permission is active
-      if (permission.is_active === false) {
+      if (permission.permission_is_active === false) {
         return false;
       }
       
       // Evaluate permission conditions if they exist
-      if (permission.conditions) {
-        return this.evaluatePermissionConditions(permission.conditions, context);
+      if (permission.permission_conditions) {
+        return this.evaluatePermissionConditions(permission.permission_conditions, context);
       }
       
       // Default to allowing if no conditions
@@ -117,12 +117,12 @@ export class PermissionManager {
     // Process each RLS rule
     for (const rule of entityConfig.rls) {
       // Skip inactive rules
-      if (!rule.is_active) {
+      if (!rule.rls_is_active) {
         continue;
       }
       
       // Skip rules for roles not in user context
-      if (!userRoles.includes(rule.role)) {
+      if (!userRoles.includes(rule.rls_role)) {
         continue;
       }
       
@@ -239,12 +239,12 @@ export class PermissionManager {
     
     // Check field permissions in entity permissions
     for (const permission of entityConfig.permissions) {
-      if (!userRoles.includes(permission.role)) {
+      if (!userRoles.includes(permission.permission_role)) {
         continue;
       }
       
-      if (permission.field_permissions && typeof permission.field_permissions === 'object') {
-        const fieldPermissions = permission.field_permissions as Record<string, boolean>;
+      if (permission.permission_field_permissions && typeof permission.permission_field_permissions === 'object') {
+        const fieldPermissions = permission.permission_field_permissions as Record<string, boolean>;
         
         // Check specific field permission
         const fieldKey = `${fieldName}_${action}`;
