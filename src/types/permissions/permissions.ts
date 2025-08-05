@@ -63,21 +63,21 @@ import { OperationType } from '../core/common';
  */
 export interface PermissionDefinition {
   /** Unique identifier for this permission rule */
-  id: string;
+  permission_id: string;
   /** ID of the entity this permission applies to */
-  entity_id: string;
+  permission_entity_id: string;
   /** Role name this permission is granted to */
-  role: string;
+  permission_role: string;
   /** Operation type this permission controls */
-  action: OperationType;
+  permission_action: OperationType;
   /** Optional conditions that must be met (JSON object) */
-  conditions?: Record<string, any>;
+  permission_conditions?: Record<string, any>;
   /** Whether this permission grants (true) or denies (false) access */
-  is_allowed: boolean;
+  permission_is_allowed: boolean;
   /** Whether this permission rule is currently active */
-  is_active?: boolean;
+  permission_is_active?: boolean;
   /** ISO timestamp when permission was created */
-  created_at: string;
+  permission_created_at: string;
   /** Field-level permissions (field_name: allowed, field_name_read: read_only) */
-  field_permissions?: Record<string, boolean>;
+  permission_field_permissions?: Record<string, boolean>;
 }

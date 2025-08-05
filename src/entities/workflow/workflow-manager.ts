@@ -52,7 +52,7 @@ export class WorkflowManager {
       try {
         await this.executeWorkflow(workflow, event, oldData, newData, context);
       } catch (error) {
-        console.error(`Error executing workflow ${workflow.name}: ${error}`);
+        console.error(`Error executing workflow ${workflow.workflow_name}: ${error}`);
         // In a production system, you might want to handle workflow errors differently
         // For now, we'll log the error and continue
       }

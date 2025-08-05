@@ -145,13 +145,13 @@ export interface RoleRestrictions {
  */
 export interface RLSDefinition {
   /** Unique identifier for this RLS rule */
-  id: string;
+  rls_id: string;
   /** Entity this rule applies to */
-  entity_id: string;
+  rls_entity_id: string;
   /** Role this rule applies to */
-  role: string;
+  rls_role: string;
   /** Optional view this rule is specific to */
-  view_id?: string;
+  rls_view_id?: string;
   /** RLS configuration */
   rls_config: {
     /** How to combine multiple conditions */
@@ -160,11 +160,11 @@ export interface RLSDefinition {
     conditions: RLSCondition[];
   };
   /** Whether this rule is currently active */
-  is_active: boolean;
+  rls_is_active: boolean;
   /** ISO timestamp when rule was created */
-  created_at: string;
+  rls_created_at: string;
   /** ISO timestamp when rule was last updated */
-  updated_at: string;
+  rls_updated_at: string;
 }
 
 /**

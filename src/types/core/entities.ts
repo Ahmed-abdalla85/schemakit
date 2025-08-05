@@ -83,35 +83,35 @@ export interface EntityDefinition {
  */
 export interface FieldDefinition {
   /** Unique identifier for this field */
-  id: string;
+  field_id: string;
   /** ID of the entity this field belongs to */
-  entity_id: string;
+  field_entity_id: string;
   /** Field name used in code (e.g., 'email', 'created_at') */
-  name: string;
+  field_name: string;
   /** Data type of this field */
-  type: FieldType;
+  field_type: FieldType;
   /** Whether this field must have a value */
-  is_required: boolean;
+  field_is_required: boolean;
   /** Whether values in this field must be unique */
-  is_unique: boolean;
+  field_is_unique: boolean;
   /** Whether this field is part of the primary key */
-  is_primary_key?: boolean;
+  field_is_primary_key?: boolean;
   /** Default value for new records (as string) */
-  default_value?: string;
+  field_default_value?: string;
   /** Validation rules as JSON object */
-  validation_rules?: Record<string, any>;
+  field_validation_rules?: Record<string, any>;
   /** Human-readable display name */
-  display_name: string;
+  field_display_name: string;
   /** Description of what this field represents */
-  description?: string;
+  field_description?: string;
   /** Display order (0-based index) */
-  order_index: number;
+  field_order_index: number;
   /** Whether this field is currently active */
-  is_active: boolean;
+  field_is_active: boolean;
   /** Entity name this field references (for foreign keys) */
-  reference_entity?: string;
+  field_reference_entity?: string;
   /** Additional metadata as JSON object */
-  metadata?: Record<string, any>;
+  field_metadata?: Record<string, any>;
 }
 
 /**

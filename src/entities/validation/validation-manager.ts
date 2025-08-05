@@ -22,7 +22,7 @@ export class ValidationManager {
     
     // Validate each field
     for (const field of entityConfig.fields) {
-      const fieldErrors = this.validateField(field, data[field.name], operation, data);
+      const fieldErrors = this.validateField(field, data[field.field_name], operation, data);
       errors.push(...fieldErrors);
     }
     
@@ -80,13 +80,13 @@ export class ValidationManager {
   private validateFieldType(field: FieldDefinition, value: any): ValidationError[] {
     const errors: ValidationError[] = [];
 
-    switch (field.type) {
+    switch (field.field_type) {
       case 'string':
         if (typeof value !== 'string') {
           errors.push({
-            field: field.name,
+            field: field.field_name,
             code: 'type',
-            message: `Field '${field.name}' must be a string`,
+            message: `Field '${field.field_name}' must be a string`,
             value
           });
         }
@@ -96,9 +96,9 @@ export class ValidationManager {
       case 'integer':
         if (typeof value !== 'number' || isNaN(value)) {
           errors.push({
-            field: field.name,
+            field: field.field_name,
             code: 'type',
-            message: `Field '${field.name}' must be a number`,
+            message: `Field '${field.field_name}' must be a number`,
             value
           });
         }
@@ -107,9 +107,9 @@ export class ValidationManager {
       case 'boolean':
         if (typeof value !== 'boolean') {
           errors.push({
-            field: field.name,
+            field: field.field_name,
             code: 'type',
-            message: `Field '${field.name}' must be a boolean`,
+            message: `Field '${field.field_name}' must be a boolean`,
             value
           });
         }
@@ -119,9 +119,9 @@ export class ValidationManager {
       case 'datetime':
         if (!(value instanceof Date) && isNaN(Date.parse(value))) {
           errors.push({
-            field: field.name,
+            field: field.field_name,
             code: 'type',
-            message: `Field '${field.name}' must be a valid date`,
+            message: `Field '${field.field_name}' must be a valid date`,
             value
           });
         }
@@ -131,9 +131,9 @@ export class ValidationManager {
       case 'object':
         if (typeof value !== 'object' || value === null) {
           errors.push({
-            field: field.name,
+            field: field.field_name,
             code: 'type',
-            message: `Field '${field.name}' must be an object`,
+            message: `Field '${field.field_name}' must be an object`,
             value
           });
         }
@@ -142,9 +142,9 @@ export class ValidationManager {
       case 'array':
         if (!Array.isArray(value)) {
           errors.push({
-            field: field.name,
+            field: field.field_name,
             code: 'type',
-            message: `Field '${field.name}' must be an array`,
+            message: `Field '${field.field_name}' must be an array`,
             value
           });
         }
@@ -161,16 +161,16 @@ export class ValidationManager {
     const errors: ValidationError[] = [];
 
     try {
-      const rules = typeof field.validation_rules === 'string' 
-        ? JSON.parse(field.validation_rules) 
-        : field.validation_rules;
+      const rules = typeof field.field_validation_rules === 'string' 
+        ? JSON.parse(field.field_validation_rules) 
+        : field.field_validation_rules;
 
       // Min length
       if (rules.minLength && typeof value === 'string' && value.length < rules.minLength) {
         errors.push({
           field: field.name,
           code: 'minLength',
-          message: `Field '${field.name}' must be at least ${rules.minLength} characters`,
+                      message: `Field '${field.field_name}' must be at least ${rules.minLength} characters`,
           value
         });
       }
@@ -180,7 +180,7 @@ export class ValidationManager {
         errors.push({
           field: field.name,
           code: 'maxLength',
-          message: `Field '${field.name}' must be at most ${rules.maxLength} characters`,
+                      message: `Field '${field.field_name}' must be at most ${rules.maxLength} characters`,
           value
         });
       }
@@ -190,7 +190,7 @@ export class ValidationManager {
         errors.push({
           field: field.name,
           code: 'min',
-          message: `Field '${field.name}' must be at least ${rules.min}`,
+                      message: `Field '${field.field_name}' must be at least ${rules.min}`,
           value
         });
       }
@@ -200,7 +200,7 @@ export class ValidationManager {
         errors.push({
           field: field.name,
           code: 'max',
-          message: `Field '${field.name}' must be at most ${rules.max}`,
+                      message: `Field '${field.field_name}' must be at most ${rules.max}`,
           value
         });
       }
@@ -210,9 +210,9 @@ export class ValidationManager {
         const regex = new RegExp(rules.pattern);
         if (!regex.test(value)) {
           errors.push({
-            field: field.name,
+            field: field.field_name,
             code: 'pattern',
-            message: `Field '${field.name}' does not match required pattern`,
+            message: `Field '${field.field_name}' does not match required pattern`,
             value
           });
         }
@@ -223,9 +223,9 @@ export class ValidationManager {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(value)) {
           errors.push({
-            field: field.name,
+            field: field.field_name,
             code: 'email',
-            message: `Field '${field.name}' must be a valid email address`,
+            message: `Field '${field.field_name}' must be a valid email address`,
             value
           });
         }
@@ -235,7 +235,7 @@ export class ValidationManager {
       errors.push({
         field: field.name,
         code: 'validation_error',
-        message: `Invalid validation rules for field '${field.name}'`,
+                    message: `Invalid validation rules for field '${field.field_name}'`,
         value
       });
     }

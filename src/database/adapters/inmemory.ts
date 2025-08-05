@@ -23,6 +23,21 @@ export class InMemoryAdapter extends DatabaseAdapter {
     }
 
     /**
+     * Get the correct ID field name for a table
+     */
+    private getIdField(table: string): string {
+        switch (table) {
+            case 'system_entities': return 'entity_id';
+            case 'system_fields': return 'field_id';
+            case 'system_permissions': return 'permission_id';
+            case 'system_views': return 'view_id';
+            case 'system_workflows': return 'workflow_id';
+            case 'system_rls': return 'rls_id';
+            default: return 'id';
+        }
+    }
+
+    /**
      * Connect to in-memory database (always succeeds)
      */
     async connect(): Promise<void> {
@@ -78,26 +93,26 @@ export class InMemoryAdapter extends DatabaseAdapter {
                         if (whereClause.includes('name = ?') && whereClause.includes('is_active = ?')) {
                             const nameValue = params[0];
                             const isActiveValue = params[1];
-                            return record.name === nameValue && record.is_active === isActiveValue;
+                            return record.entity_name === nameValue && record.entity_is_active === isActiveValue;
                         }
                         if (whereClause.includes('entity_id = ?') && whereClause.includes('is_active = ?')) {
                             const entityIdValue = params[0];
                             const isActiveValue = params[1];
-                            return record.entity_id === entityIdValue && record.is_active === isActiveValue;
+                            return record.field_entity_id === entityIdValue && record.field_is_active === isActiveValue;
                         }
                         if (whereClause.includes('entity_id = ?') && whereClause.includes('role IN (?)') && whereClause.includes('is_active = ?')) {
                             const entityIdValue = params[0];
                             const roleValue = params[1];
                             const isActiveValue = params[2];
-                            return record.entity_id === entityIdValue && record.role === roleValue && record.is_active === isActiveValue;
+                            return record.permission_entity_id === entityIdValue && record.permission_role === roleValue && record.permission_is_active === isActiveValue;
                         }
                         if (whereClause.includes('entity_id = ?')) {
                             const entityIdValue = params[0];
-                            return record.entity_id === entityIdValue;
+                            return record.view_entity_id === entityIdValue;
                         }
                         if (whereClause.includes('id = ?')) {
                             const idValue = params[0];
-                            return record.id === idValue;
+                            return record.entity_id === idValue;
                         }
                         // Default: return all records if we can't parse the WHERE clause
                         return true;
@@ -197,15 +212,33 @@ export class InMemoryAdapter extends DatabaseAdapter {
                         }
                     });
                     
-                    // Generate ID if not provided
-                    if (!record.id) {
+                    // Generate ID if not provided based on table type
+                    if (actualTable === 'system_entities' && !record.entity_id) {
+                        record.entity_id = this.generateId(actualTable);
+                        lastInsertId = record.entity_id;
+                    } else if (actualTable === 'system_fields' && !record.field_id) {
+                        record.field_id = this.generateId(actualTable);
+                        lastInsertId = record.field_id;
+                    } else if (actualTable === 'system_permissions' && !record.permission_id) {
+                        record.permission_id = this.generateId(actualTable);
+                        lastInsertId = record.permission_id;
+                    } else if (actualTable === 'system_views' && !record.view_id) {
+                        record.view_id = this.generateId(actualTable);
+                        lastInsertId = record.view_id;
+                    } else if (actualTable === 'system_workflows' && !record.workflow_id) {
+                        record.workflow_id = this.generateId(actualTable);
+                        lastInsertId = record.workflow_id;
+                    } else if (actualTable === 'system_rls' && !record.rls_id) {
+                        record.rls_id = this.generateId(actualTable);
+                        lastInsertId = record.rls_id;
+                    } else if (!record.id) {
                         record.id = this.generateId(actualTable);
+                        lastInsertId = record.id;
                     }
                     
                     const records = this.getTableData(tenant, actualTable);
                     records.push(record);
                     changes++;
-                    lastInsertId = record.id;
                 }
                 
                 return { changes, lastInsertId };
@@ -405,7 +438,8 @@ export class InMemoryAdapter extends DatabaseAdapter {
 
         try {
             const records = this.getTableData(tenantId, table);
-            const recordIndex = records.findIndex(r => r.id === id);
+            const idField = this.getIdField(table);
+            const recordIndex = records.findIndex(r => r[idField] === id);
             
             if (recordIndex === -1) {
                 throw new Error(`Record with id ${id} not found`);
@@ -441,7 +475,8 @@ export class InMemoryAdapter extends DatabaseAdapter {
 
         try {
             const records = this.getTableData(tenantId, table);
-            const recordIndex = records.findIndex(r => r.id === id);
+            const idField = this.getIdField(table);
+            const recordIndex = records.findIndex(r => r[idField] === id);
             
             if (recordIndex === -1) {
                 throw new Error(`Record with id ${id} not found`);
@@ -498,7 +533,8 @@ export class InMemoryAdapter extends DatabaseAdapter {
 
         try {
             const records = this.getTableData(tenantId, table);
-            return records.find(r => r.id === id) || null;
+            const idField = this.getIdField(table);
+        return records.find(r => r[idField] === id) || null;
         } catch (error) {
             throw new DatabaseError('find_by_id', { 
                 cause: error instanceof Error ? error : new Error(String(error)),

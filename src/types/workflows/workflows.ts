@@ -151,21 +151,21 @@ export interface WorkflowAction {
  */
 export interface WorkflowDefinition {
   /** Unique identifier for this workflow */
-  id: string;
+  workflow_id: string;
   /** Entity this workflow applies to */
-  entity_id: string;
+  workflow_entity_id: string;
   /** Workflow name for reference */
-  name: string;
+  workflow_name: string;
   /** Event that triggers this workflow */
-  trigger_event: WorkflowTrigger;
+  workflow_trigger_event: WorkflowTrigger;
   /** Optional conditions that must be met to execute */
-  conditions?: Record<string, any>;
+  workflow_conditions?: Record<string, any>;
   /** Array of actions to execute in order */
-  actions: WorkflowAction[];
+  workflow_actions: WorkflowAction[];
   /** Whether this workflow is currently active */
-  is_active: boolean;
+  workflow_is_active: boolean;
   /** Execution order when multiple workflows match */
-  order_index: number;
+  workflow_order_index: number;
   /** Additional metadata */
-  metadata?: Record<string, any>;
+  workflow_metadata?: Record<string, any>;
 }

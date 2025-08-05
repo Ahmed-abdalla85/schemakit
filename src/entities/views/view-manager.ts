@@ -40,7 +40,7 @@ export class ViewManager {
     options: ViewOptions = {}
   ): Promise<ViewResult> {
     // Find the view definition
-    const viewDef = this.views.find(v => v.name === viewName);
+    const viewDef = this.views.find(v => v.view_name === viewName);
     if (!viewDef) {
       throw new Error(`View '${viewName}' not found for entity '${this.entityName}'`);
     }

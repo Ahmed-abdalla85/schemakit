@@ -28,8 +28,36 @@ export { SchemaLoader } from './database/schema-loader';
 
 // Database module (new structure) - Main gateway for all database operations
 export * from './database';
-// Types (simplified)
-export * from './types';
+// Types (simplified) - export specific types to avoid conflicts
+export type {
+  EntityDefinition,
+  FieldDefinition,
+  EntityConfiguration,
+  Context,
+  SchemaKitOptions,
+  FieldType,
+  OperationType,
+  QueryFilter,
+  QueryOptions,
+  QueryResult,
+  BuiltQuery,
+  PermissionDefinition,
+  RLSCondition,
+  RLSRule,
+  RLSDefinition,
+  RoleRestrictions,
+  ViewDefinition,
+  ViewOptions,
+  ViewResult,
+  PaginationOptions,
+  SortDefinition,
+  JoinDefinition,
+  WorkflowDefinition,
+  WorkflowAction,
+  ValidationResult,
+  ValidationError,
+  ValidationWarning
+} from './types';
 
 // Errors
 export { SchemaKitError } from './errors';
@@ -38,6 +66,5 @@ export { SchemaKitError } from './errors';
 export * from './utils/date-helpers';
 export * from './utils/id-generation';
 export * from './utils/json-helpers';
-export * from './utils/query-helpers';
 export * from './utils/validation-helpers';
 export { Logger } from './utils/logger';

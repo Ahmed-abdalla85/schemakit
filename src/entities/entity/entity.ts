@@ -370,18 +370,18 @@ export class Entity {
     const errors: string[] = [];
 
     for (const field of this.fields) {
-      const value = data[field.name];
+      const value = data[field.field_name];
       
       if (action === 'create' && field.is_required && (value === undefined || value === null)) {
-        errors.push(`Field '${field.name}' is required`);
+        errors.push(`Field '${field.field_name}' is required`);
         continue;
       }
 
       if (action === 'update' && value === undefined) continue;
 
       if (value !== null && value !== undefined) {
-        if (!this.validateFieldType(value, field.type)) {
-          errors.push(`Field '${field.name}' must be of type ${field.type}`);
+            if (!this.validateFieldType(value, field.field_type)) {
+      errors.push(`Field '${field.field_name}' must be of type ${field.field_type}`);
         }
       }
     }
@@ -422,7 +422,7 @@ export class Entity {
     const applicableWorkflows = this.workflow.filter(w => w.trigger_event === event);
     
     for (const workflow of applicableWorkflows) {
-      console.log(`Executing workflow: ${workflow.name} for event: ${event}`);
+              console.log(`Executing workflow: ${workflow.workflow_name} for event: ${event}`);
     }
   }
 
