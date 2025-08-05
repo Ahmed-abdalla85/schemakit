@@ -122,15 +122,15 @@ describe('Entity', () => {
       // 2. loadFields
       mockDb.get.mockResolvedValueOnce([
         {
-          id: 'field_1',
-          entity_id: 'ent_001',
-          name: 'id',
-          type: 'integer',
-          is_required: true,
-          is_unique: true,
-          display_name: 'ID',
-          order_index: 0,
-          is_active: true
+          field_id: 'field_1',
+          field_entity_id: 'ent_001',
+          field_name: 'id',
+          field_type: 'integer',
+          field_is_required: true,
+          field_is_unique: true,
+          field_display_name: 'ID',
+          field_order_index: 0,
+          field_is_active: true
         }
       ]);
       // 3. loadPermissions
