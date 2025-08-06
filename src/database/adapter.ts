@@ -310,30 +310,4 @@ export abstract class DatabaseAdapter {
         });
     }
   }
-  
-  /**
-   * Create a database adapter instance synchronously
-   * @deprecated Use create() instead for better performance
-   */
-  static createSync(type = 'sqlite', config: DatabaseAdapterConfig = {}): DatabaseAdapter {
-    const adapterConfig = { ...config, type };
-    
-    switch (type.toLowerCase()) {
-      case 'postgres':
-      case 'sqlite':
-      case 'mysql':
-        // Use require for synchronous loading
-        const { DrizzleAdapter } = require('./adapters/drizzle');
-        return new DrizzleAdapter(adapterConfig);
-        
-      case 'inmemory':
-        const { InMemoryAdapter } = require('./adapters/inmemory');
-        return new InMemoryAdapter(adapterConfig);
-        
-      default:
-        throw new DatabaseError('create', { 
-          cause: new Error(`Unsupported adapter type: ${type}`) 
-        });
-    }
-  }
 }

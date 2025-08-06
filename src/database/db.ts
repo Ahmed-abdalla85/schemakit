@@ -33,9 +33,10 @@ interface DBContext {
  * Handles tenant context, permissions, and RLS before delegating to adapters.
  */
 export class DB {
-  private adapter: DatabaseAdapter;
+  private adapter: DatabaseAdapter | null = null;
   private tenantId: string;
   private context: DBContext = {};
+  private adapterConfig: { type: string; config: any };
   
   // Query builder state
   private _select: string[] = [];
@@ -48,17 +49,35 @@ export class DB {
 
   constructor(opts: DBOptions) {
     this.tenantId = opts.tenantId;
-    
-    // Create adapter asynchronously will be handled by init()
-    // For now, create synchronously
-    this.adapter = DatabaseAdapter.createSync(opts.adapter, opts.config);
+    this.adapterConfig = {
+      type: opts.adapter,
+      config: opts.config
+    };
   }
 
   /**
    * Initialize the database connection
+   * Must be called before using the DB instance
    */
   async init(): Promise<void> {
-    await this.adapter.connect();
+    if (!this.adapter) {
+      this.adapter = await DatabaseAdapter.create(
+        this.adapterConfig.type, 
+        this.adapterConfig.config
+      );
+      await this.adapter.connect();
+    }
+  }
+
+  /**
+   * Ensure adapter is initialized
+   * @private
+   */
+  private async ensureAdapter(): Promise<DatabaseAdapter> {
+    if (!this.adapter) {
+      await this.init();
+    }
+    return this.adapter!;
   }
 
   /**
@@ -215,6 +234,8 @@ export class DB {
       throw new SchemaKitError('No table specified for query');
     }
 
+    const adapter = await this.ensureAdapter();
+
     try {
       // Build filters and options
       const filters = this.buildFilters();
@@ -227,7 +248,7 @@ export class DB {
       const rlsFilters = await this.applyRLS(tableName, filters);
       
       // Execute query through adapter
-      const results = await this.adapter.select(
+      const results = await adapter.select(
         tableName,
         rlsFilters,
         options,
@@ -244,12 +265,14 @@ export class DB {
    * Insert a new record
    */
   async insert(table: string, data: Record<string, any>): Promise<any> {
+    const adapter = await this.ensureAdapter();
+
     try {
       // Check permissions
       await this.checkPermissions('create', table);
       
       // Execute insert through adapter
-      const result = await this.adapter.insert(table, data, this.tenantId);
+      const result = await adapter.insert(table, data, this.tenantId);
       
       return result;
     } finally {
@@ -261,6 +284,8 @@ export class DB {
    * Update records
    */
   async update(table: string, data: Record<string, any>): Promise<any> {
+    const adapter = await this.ensureAdapter();
+
     try {
       // Check permissions
       await this.checkPermissions('update', table);
@@ -281,7 +306,7 @@ export class DB {
       }
       
       // Execute update through adapter
-      const result = await this.adapter.update(table, String(id), data, this.tenantId);
+      const result = await adapter.update(table, String(id), data, this.tenantId);
       
       return result;
     } finally {
@@ -293,6 +318,8 @@ export class DB {
    * Delete records
    */
   async delete(table: string): Promise<void> {
+    const adapter = await this.ensureAdapter();
+
     try {
       // Check permissions
       await this.checkPermissions('delete', table);
@@ -313,7 +340,7 @@ export class DB {
       }
       
       // Execute delete through adapter
-      await this.adapter.delete(table, String(id), this.tenantId);
+      await adapter.delete(table, String(id), this.tenantId);
     } finally {
       this.reset();
     }
@@ -328,6 +355,8 @@ export class DB {
       throw new SchemaKitError('No table specified for count');
     }
 
+    const adapter = await this.ensureAdapter();
+
     try {
       // Build filters
       const filters = this.buildFilters();
@@ -339,7 +368,7 @@ export class DB {
       const rlsFilters = await this.applyRLS(tableName, filters);
       
       // Execute count through adapter
-      const count = await this.adapter.count(
+      const count = await adapter.count(
         tableName,
         rlsFilters,
         this.tenantId
@@ -355,12 +384,14 @@ export class DB {
    * Find a single record by ID
    */
   async findById(table: string, id: string): Promise<any | null> {
+    const adapter = await this.ensureAdapter();
+
     try {
       // Check permissions
       await this.checkPermissions('read', table);
       
       // Execute query through adapter
-      const result = await this.adapter.findById(table, id, this.tenantId);
+      const result = await adapter.findById(table, id, this.tenantId);
       
       return result;
     } finally {
@@ -374,14 +405,17 @@ export class DB {
    */
   async raw<T = any>(sql: string, params?: any[]): Promise<T[]> {
     console.warn('Raw queries bypass SchemaKit permissions and RLS');
-    return await this.adapter.query<T>(sql, params);
+    const adapter = await this.ensureAdapter();
+    return await adapter.query<T>(sql, params);
   }
 
   /**
    * Start a transaction
    */
   async transaction<T>(callback: (db: DB) => Promise<T>): Promise<T> {
-    return await this.adapter.transaction(async (txAdapter) => {
+    const adapter = await this.ensureAdapter();
+    
+    return await adapter.transaction(async (txAdapter) => {
       // Create a new DB instance with the transaction adapter
       const txDb = Object.create(this);
       txDb.adapter = txAdapter;
@@ -393,9 +427,9 @@ export class DB {
    * Get the underlying adapter (escape hatch)
    * @warning Direct adapter access bypasses SchemaKit features
    */
-  getAdapter(): DatabaseAdapter {
+  async getAdapter(): Promise<DatabaseAdapter> {
     console.warn('Direct adapter access bypasses SchemaKit features');
-    return this.adapter;
+    return await this.ensureAdapter();
   }
 
   /**
@@ -416,6 +450,9 @@ export class DB {
    * Close database connection
    */
   async close(): Promise<void> {
-    await this.adapter.disconnect();
+    if (this.adapter) {
+      await this.adapter.disconnect();
+      this.adapter = null;
+    }
   }
 }
