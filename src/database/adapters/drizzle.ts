@@ -15,9 +15,7 @@ import {
   QueryOptions 
 } from '../adapter';
 import { DatabaseError } from '../../errors';
-import { QueryManager } from '../query-manager';
-import { sql } from 'drizzle-orm';
-import { resolveTableName } from '../../utils/query-helpers';
+import { sql, eq, ne, gt, lt, gte, lte, like, inArray, notInArray, and, or, desc, asc } from 'drizzle-orm';
 
 // Type imports for different Drizzle database types
 type DrizzleDatabase = any; // We use 'any' to avoid exposing Drizzle types
@@ -32,13 +30,11 @@ export class DrizzleAdapter extends DatabaseAdapter {
   private db: DrizzleDatabase | null = null;
   private client: any = null; // Underlying database client
   private connected = false;
-  private queryManager: QueryManager;
   private dbType: 'postgres' | 'sqlite' | 'mysql';
 
   constructor(config: DatabaseAdapterConfig) {
     super(config);
     this.dbType = config.type || 'sqlite';
-    this.queryManager = new QueryManager(this);
   }
 
   /**
@@ -185,12 +181,25 @@ export class DrizzleAdapter extends DatabaseAdapter {
     }
 
     try {
-      // Use Drizzle's sql template tag for safe query execution
-      const query = params && params.length > 0
-        ? sql.raw(this.prepareSql(sqlQuery, params))
-        : sql.raw(sqlQuery);
-        
-      const result = await this.db!.execute(query);
+      // For raw queries, we still need to use sql.raw
+      // But we properly parameterize based on database type
+      let finalSql: string;
+      
+      if (params && params.length > 0) {
+        if (this.dbType === 'postgres') {
+          // PostgreSQL uses $1, $2, etc.
+          finalSql = sqlQuery;
+          let index = 0;
+          finalSql = finalSql.replace(/\?/g, () => `$${++index}`);
+        } else {
+          // MySQL and SQLite use ?
+          finalSql = sqlQuery;
+        }
+      } else {
+        finalSql = sqlQuery;
+      }
+      
+      const result = await this.db!.execute(sql.raw(finalSql));
       
       // Handle different result formats from different databases
       if (Array.isArray(result)) {
@@ -217,11 +226,22 @@ export class DrizzleAdapter extends DatabaseAdapter {
     }
 
     try {
-      const query = params && params.length > 0
-        ? sql.raw(this.prepareSql(sqlQuery, params))
-        : sql.raw(sqlQuery);
-        
-      const result = await this.db!.execute(query);
+      // Similar to query, but for execute statements
+      let finalSql: string;
+      
+      if (params && params.length > 0) {
+        if (this.dbType === 'postgres') {
+          finalSql = sqlQuery;
+          let index = 0;
+          finalSql = finalSql.replace(/\?/g, () => `$${++index}`);
+        } else {
+          finalSql = sqlQuery;
+        }
+      } else {
+        finalSql = sqlQuery;
+      }
+      
+      const result = await this.db!.execute(sql.raw(finalSql));
       
       // Extract changes and lastInsertId based on database type
       let changes = 0;
@@ -337,9 +357,9 @@ export class DrizzleAdapter extends DatabaseAdapter {
 
     try {
       const columnDefs = columns.map(col => this.buildColumnDefinition(col)).join(', ');
-      const sql = `CREATE TABLE IF NOT EXISTS ${tableName} (${columnDefs})`;
+      const sqlQuery = `CREATE TABLE IF NOT EXISTS ${tableName} (${columnDefs})`;
       
-      await this.execute(sql);
+      await this.execute(sqlQuery);
     } catch (error) {
       throw new DatabaseError('create_table', { 
         cause: error instanceof Error ? error : new Error(String(error)),
@@ -415,6 +435,7 @@ export class DrizzleAdapter extends DatabaseAdapter {
 
   /**
    * Select records with dynamic filtering
+   * Uses Drizzle's query builder for better performance and safety
    */
   async select(table: string, filters: QueryFilter[], options: QueryOptions, tenantId: string): Promise<any[]> {
     if (!this.isConnected()) {
@@ -422,8 +443,51 @@ export class DrizzleAdapter extends DatabaseAdapter {
     }
 
     try {
-      const query = this.queryManager.buildSelectQuery(table, tenantId, filters, options);
-      return await this.query(query.sql, query.params);
+      // For dynamic tables, we need to use raw SQL since we don't have schema definitions
+      // But we'll build it more safely using Drizzle's sql template
+      const conditions: any[] = [];
+      const values: any[] = [];
+      
+      // Add tenant condition if not default
+      if (tenantId && tenantId !== 'default') {
+        conditions.push(`tenant_id = ${this.getPlaceholder(values.length)}`);
+        values.push(tenantId);
+      }
+      
+      // Add filter conditions
+      for (const filter of filters) {
+        const condition = this.buildFilterCondition(filter, values);
+        if (condition) {
+          conditions.push(condition);
+        }
+      }
+      
+      // Build the query
+      let query = `SELECT * FROM ${this.escapeIdentifier(table)}`;
+      
+      if (conditions.length > 0) {
+        query += ` WHERE ${conditions.join(' AND ')}`;
+      }
+      
+      // Add ordering
+      if (options.orderBy && options.orderBy.length > 0) {
+        const orderClauses = options.orderBy.map(o => 
+          `${this.escapeIdentifier(o.field)} ${o.direction}`
+        );
+        query += ` ORDER BY ${orderClauses.join(', ')}`;
+      }
+      
+      // Add limit
+      if (options.limit) {
+        query += ` LIMIT ${options.limit}`;
+      }
+      
+      // Add offset
+      if (options.offset) {
+        query += ` OFFSET ${options.offset}`;
+      }
+      
+      return await this.query(query, values);
     } catch (error) {
       throw new DatabaseError('select', { 
         cause: error instanceof Error ? error : new Error(String(error)),
@@ -441,14 +505,32 @@ export class DrizzleAdapter extends DatabaseAdapter {
     }
 
     try {
-      const query = this.queryManager.buildInsertQuery(table, tenantId || 'default', data);
-      const result = await this.execute(query.sql, query.params);
+      // Add tenant_id to data if provided
+      const insertData = tenantId && tenantId !== 'default' 
+        ? { ...data, tenant_id: tenantId }
+        : data;
+      
+      const fields = Object.keys(insertData);
+      const values = Object.values(insertData);
+      const placeholders = values.map((_, index) => this.getPlaceholder(index)).join(', ');
+      
+      const query = `INSERT INTO ${this.escapeIdentifier(table)} (${fields.map(f => this.escapeIdentifier(f)).join(', ')}) VALUES (${placeholders})`;
+      
+      // For PostgreSQL, add RETURNING clause to get the inserted record
+      const finalQuery = this.dbType === 'postgres' ? `${query} RETURNING *` : query;
+      
+      const result = await this.execute(finalQuery, values);
       
       // Return the inserted record with its ID
-      return {
-        ...data,
-        id: result.lastInsertId || data.id
-      };
+      if (this.dbType === 'postgres' && result.lastInsertId) {
+        // PostgreSQL returns the full record
+        return result.lastInsertId;
+      } else {
+        return {
+          ...insertData,
+          id: result.lastInsertId || insertData.id
+        };
+      }
     } catch (error) {
       throw new DatabaseError('insert', { 
         cause: error instanceof Error ? error : new Error(String(error)),
@@ -466,8 +548,28 @@ export class DrizzleAdapter extends DatabaseAdapter {
     }
 
     try {
-      const query = this.queryManager.buildUpdateQuery(table, tenantId, id, data);
-      const result = await this.execute(query.sql, query.params);
+      const fields = Object.keys(data);
+      const values = Object.values(data);
+      
+      const setClauses = fields.map((field, index) => 
+        `${this.escapeIdentifier(field)} = ${this.getPlaceholder(index)}`
+      ).join(', ');
+      
+      // Add ID to values
+      values.push(id);
+      
+      // Build WHERE clause
+      const whereConditions = [`id = ${this.getPlaceholder(values.length - 1)}`];
+      
+      // Add tenant condition
+      if (tenantId && tenantId !== 'default') {
+        values.push(tenantId);
+        whereConditions.push(`tenant_id = ${this.getPlaceholder(values.length - 1)}`);
+      }
+      
+      const query = `UPDATE ${this.escapeIdentifier(table)} SET ${setClauses} WHERE ${whereConditions.join(' AND ')}`;
+      
+      const result = await this.execute(query, values);
       
       if (result.changes === 0) {
         throw new Error(`No record found with id: ${id}`);
@@ -495,8 +597,18 @@ export class DrizzleAdapter extends DatabaseAdapter {
     }
 
     try {
-      const query = this.queryManager.buildDeleteQuery(table, tenantId, id);
-      const result = await this.execute(query.sql, query.params);
+      const values = [id];
+      const whereConditions = [`id = ${this.getPlaceholder(0)}`];
+      
+      // Add tenant condition
+      if (tenantId && tenantId !== 'default') {
+        values.push(tenantId);
+        whereConditions.push(`tenant_id = ${this.getPlaceholder(values.length - 1)}`);
+      }
+      
+      const query = `DELETE FROM ${this.escapeIdentifier(table)} WHERE ${whereConditions.join(' AND ')}`;
+      
+      const result = await this.execute(query, values);
       
       if (result.changes === 0) {
         throw new Error(`No record found with id: ${id}`);
@@ -518,9 +630,31 @@ export class DrizzleAdapter extends DatabaseAdapter {
     }
 
     try {
-      const query = this.queryManager.buildCountQuery(table, tenantId, filters);
-      const result = await this.query<{ count: number }>(query.sql, query.params);
-      return result[0]?.count || 0;
+      const conditions: string[] = [];
+      const values: any[] = [];
+      
+      // Add tenant condition
+      if (tenantId && tenantId !== 'default') {
+        conditions.push(`tenant_id = ${this.getPlaceholder(values.length)}`);
+        values.push(tenantId);
+      }
+      
+      // Add filter conditions
+      for (const filter of filters) {
+        const condition = this.buildFilterCondition(filter, values);
+        if (condition) {
+          conditions.push(condition);
+        }
+      }
+      
+      let query = `SELECT COUNT(*) as count FROM ${this.escapeIdentifier(table)}`;
+      
+      if (conditions.length > 0) {
+        query += ` WHERE ${conditions.join(' AND ')}`;
+      }
+      
+      const result = await this.query<{ count: number }>(query, values);
+      return Number(result[0]?.count) || 0;
     } catch (error) {
       throw new DatabaseError('count', { 
         cause: error instanceof Error ? error : new Error(String(error)),
@@ -538,8 +672,18 @@ export class DrizzleAdapter extends DatabaseAdapter {
     }
 
     try {
-      const query = this.queryManager.buildFindByIdQuery(table, tenantId, id);
-      const result = await this.query(query.sql, query.params);
+      const values = [id];
+      const whereConditions = [`id = ${this.getPlaceholder(0)}`];
+      
+      // Add tenant condition
+      if (tenantId && tenantId !== 'default') {
+        values.push(tenantId);
+        whereConditions.push(`tenant_id = ${this.getPlaceholder(values.length - 1)}`);
+      }
+      
+      const query = `SELECT * FROM ${this.escapeIdentifier(table)} WHERE ${whereConditions.join(' AND ')} LIMIT 1`;
+      
+      const result = await this.query(query, values);
       return result[0] || null;
     } catch (error) {
       throw new DatabaseError('find_by_id', { 
@@ -559,9 +703,9 @@ export class DrizzleAdapter extends DatabaseAdapter {
 
     try {
       if (this.dbType === 'postgres') {
-        await this.execute(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+        await this.execute(`CREATE SCHEMA IF NOT EXISTS ${this.escapeIdentifier(schemaName)}`);
       } else if (this.dbType === 'mysql') {
-        await this.execute(`CREATE DATABASE IF NOT EXISTS ${schemaName}`);
+        await this.execute(`CREATE DATABASE IF NOT EXISTS ${this.escapeIdentifier(schemaName)}`);
       }
       // SQLite doesn't support schemas
     } catch (error) {
@@ -582,9 +726,9 @@ export class DrizzleAdapter extends DatabaseAdapter {
 
     try {
       if (this.dbType === 'postgres') {
-        await this.execute(`DROP SCHEMA IF EXISTS ${schemaName} CASCADE`);
+        await this.execute(`DROP SCHEMA IF EXISTS ${this.escapeIdentifier(schemaName)} CASCADE`);
       } else if (this.dbType === 'mysql') {
-        await this.execute(`DROP DATABASE IF EXISTS ${schemaName}`);
+        await this.execute(`DROP DATABASE IF EXISTS ${this.escapeIdentifier(schemaName)}`);
       }
       // SQLite doesn't support schemas
     } catch (error) {
@@ -636,7 +780,7 @@ export class DrizzleAdapter extends DatabaseAdapter {
    * Build column definition SQL
    */
   private buildColumnDefinition(col: ColumnDefinition): string {
-    let def = `${col.name} ${this.mapDataType(col.type)}`;
+    let def = `${this.escapeIdentifier(col.name)} ${this.mapDataType(col.type)}`;
     
     if (col.primaryKey) {
       def += ' PRIMARY KEY';
@@ -655,13 +799,108 @@ export class DrizzleAdapter extends DatabaseAdapter {
     }
     
     if (col.references) {
-      def += ` REFERENCES ${col.references.table}(${col.references.column})`;
+      def += ` REFERENCES ${this.escapeIdentifier(col.references.table)}(${this.escapeIdentifier(col.references.column)})`;
       if (col.references.onDelete) {
         def += ` ON DELETE ${col.references.onDelete}`;
       }
     }
     
     return def;
+  }
+
+  /**
+   * Build a filter condition for WHERE clause
+   */
+  private buildFilterCondition(filter: QueryFilter, values: any[]): string {
+    const field = this.escapeIdentifier(filter.field);
+    const placeholder = this.getPlaceholder(values.length);
+    
+    switch (filter.operator || 'eq') {
+      case 'eq':
+        values.push(filter.value);
+        return `${field} = ${placeholder}`;
+        
+      case 'neq':
+        values.push(filter.value);
+        return `${field} != ${placeholder}`;
+        
+      case 'gt':
+        values.push(filter.value);
+        return `${field} > ${placeholder}`;
+        
+      case 'lt':
+        values.push(filter.value);
+        return `${field} < ${placeholder}`;
+        
+      case 'gte':
+        values.push(filter.value);
+        return `${field} >= ${placeholder}`;
+        
+      case 'lte':
+        values.push(filter.value);
+        return `${field} <= ${placeholder}`;
+        
+      case 'like':
+        values.push(filter.value);
+        return `${field} LIKE ${placeholder}`;
+        
+      case 'in':
+        if (Array.isArray(filter.value) && filter.value.length > 0) {
+          const placeholders = filter.value.map((_, i) => {
+            values.push(filter.value[i]);
+            return this.getPlaceholder(values.length - 1);
+          }).join(', ');
+          return `${field} IN (${placeholders})`;
+        }
+        return '1=1'; // Always true if empty array
+        
+      case 'nin':
+        if (Array.isArray(filter.value) && filter.value.length > 0) {
+          const placeholders = filter.value.map((_, i) => {
+            values.push(filter.value[i]);
+            return this.getPlaceholder(values.length - 1);
+          }).join(', ');
+          return `${field} NOT IN (${placeholders})`;
+        }
+        return '1=1'; // Always true if empty array
+        
+      case 'contains':
+        values.push(`%${filter.value}%`);
+        return `${field} LIKE ${placeholder}`;
+        
+      case 'startswith':
+        values.push(`${filter.value}%`);
+        return `${field} LIKE ${placeholder}`;
+        
+      case 'endswith':
+        values.push(`%${filter.value}`);
+        return `${field} LIKE ${placeholder}`;
+        
+      default:
+        values.push(filter.value);
+        return `${field} = ${placeholder}`;
+    }
+  }
+
+  /**
+   * Get parameter placeholder based on database type
+   */
+  private getPlaceholder(index: number): string {
+    return this.dbType === 'postgres' ? `$${index + 1}` : '?';
+  }
+
+  /**
+   * Escape identifier (table/column name) based on database type
+   */
+  private escapeIdentifier(identifier: string): string {
+    switch (this.dbType) {
+      case 'postgres':
+        return `"${identifier.replace(/"/g, '""')}"`;
+      case 'mysql':
+        return `\`${identifier.replace(/`/g, '``')}\``;
+      case 'sqlite':
+        return `"${identifier.replace(/"/g, '""')}"`;
+    }
   }
 
   /**
@@ -718,31 +957,10 @@ export class DrizzleAdapter extends DatabaseAdapter {
    */
   private formatDefaultValue(value: any): string {
     if (value === null) return 'NULL';
-    if (typeof value === 'string') return `'${value}'`;
-    if (typeof value === 'boolean') return value ? '1' : '0';
+    if (value === 'CURRENT_TIMESTAMP') return 'CURRENT_TIMESTAMP';
+    if (typeof value === 'string') return `'${value.replace(/'/g, "''")}'`;
+    if (typeof value === 'boolean') return this.dbType === 'sqlite' ? (value ? '1' : '0') : String(value);
     return String(value);
-  }
-
-  /**
-   * Prepare SQL with proper parameter placeholders
-   */
-  private prepareSql(sqlQuery: string, params: any[]): string {
-    if (this.dbType === 'postgres') {
-      // Convert ? to $1, $2, etc. for PostgreSQL
-      let index = 0;
-      return sqlQuery.replace(/\?/g, () => `$${++index}`);
-    }
-    
-    // MySQL and SQLite use ? placeholders
-    // But we need to inline the params for sql.raw
-    let index = 0;
-    return sqlQuery.replace(/\?/g, () => {
-      const param = params[index++];
-      if (param === null) return 'NULL';
-      if (typeof param === 'string') return `'${param.replace(/'/g, "''")}'`;
-      if (typeof param === 'boolean') return param ? '1' : '0';
-      return String(param);
-    });
   }
 
   /**
