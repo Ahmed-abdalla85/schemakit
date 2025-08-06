@@ -1,291 +1,222 @@
-# SchemaKit
-### Runtime Schema Engine for Building Secure, Low-Code Backend Applications
-*ship apps that adapt on the fly*
+# SchemaKit Monorepo
 
-> ⚠️ **BETA VERSION** - Active development. Not recommended for production use yet.
+A collection of framework adapters and tools for SchemaKit - the dynamic entity management system with runtime schema creation, validation, and CRUD operations.
 
-**SchemaKit is a runtime schema engine** that lets you build secure, multi-tenant backend applications where entities, permissions, and workflows are defined as data rather than code. Build business applications that can evolve without code deployments.
+## 📦 Packages
 
-## 🎯 What Makes SchemaKit Different
+### [@mobtakronio/schemakit](./packages/schemakit/)
+The core SchemaKit engine providing:
+- Dynamic entity management with runtime schema creation
+- Built-in validation and permissions
+- Workflow automation
+- Multi-tenant support
+- Database adapters (SQLite, PostgreSQL, in-memory)
 
-Unlike traditional ORMs that require code changes to add entities, SchemaKit stores your **schema as data**. Add new business entities, modify permissions, and create workflows through API calls - no code deployment needed.
+### [@mobtakronio/schemakit-elysia](./packages/schemakit-elysia/)
+Elysia framework adapter that auto-generates REST endpoints for all SchemaKit entities with:
+- 🚀 **Auto-generated CRUD endpoints** for all entities
+- 🔐 **Built-in permissions & validation** handled by core
+- ⚡ **Workflow execution** on entity operations
+- 📚 **Automatic OpenAPI/Swagger documentation**
+- 🎯 **Type-safe** with full TypeScript support
+- 🔄 **Pagination & filtering** support
 
-```typescript
-// Traditional ORM: Define entities in code
-const userSchema = z.object({
-  name: z.string(),
-  email: z.string().email()
-});
+## 🚀 Quick Start
 
-// SchemaKit: Entities are data, created at runtime
-await schemaKit.defineEntity({
-  name: 'customer',
-  fields: {
-    name: { type: 'string', required: true },
-    department: { type: 'string' }
-  },
-  authorization: {
-    'manager': [{
-      conditions: [{
-        field: 'department',
-        operator: 'eq',
-        value: 'currentUser.department', // Dynamic filtering
-        exposed: false // Hidden from user
-      }]
-    }],
-    'analyst': [{
-      conditions: [{
-        field: 'priority',
-        operator: 'in',
-        value: ['high', 'urgent'],
-        exposed: true, // User can modify this filter
-        metadata: {
-          type: 'multiselect',
-          options: ['low', 'medium', 'high', 'urgent']
-        }
-      }]
-    }]
-  },
-  // Workflows coming in v0.3
-  // workflows: {
-  //   'after-create': ['send-notification', 'update-analytics']
-  // }
-});
-
-// Use immediately - no code deployment
-const customer = await schemaKit.entity('customer', tenantId);
-await customer.create({ name: 'ACME Corp', department: 'Sales' });
-```
-
-## 🏗️ Architecture: Four-Tier Runtime Engine
-
-SchemaKit is built as a layered runtime engine:
-
-### 1. **Meta Schema Layer** (Data-Driven Foundation)
-```sql
-system_entities    -> Entity definitions stored as data
-system_fields      -> Field schemas with validation rules  
-system_permissions -> Business authorization rules
-system_workflows   -> Lifecycle automation definitions
-system_views       -> Query configurations
-```
-
-### 2. **Engine Layer** (Business Logic)
-```typescript
-EntityBuilder      -> Dynamic entity creation from meta-schema
-PermissionManager  -> Business authorization with exposed/hidden filters
-ValidationManager  -> Runtime data validation
-RLS Integration    -> Row-level security patterns
-ViewManager        -> Planned: Query configuration management
-WorkflowManager    -> Planned: Lifecycle event automation
-```
-
-### 3. **Adapter Layer** (Database Abstraction)
-```typescript
-PostgresAdapter   -> Native PostgreSQL implementation
-SQLiteAdapter     -> File-based development
-InMemoryAdapter   -> Testing and development
-DrizzleAdapter    -> Planned: Leverage Drizzle ORM optimizations
-TypeORMAdapter    -> Planned: Enterprise features
-```
-
-### 4. **Interface Layer** (Future: Low-Code Tools)
-```typescript
-REST API          -> Planned: Auto-generated endpoints
-GraphQL API       -> Planned: Dynamic schema generation
-Admin UI          -> Planned: Entity management interface
-CLI Tools         -> Planned: Schema migration utilities
-```
-
-## 🚀 Key Innovations
-
-### **Meta-Database Approach**
-Store entity definitions as data, not code. Add new entity types through API calls:
+### Basic Usage with Elysia
 
 ```typescript
-// Add a new entity type without deploying code
-await schemaKit.defineEntity({
-  name: 'project',
-  fields: { 
-    name: { type: 'string' },
-    status: { type: 'string', options: ['active', 'completed'] }
-  }
-});
+import { Elysia } from 'elysia';
+import { SchemaKit } from '@mobtakronio/schemakit';
+import { schemaKitElysia } from '@mobtakronio/schemakit-elysia';
+
+const app = new Elysia();
+const kit = new SchemaKit();
+
+// Add SchemaKit REST API
+app.use(schemaKitElysia(kit));
+
+app.listen(3000);
+console.log('🚀 Server running on http://localhost:3000');
+console.log('📚 API docs available at http://localhost:3000/docs');
 ```
 
-### **Business Authorization Engine**
-Hybrid permission system with enforced and user-controllable filters:
+### Setting up Entities
 
 ```typescript
-// Some filters are enforced (security)
-// Some filters are exposed (user experience)
-authorization: {
-  'analyst': [{
-    conditions: [
-      { field: 'department', exposed: false }, // Enforced by system
-      { field: 'priority', exposed: true }     // User can modify
-    ]
-  }]
-}
+// Create a user entity
+const users = await kit.entity('users');
+
+// Define fields
+await users.field('name', 'text', { required: true });
+await users.field('email', 'text', { required: true, unique: true });
+await users.field('role', 'text', { defaultValue: 'user' });
+
+// Add permissions
+await users.permission('create', { role: ['admin', 'user'] });
+await users.permission('read', { role: ['admin', 'user'] });
+await users.permission('update', { role: ['admin'], own: true });
+await users.permission('delete', { role: ['admin'] });
+
+// The REST API is automatically available:
+// GET    /api/entity/users          - List users
+// POST   /api/entity/users          - Create user
+// GET    /api/entity/users/:id      - Get user by ID
+// PUT    /api/entity/users/:id      - Update user
+// DELETE /api/entity/users/:id      - Delete user
 ```
 
-### **Dynamic Views System** *(Coming in v0.2)*
-Create reusable query configurations:
+## 📁 Project Structure
 
-```typescript
-views: {
-  'active-customers': {
-    filters: { status: 'active' },
-    sorting: [{ field: 'created_at', direction: 'DESC' }],
-    fields: ['name', 'email', 'department']
-  }
-}
+```
+/
+├── packages/
+│   ├── schemakit/              # Core SchemaKit engine
+│   │   ├── src/
+│   │   ├── test/
+│   │   ├── package.json
+│   │   └── README.md
+│   └── schemakit-elysia/       # Elysia adapter
+│       ├── src/
+│       ├── test/
+│       ├── package.json
+│       └── README.md
+├── examples/
+│   └── elysia-basic/           # Basic Elysia example
+├── package.json
+├── pnpm-workspace.yaml
+└── tsconfig.base.json
 ```
 
-### **Multi-Tenancy by Design**
-Built-in tenant isolation at the database level:
+## 🛠️ Development
 
-```typescript
-const customerEntity = await schemaKit.entity('customer', 'tenant-123');
-// All operations automatically scoped to tenant-123
-```
+This monorepo uses pnpm for package management with workspaces.
 
-## 📦 Installation & Quick Start
+### Installation
 
 ```bash
-npm install @mobtakronio/schemakit
+# Install pnpm if you haven't already
+npm install -g pnpm
+
+# Install all dependencies
+pnpm install
 ```
 
-```typescript
-import { SchemaKit } from '@mobtakronio/schemakit';
+### Building
 
-// Initialize with your preferred database
-const schemaKit = new SchemaKit({
-  adapter: {
-    type: 'postgres', // or 'sqlite', 'inmemory'
-    config: { 
-      url: process.env.DATABASE_URL 
-    }
-  }
-});
+```bash
+# Build all packages
+pnpm build
 
-// Get entity (auto-creates from meta-schema)
-const user = await schemaKit.entity('users', 'tenant-id');
-
-// Business operations with built-in authorization
-await user.create({ 
-  name: 'John Doe', 
-  email: 'john@example.com' 
-});
-
-const users = await user.find(); // Automatically filtered by permissions
+# Build specific package
+pnpm --filter @mobtakronio/schemakit build
+pnpm --filter @mobtakronio/schemakit-elysia build
 ```
 
-## 🎯 Who Should Use SchemaKit
+### Development
 
-### **✅ Perfect For:**
-- **SaaS Applications** - Multi-tenant apps with dynamic requirements
-- **Internal Tools** - Rapid development with business user configuration
-- **Client Projects** - Agencies building customizable applications  
-- **Startups** - Need to move fast and adapt quickly
-- **Low-Code Platforms** - Building configurable business applications
+```bash
+# Watch mode for all packages
+pnpm dev
 
-### **❌ Consider Alternatives For:**
-- **High-performance applications** - Use Drizzle/Prisma directly
-- **Simple CRUD apps** - Traditional ORMs might be simpler
-- **Static schemas** - If your schema never changes, code-first is fine
+# Watch specific package
+pnpm --filter @mobtakronio/schemakit-elysia dev
+```
 
-## 🛣️ Roadmap
+### Testing
 
-### **v0.1.X - Core Runtime Engine (Current Release)**
-Goal: Establish foundational architecture and prove the runtime entity concept.
+```bash
+# Run tests for all packages
+pnpm test
 
-- ✅ Meta-database architecture (system_entities, system_fields, etc.)
-- ✅ Runtime entity builder (schemaKit.entity('customer'))
-- ✅ Pluggable database adapter layer (Postgres, SQLite, InMemory)
-- ✅ Permission system (RLS-style with exposed/hidden filters)
-- ✅ Multi-tenancy context support
+# Type checking
+pnpm typecheck
+```
 
-### **v0.2 - Views & Validation Layer**
-Goal: Strengthen schema-powered querying and enforce data correctness.
+## 📚 Examples
 
-- 🔄 Views system —  dynamic runtime queries with permissions and filters
-- 🔄 Validation engine — field-level + custom rule validation
-- 🔄 Improved error handling — standard error codes, context-based messages
-- 🔄 Caching strategies for entity schema and permissions
-- 🧪 Entity test utils (mockEntity(), runWithContext())
+### Basic Elysia Server
 
-### **v0.3 - Developer Experience + Adapter Ecosystem**
+See [examples/elysia-basic](./examples/elysia-basic/) for a complete working example.
 
-- 🎯 DrizzleAdapter (for query optimization and joins)
-- 🎯 Better transaction and query debugging across adapters
-- 🎯 Type-safe entity access (through TypeScript enhancement layer)
+To run:
 
+```bash
+cd examples/elysia-basic
+pnpm dev
+```
 
-### **v0.4 - API & External Interfaces**
-- 🧬 Auto-generated REST API layer (based on runtime schema + permissions)
-- 🧬 Audit logs for entity/schema/permission changes
-- 🧬 Entity versioning (track schema changes over time)
+Visit:
+- `http://localhost:3000` - Welcome page with API info
+- `http://localhost:3000/docs` - Swagger documentation
+- `http://localhost:3000/api/entities` - List available entities
+- `http://localhost:3000/api/entity/users` - Users CRUD API
 
+### API Examples
 
-### **v0.5 - Workflow & Events** 
-- 🎯 OpenAPI/Swagger generation
-- 🎯 Workflow engine (basic lifecycle hooks)
-- 🎯 Events layer (Webhooks, Queue support)
+```bash
+# List all entities
+curl http://localhost:3000/api/entities
 
-### **v0.6 - UI Builder (Optional Web Layer)** 
-- 🎯 Web-based entity/field builder UI (linked to system_entities)
-- 🎯 Permission/role UI with exposed filters
-- 🎯 Workflow visual editor (state-machine or flow-based)
-- 🎯 Query builder for creating “views” visually
+# List users with pagination
+curl "http://localhost:3000/api/entity/users?page=1&limit=10"
 
-### **v1.0🚀 - Public/Enterprise Ready** 
+# Create a user
+curl -X POST http://localhost:3000/api/entity/users \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Alice","email":"alice@example.com","role":"admin"}'
 
-Goal: Full SaaS/enterprise use-case support with documentation and examples.
-- 🎯 Tenant isolation strategies (shared DB, schema, or DB per tenant)
-- 🎯 Role-based UI definitions (custom forms/layouts per role)
-- 🎯 Plugin system (custom rules, hooks, adapters)
-- 🎯 Extensive docs + SDKs (Node, Browser, CLI)
-- 🎯 Real-world examples: CRM, Inventory, E-commerce, etc.
+# Get user by ID
+curl http://localhost:3000/api/entity/users/1
 
-### **Experimental / Future Ideas** 
+# Update user
+curl -X PUT http://localhost:3000/api/entity/users/1 \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Alice Smith"}'
 
-- 🧠 AI-powered schema suggestions or generation
-- 🔁 Integration with existing low-code tools (Retool, BudiBase, etc.)
-- 💼 Schema portability (exportSchema(), importSchema())
-- 🎯 Real-time subscriptions
-- 🎯 TypeORMAdapter (enterprise features)
+# Delete user
+curl -X DELETE http://localhost:3000/api/entity/users/1
+```
 
+## 🔮 Future Packages
 
-## 🤝 Contributing
+This monorepo is designed for extensibility. Future packages may include:
 
-SchemaKit is designed with a clear separation of concerns. Contributors can focus on specific layers:
+- `@mobtakronio/schemakit-express` - Express.js adapter
+- `@mobtakronio/schemakit-fastify` - Fastify adapter
+- `@mobtakronio/schemakit-nestjs` - NestJS adapter
+- `@mobtakronio/schemakit-api` - Shared API utilities
+- `@mobtakronio/schemakit-cli` - Command-line tools
 
-- **Meta Schema Layer**: Enhance the data model for entities/permissions
-- **Engine Layer**: Improve business logic and authorization patterns
-- **Adapter Layer**: Add support for new databases (MongoDB, CockroachDB, etc.)
-- **Interface Layer**: Build tools and UIs for schema management
+## 🔧 Framework-Agnostic Architecture
 
-## 📈 Performance & Production
+The core SchemaKit package remains completely framework-agnostic. Each adapter is a thin wrapper that:
 
-While in beta, SchemaKit prioritizes **developer experience** and **flexibility** over raw performance. For production applications requiring maximum performance:
+1. **Integrates** with the framework's routing and middleware system
+2. **Translates** HTTP requests to SchemaKit operations
+3. **Handles** framework-specific concerns (CORS, auth, validation)
+4. **Generates** framework-appropriate documentation
 
-1. **Use DrizzleAdapter** (planned v0.3) for query optimization
-2. **Cache entity definitions** using the built-in caching system
-3. **Consider hybrid approaches** - SchemaKit for dynamic entities, direct ORM for static high-traffic tables
-
-## 🔗 Learn More
-
-- 🎮 **[Examples](./examples/)** - See SchemaKit in action
-- 💬 **[Discussions](https://github.com/MobtakronIO/schemakit/discussions)** - Community and support
-- 🐛 **[Issues](https://github.com/MobtakronIO/schemakit/issues)** - Bug reports and feature requests
+This ensures:
+- ✅ **Consistency** across all frameworks
+- ✅ **Easy migration** between frameworks
+- ✅ **Shared business logic** in the core
+- ✅ **Framework-specific optimizations** in adapters
 
 ## 📄 License
 
-MIT © [MobtakronIO](https://github.com/MobtakronIO)
+MIT - see [LICENSE](./LICENSE) file for details.
 
----
+## 🤝 Contributing
 
-**SchemaKit: Where Business Logic Meets Runtime Flexibility**
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-*Code Less. Deploy Less. Build Smarter.*
+## 📞 Support
+
+- **Documentation**: See individual package READMEs
+- **Issues**: [GitHub Issues](https://github.com/MobtakronIO/schemakit/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/MobtakronIO/schemakit/discussions)
