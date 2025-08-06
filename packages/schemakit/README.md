@@ -4,6 +4,8 @@
 
 > ⚠️ **BETA VERSION** - Active development. Not recommended for production use yet.
 
+> 🎉 **NEW in v0.1.5**: Now part of a monorepo with framework adapters! Check out [`@mobtakronio/schemakit-elysia`](../schemakit-elysia/) for auto-generated REST APIs.
+
 **SchemaKit is a runtime schema engine** that lets you build secure, multi-tenant backend applications where entities, permissions, and workflows are defined as data rather than code. Build business applications that can evolve without code deployments.
 
 ## 🎯 What Makes SchemaKit Different
@@ -259,12 +261,60 @@ Goal: Full SaaS/enterprise use-case support with documentation and examples.
 
 ## 🤝 Contributing
 
+### 🏗️ Monorepo Structure
+
+SchemaKit now uses a **monorepo architecture** for better organization and framework adapter development:
+
+```
+schemakit/                          # Repository root
+├── packages/
+│   ├── schemakit/                  # 📦 Core engine (this package)
+│   ├── schemakit-elysia/           # 🚀 Elysia framework adapter
+│   ├── schemakit-api/              # 🔧 Shared API utilities
+│   └── schemakit-express/          # 🚧 Express adapter (coming soon)
+├── examples/
+│   └── elysia-basic/               # 💡 Working examples
+├── pnpm-workspace.yaml             # 📋 Workspace configuration
+└── README.md                       # 📚 Monorepo overview
+```
+
+### 🛠️ Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/MobtakronIO/schemakit.git
+cd schemakit
+
+# Install dependencies (requires pnpm)
+pnpm install
+
+# Build all packages
+pnpm build
+
+# Work on core SchemaKit
+cd packages/schemakit
+pnpm dev
+
+# Run tests
+pnpm test
+```
+
+### 🎯 Contribution Areas
+
 SchemaKit is designed with a clear separation of concerns. Contributors can focus on specific layers:
 
 - **Meta Schema Layer**: Enhance the data model for entities/permissions
-- **Engine Layer**: Improve business logic and authorization patterns
+- **Engine Layer**: Improve business logic and authorization patterns  
 - **Adapter Layer**: Add support for new databases (MongoDB, CockroachDB, etc.)
+- **Framework Adapters**: Build integrations for Express, Fastify, NestJS, etc.
 - **Interface Layer**: Build tools and UIs for schema management
+
+### 📦 Package Dependencies
+
+- **Core (`@mobtakronio/schemakit`)**: Framework-agnostic, zero HTTP dependencies
+- **Framework Adapters**: Depend on core + specific framework (Elysia, Express, etc.)
+- **Shared API**: Common utilities for all framework adapters
+- **Examples**: Demonstrate real-world usage patterns
 
 ## 📈 Performance & Production
 
@@ -276,7 +326,9 @@ While in beta, SchemaKit prioritizes **developer experience** and **flexibility*
 
 ## 🔗 Learn More
 
-- 🎮 **[Examples](./examples/)** - See SchemaKit in action
+- 🎮 **[Examples](../../examples/)** - See SchemaKit in action with framework adapters
+- 🚀 **[Elysia Adapter](../schemakit-elysia/)** - Auto-generated REST APIs with Swagger docs
+- 🏗️ **[Monorepo Overview](../../README.md)** - Full project structure and roadmap
 - 💬 **[Discussions](https://github.com/MobtakronIO/schemakit/discussions)** - Community and support
 - 🐛 **[Issues](https://github.com/MobtakronIO/schemakit/issues)** - Bug reports and feature requests
 
