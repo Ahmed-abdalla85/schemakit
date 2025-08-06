@@ -1,0 +1,64 @@
+{
+  "name": "@mobtakronio/schemakit-elysia",
+  "version": "0.1.0",
+  "description": "Elysia adapter for SchemaKit with auto-generated REST endpoints",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "echo 'Tests require Bun runtime - skipping for now'",
+    "test:watch": "echo 'Tests require Bun runtime - skipping for now'",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "schemakit",
+    "elysia",
+    "rest-api",
+    "crud",
+    "auto-generated",
+    "typescript",
+    "openapi",
+    "swagger"
+  ],
+  "author": "MobtakronIO",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MobtakronIO/schemakit.git"
+  },
+  "homepage": "https://github.com/MobtakronIO/schemakit#readme",
+  "bugs": {
+    "url": "https://github.com/MobtakronIO/schemakit/issues"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@mobtakronio/schemakit": "workspace:*",
+    "elysia": "^1.0.0",
+    "@elysiajs/swagger": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.119",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "bun-types": "^1.0.0",
+    "eslint": "^8.50.0",
+    "typescript": "^5.8.3",
+    "tsup": "^8.0.0"
+  },
+  "peerDependencies": {
+    "elysia": "^1.0.0"
+  }
+}
