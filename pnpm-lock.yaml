@@ -67,13 +67,38 @@ importers:
         specifier: ^5.8.3
         version: 5.9.2
 
+  packages/schemakit-api:
+    dependencies:
+      '@mobtakronio/schemakit':
+        specifier: workspace:*
+        version: link:../schemakit
+    devDependencies:
+      '@types/node':
+        specifier: ^18.19.119
+        version: 18.19.121
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^6.0.0
+        version: 6.21.0(@typescript-eslint/parser@6.21.0)(eslint@8.57.1)(typescript@5.9.2)
+      '@typescript-eslint/parser':
+        specifier: ^6.0.0
+        version: 6.21.0(eslint@8.57.1)(typescript@5.9.2)
+      eslint:
+        specifier: ^8.50.0
+        version: 8.57.1
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.0(typescript@5.9.2)
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.2
+
   packages/schemakit-elysia:
     dependencies:
       '@elysiajs/swagger':
         specifier: ^1.0.0
         version: 1.3.1(elysia@1.3.8)
       '@mobtakronio/schemakit':
-        specifier: workspace:*
+        specifier: ^0.1.5
         version: link:../schemakit
       elysia:
         specifier: ^1.0.0

@@ -1,6 +1,6 @@
 {
   "name": "@mobtakronio/schemakit-elysia",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Elysia adapter for SchemaKit with auto-generated REST endpoints",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
