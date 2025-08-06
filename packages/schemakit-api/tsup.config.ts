@@ -6,8 +6,9 @@ export default defineConfig({
   dts: true,
   clean: true,
   sourcemap: true,
-  minify: false,
-  splitting: false,
+  minify: true, // 🎯 Enable minification
+  splitting: true, // 📦 Code splitting for better performance
+  treeshake: true, // 🌳 Remove unused code
   outDir: 'dist',
   external: ['@mobtakronio/schemakit'],
 });
