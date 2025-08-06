@@ -5,10 +5,12 @@ export default defineConfig({
   format: ['esm', 'cjs'],
   dts: true,
   clean: true,
-  sourcemap: true,
-  minify: true, // 🎯 Enable minification
-  splitting: true, // 📦 Code splitting for better performance
-  treeshake: true, // 🌳 Remove unused code
-  outDir: 'dist',
+  minify: true,
+  splitting: false,
+  treeshake: false,
   external: ['pg', '@types/pg'],
+  esbuildOptions(options) {
+    // Preserve method names during minification (critical for our mapOperator method)
+    options.keepNames = true;
+  },
 });

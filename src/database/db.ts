@@ -79,11 +79,11 @@ export class DB {
    * Helper to convert where/orWhere to QueryFilter[]
    */
   private buildFilters(): any[] {
-    // Emit { field, value, operator: '=' } for equality
+    // Emit { field, value, operator: 'eq' } for equality
     const filters: any[] = [];
     for (const clause of this._where) {
       for (const key in clause) {
-        filters.push({ field: key, value: clause[key], operator: '=' });
+        filters.push({ field: key, value: clause[key], operator: 'eq' });
       }
     }
     // OR logic not handled here; extend as needed

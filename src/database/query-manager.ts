@@ -60,7 +60,8 @@ export class QueryManager {
         } else {
           placeholder = '?';
         }
-        conditions.push(`${filter.field} ${filter.operator} ${placeholder}`);
+        const sqlOperator = this.mapOperator(filter.operator || 'eq');
+        conditions.push(`${filter.field} ${sqlOperator} ${placeholder}`);
         params.push(filter.value);
       });
     }
@@ -172,5 +173,26 @@ export class QueryManager {
   buildListSchemasQuery(): BuiltQuery {
     const sql = `SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('information_schema', 'pg_catalog', 'pg_toast')`;
     return { sql, params: [] };
+  }
+
+  /**
+   * Map operator to SQL operator
+   */
+  private mapOperator(operator: string): string {
+    const operatorMap: Record<string, string> = {
+      eq: '=',
+      neq: '!=',
+      gt: '>',
+      lt: '<',
+      gte: '>=',
+      lte: '<=',
+      like: 'LIKE',
+      in: 'IN',
+      nin: 'NOT IN',
+      contains: 'LIKE',
+      startswith: 'LIKE',
+      endswith: 'LIKE'
+    };
+    return operatorMap[operator] || '=';
   }
 }
