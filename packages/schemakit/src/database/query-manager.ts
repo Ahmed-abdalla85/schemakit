@@ -117,35 +117,38 @@ export class QueryManager {
   }
 
   buildCountQuery(table: string, tenantId: string, filters: QueryFilter[] = []): BuiltQuery {
-    let sql = `SELECT COUNT(*) as count FROM ${table}`;
+    const qualifiedTable = resolveTableName(table, tenantId, this.databaseType);
+    let sql = `SELECT COUNT(*) as count FROM ${qualifiedTable}`;
     const params: any[] = [];
+    
+    // Collect all conditions
+    const conditions: string[] = [];
 
     // Add tenant filter
     if (tenantId && tenantId !== 'default') {
-      sql += ` WHERE tenant_id = ?`;
+      conditions.push('tenant_id = ?');
       params.push(tenantId);
     }
 
     // Add custom filters
     if (filters.length > 0) {
-      const whereClause = filters.length > 0 ? ' WHERE ' : '';
-      const filterConditions = filters.map((filter, index) => {
+      filters.forEach((filter) => {
+        conditions.push(`${filter.field} ${filter.operator} ?`);
         params.push(filter.value);
-        return `${filter.field} ${filter.operator} ?`;
-      }).join(' AND ');
-      
-      if (tenantId && tenantId !== 'default') {
-        sql += ` AND ${filterConditions}`;
-      } else {
-        sql += whereClause + filterConditions;
-      }
+      });
+    }
+
+    // Add WHERE clause if we have any conditions
+    if (conditions.length > 0) {
+      sql += ` WHERE ${conditions.join(' AND ')}`;
     }
 
     return { sql, params };
   }
 
   buildFindByIdQuery(table: string, tenantId: string, id: string | number): BuiltQuery {
-    let sql = `SELECT * FROM ${table} WHERE id = ?`;
+    const qualifiedTable = resolveTableName(table, tenantId, this.databaseType);
+    let sql = `SELECT * FROM ${qualifiedTable} WHERE id = ?`;
     const params = [id];
 
     // Add tenant filter
