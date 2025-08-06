@@ -1,0 +1,19 @@
+{
+  "name": "schemakit-elysia-example",
+  "version": "0.1.0",
+  "description": "Basic example of SchemaKit with Elysia adapter",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --watch index.ts",
+    "start": "bun run index.ts"
+  },
+  "dependencies": {
+    "@mobtakronio/schemakit": "workspace:*",
+    "@mobtakronio/schemakit-elysia": "workspace:*",
+    "elysia": "^1.0.0"
+  },
+  "devDependencies": {
+    "bun-types": "^1.0.0",
+    "typescript": "^5.8.3"
+  }
+}
