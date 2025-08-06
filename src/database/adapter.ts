@@ -1,25 +1,43 @@
 /**
  * Database adapter interface and factory
+ * 
+ * This is a stable contract that all database adapters must implement.
+ * It provides ORM-agnostic database operations for SchemaKit.
+ * 
+ * @important This interface must NOT expose any ORM-specific types
  */
 import { DatabaseError } from '../errors';
 
 /**
  * Database adapter configuration options
+ * Generic configuration that works across different database types
  */
 export interface DatabaseAdapterConfig {
+  // Database type
+  type?: 'postgres' | 'sqlite' | 'mysql' | 'inmemory';
+  
+  // Common connection options
   filename?: string;        // For SQLite
-  host?: string;            // For PostgreSQL
-  port?: number;            // For PostgreSQL
-  database?: string;        // For PostgreSQL
-  user?: string;            // For PostgreSQL
-  password?: string;        // For PostgreSQL
-  ssl?: boolean;            // For PostgreSQL
-  connectionString?: string; // For PostgreSQL
-  [key: string]: any;       // Other options
+  host?: string;            // For PostgreSQL/MySQL
+  port?: number;            // For PostgreSQL/MySQL
+  database?: string;        // For PostgreSQL/MySQL
+  user?: string;            // For PostgreSQL/MySQL
+  password?: string;        // For PostgreSQL/MySQL
+  ssl?: boolean;            // For PostgreSQL/MySQL
+  connectionString?: string; // For PostgreSQL/MySQL
+  
+  // Connection pool options
+  poolMin?: number;
+  poolMax?: number;
+  connectionTimeout?: number;
+  
+  // Other options
+  [key: string]: any;
 }
 
 /**
  * Column definition for table creation
+ * ORM-agnostic column specification
  */
 export interface ColumnDefinition {
   name: string;
@@ -37,11 +55,13 @@ export interface ColumnDefinition {
 
 /**
  * Transaction callback function type
+ * The callback receives a transaction-scoped adapter instance
  */
 export type TransactionCallback<T> = (transaction: DatabaseAdapter) => Promise<T>;
 
 /**
- * Query filter interface (from EntityKit pattern)
+ * Query filter interface for dynamic queries
+ * Used by SchemaKit for runtime query building
  */
 export interface QueryFilter {
   field: string;
@@ -50,28 +70,39 @@ export interface QueryFilter {
 }
 
 /**
- * Query options interface (from EntityKit pattern)
+ * Query options for pagination and sorting
  */
 export interface QueryOptions {
-  orderBy?: { field: string; direction: 'ASC' | 'DESC' }[];
+  orderBy?: Array<{ field: string; direction: 'ASC' | 'DESC' }>;
   limit?: number;
   offset?: number;
+  select?: string[]; // Field selection
+}
+
+/**
+ * Query result metadata
+ */
+export interface QueryResult {
+  rows: any[];
+  rowCount: number;
+  fields?: Array<{ name: string; type: string }>;
 }
 
 /**
  * Abstract database adapter class
+ * 
+ * This is the stable contract that all adapters must implement.
+ * SchemaKit features (permissions, RLS, workflows) are built on top of this.
  */
 export abstract class DatabaseAdapter {
   protected config: DatabaseAdapterConfig;
   
-  /**
-   * Create a new database adapter
-   * @param config Configuration options
-   */
   constructor(config: DatabaseAdapterConfig = {}) {
     this.config = config;
   }
 
+  // ===== Connection Management =====
+  
   /**
    * Connect to the database
    */
@@ -87,101 +118,152 @@ export abstract class DatabaseAdapter {
    */
   abstract isConnected(): boolean;
 
+  // ===== Core Query Execution =====
+  
   /**
    * Execute a query that returns rows
-   * @param sql SQL query
-   * @param params Query parameters
+   * @param sql SQL query string
+   * @param params Query parameters (prevents SQL injection)
+   * @returns Array of result rows
    */
   abstract query<T = any>(sql: string, params?: any[]): Promise<T[]>;
 
   /**
-   * Execute a query that doesn't return rows
-   * @param sql SQL query
+   * Execute a query that doesn't return rows (INSERT, UPDATE, DELETE)
+   * @param sql SQL query string
    * @param params Query parameters
+   * @returns Execution result with affected rows and last insert ID
    */
-  abstract execute(sql: string, params?: any[]): Promise<{ changes: number, lastInsertId?: string | number }>;
+  abstract execute(sql: string, params?: any[]): Promise<{ 
+    changes: number; 
+    lastInsertId?: string | number;
+  }>;
 
   /**
-   * Execute a function within a transaction
+   * Execute a function within a database transaction
    * @param callback Function to execute within transaction
+   * @returns Result of the callback function
    */
   abstract transaction<T>(callback: TransactionCallback<T>): Promise<T>;
 
+  // ===== Schema Introspection =====
+  
   /**
-   * Check if a table exists
-   * @param tableName Table name
+   * Check if a table exists in the database
+   * @param tableName Name of the table
+   * @returns True if table exists
    */
   abstract tableExists(tableName: string): Promise<boolean>;
 
   /**
    * Create a new table
-   * @param tableName Table name
+   * @param tableName Name of the table to create
    * @param columns Column definitions
    */
   abstract createTable(tableName: string, columns: ColumnDefinition[]): Promise<void>;
 
   /**
    * Get column information for a table
-   * @param tableName Table name
+   * @param tableName Name of the table
+   * @returns Array of column definitions
    */
   abstract getTableColumns(tableName: string): Promise<ColumnDefinition[]>;
 
-  // ===== EntityKit-style multi-tenant methods =====
+  // ===== SchemaKit Dynamic Query Methods =====
+  // These methods support SchemaKit's runtime schema features
+  
+  /**
+   * Select records with dynamic filtering
+   * Used by SchemaKit for runtime entity queries
+   * 
+   * @param table Table name (may be dynamically determined)
+   * @param filters Dynamic query filters
+   * @param options Query options (pagination, sorting)
+   * @param tenantId Tenant context for multi-tenancy
+   * @returns Array of matching records
+   */
+  abstract select(
+    table: string, 
+    filters: QueryFilter[], 
+    options: QueryOptions,
+    tenantId: string
+  ): Promise<any[]>;
 
   /**
-   * Select records with tenant-aware filtering (EntityKit pattern)
+   * Insert a record into a dynamic table
+   * 
+   * @param table Table name
+   * @param data Record data
+   * @param tenantId Optional tenant context
+   * @returns Inserted record with generated ID
+   */
+  abstract insert(
+    table: string, 
+    data: Record<string, any>,
+    tenantId?: string
+  ): Promise<any>;
+
+  /**
+   * Update a record in a dynamic table
+   * 
+   * @param table Table name
+   * @param id Record ID
+   * @param data Updated data
+   * @param tenantId Tenant context
+   * @returns Updated record
+   */
+  abstract update(
+    table: string, 
+    id: string,
+    data: Record<string, any>,
+    tenantId: string
+  ): Promise<any>;
+
+  /**
+   * Delete a record from a dynamic table
+   * 
+   * @param table Table name
+   * @param id Record ID
+   * @param tenantId Tenant context
+   */
+  abstract delete(
+    table: string, 
+    id: string,
+    tenantId: string
+  ): Promise<void>;
+
+  /**
+   * Count records with dynamic filtering
+   * 
    * @param table Table name
    * @param filters Query filters
-   * @param options Query options
-   * @param tenantId Tenant identifier (schema name)
+   * @param tenantId Tenant context
+   * @returns Number of matching records
    */
-  abstract select(table: string, filters: QueryFilter[], options: QueryOptions, tenantId: string): Promise<any[]>;
+  abstract count(
+    table: string, 
+    filters: QueryFilter[], 
+    tenantId: string
+  ): Promise<number>;
 
   /**
-   * Insert a record with tenant context (EntityKit pattern)
-   * @param table Table name
-   * @param data Data to insert
-   * @param tenantId Tenant identifier (schema name)
-   */
-  abstract insert(table: string, data: Record<string, any>, tenantId?: string): Promise<any>;
-
-  /**
-   * Update a record with tenant context (EntityKit pattern)
+   * Find a single record by ID
+   * 
    * @param table Table name
    * @param id Record ID
-   * @param data Data to update
-   * @param tenantId Tenant identifier (schema name)
+   * @param tenantId Tenant context
+   * @returns Record or null if not found
    */
-  abstract update(table: string, id: string, data: Record<string, any>, tenantId: string): Promise<any>;
+  abstract findById(
+    table: string, 
+    id: string, 
+    tenantId: string
+  ): Promise<any | null>;
 
+  // ===== Schema Management (Multi-tenancy) =====
+  
   /**
-   * Delete a record with tenant context (EntityKit pattern)
-   * @param table Table name
-   * @param id Record ID
-   * @param tenantId Tenant identifier (schema name)
-   */
-  abstract delete(table: string, id: string, tenantId: string): Promise<void>;
-
-  /**
-   * Count records with tenant-aware filtering (EntityKit pattern)
-   * @param table Table name
-   * @param filters Query filters
-   * @param tenantId Tenant identifier (schema name)
-   */
-  abstract count(table: string, filters: QueryFilter[], tenantId: string): Promise<number>;
-
-  /**
-   * Find a record by ID with tenant context (EntityKit pattern)
-   * @param table Table name
-   * @param id Record ID
-   * @param tenantId Tenant identifier (schema name)
-   */
-  abstract findById(table: string, id: string, tenantId: string): Promise<any | null>;
-
-  // ===== Schema management methods =====
-
-  /**
-   * Create a database schema (for multi-tenancy)
+   * Create a database schema (for schema-based multi-tenancy)
    * @param schemaName Schema name
    */
   abstract createSchema(schemaName: string): Promise<void>;
@@ -194,57 +276,63 @@ export abstract class DatabaseAdapter {
 
   /**
    * List all database schemas
+   * @returns Array of schema names
    */
   abstract listSchemas(): Promise<string[]>;
 
+  // ===== Factory Method =====
+  
   /**
    * Create a database adapter instance
-   * @param type Adapter type ('sqlite', 'postgres', or 'inmemory')
+   * @param type Adapter type ('postgres', 'sqlite', 'mysql', or 'inmemory')
    * @param config Configuration options
+   * @returns DatabaseAdapter instance
    */
   static async create(type = 'sqlite', config: DatabaseAdapterConfig = {}): Promise<DatabaseAdapter> {
+    const adapterConfig = { ...config, type };
+    
     switch (type.toLowerCase()) {
-      case 'sqlite':
-        // Import SQLiteAdapter using dynamic import
-        const { SQLiteAdapter } = await import('./adapters/sqlite');
-        return new SQLiteAdapter(config);
       case 'postgres':
-        // Import PostgresAdapter using dynamic import
-        const { PostgresAdapter } = await import('./adapters/postgres');
-        return new PostgresAdapter(config);
+      case 'sqlite':
+      case 'mysql':
+        // Use DrizzleAdapter for all SQL databases
+        const { DrizzleAdapter } = await import('./adapters/drizzle');
+        return new DrizzleAdapter(adapterConfig);
+        
       case 'inmemory':
-        // Import InMemoryAdapter using dynamic import
+        // Keep InMemoryAdapter for testing
         const { InMemoryAdapter } = await import('./adapters/inmemory');
-        return new InMemoryAdapter(config);
+        return new InMemoryAdapter(adapterConfig);
+        
       default:
         throw new DatabaseError('create', { 
-            cause: new Error(`Unsupported adapter type: ${type}`) 
+          cause: new Error(`Unsupported adapter type: ${type}`) 
         });
     }
   }
   
   /**
-   * Create a database adapter instance synchronously (for backward compatibility)
-   * @param type Adapter type ('sqlite', 'postgres', or 'inmemory')
-   * @param config Configuration options
+   * Create a database adapter instance synchronously
+   * @deprecated Use create() instead for better performance
    */
   static createSync(type = 'sqlite', config: DatabaseAdapterConfig = {}): DatabaseAdapter {
+    const adapterConfig = { ...config, type };
+    
     switch (type.toLowerCase()) {
-      case 'sqlite':
-        // Use require for synchronous loading
-        const { SQLiteAdapter } = require('./adapters/sqlite');
-        return new SQLiteAdapter(config);
       case 'postgres':
+      case 'sqlite':
+      case 'mysql':
         // Use require for synchronous loading
-        const { PostgresAdapter } = require('./adapters/postgres');
-        return new PostgresAdapter(config);
+        const { DrizzleAdapter } = require('./adapters/drizzle');
+        return new DrizzleAdapter(adapterConfig);
+        
       case 'inmemory':
-        // Use require for synchronous loading
         const { InMemoryAdapter } = require('./adapters/inmemory');
-        return new InMemoryAdapter(config);
+        return new InMemoryAdapter(adapterConfig);
+        
       default:
         throw new DatabaseError('create', { 
-            cause: new Error(`Unsupported adapter type: ${type}`) 
+          cause: new Error(`Unsupported adapter type: ${type}`) 
         });
     }
   }
