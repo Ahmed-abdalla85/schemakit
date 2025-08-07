@@ -1,6 +1,6 @@
 {
   "name": "@mobtakronio/schemakit",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "description": "Dynamic entity management system with runtime schema creation, validation, and CRUD operations for Node.js backends.",
   "main": "dist/index.mjs",
   "module": "dist/index.mjs",
@@ -54,6 +54,7 @@
   "devDependencies": {
     "@types/jest": "^29.5.0",
     "@types/node": "^18.19.119",
+    "@types/pg": "^8.15.4",
     "@typescript-eslint/eslint-plugin": "^5.59.0",
     "@typescript-eslint/parser": "^5.59.0",
     "eslint": "^8.38.0",
@@ -63,8 +64,24 @@
     "typescript": "^5.8.3",
     "tsup": "^8.0.0"
   },
-  "dependencies": {
-    "@types/pg": "^8.15.4",
-    "pg": "^8.16.3"
+  "peerDependencies": {
+    "drizzle-orm": ">=0.29.0",
+    "pg": ">=8.0.0",
+    "better-sqlite3": ">=9.0.0",
+    "mysql2": ">=3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "drizzle-orm": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "better-sqlite3": {
+      "optional": true
+    },
+    "mysql2": {
+      "optional": true
+    }
   }
 }
