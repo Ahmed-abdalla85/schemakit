@@ -1,17 +1,23 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "CommonJS",
+    "module": "ESNext",
+    "lib": ["ES2020"],
     "moduleResolution": "node",
-    "declaration": true,
-    "outDir": "./dist",
-    "strict": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "lib": ["ES2020", "DOM"],
-    "sourceMap": true
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "composite": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "test"]
+  "references": [
+    { "path": "./packages/schemakit" },
+    { "path": "./packages/schemakit-api" },
+    { "path": "./packages/schemakit-elysia" }
+  ],
+  "exclude": ["node_modules", "dist", "build", "coverage"]
 }

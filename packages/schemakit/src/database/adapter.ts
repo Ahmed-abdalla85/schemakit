@@ -205,13 +205,11 @@ export abstract class DatabaseAdapter {
   static async create(type = 'sqlite', config: DatabaseAdapterConfig = {}): Promise<DatabaseAdapter> {
     switch (type.toLowerCase()) {
       case 'sqlite':
-        // Import SQLiteAdapter using dynamic import
-        const { SQLiteAdapter } = await import('./adapters/sqlite');
-        return new SQLiteAdapter(config);
       case 'postgres':
-        // Import PostgresAdapter using dynamic import
-        const { PostgresAdapter } = await import('./adapters/postgres');
-        return new PostgresAdapter(config);
+      case 'mysql':
+        // Use DrizzleAdapter for all SQL databases
+        const { DrizzleAdapter } = await import('./adapters/drizzle');
+        return new DrizzleAdapter({ ...config, type: type as any });
       case 'inmemory':
         // Import InMemoryAdapter using dynamic import
         const { InMemoryAdapter } = await import('./adapters/inmemory');
@@ -231,13 +229,11 @@ export abstract class DatabaseAdapter {
   static createSync(type = 'sqlite', config: DatabaseAdapterConfig = {}): DatabaseAdapter {
     switch (type.toLowerCase()) {
       case 'sqlite':
+      case 'postgres': 
+      case 'mysql':
         // Use require for synchronous loading
-        const { SQLiteAdapter } = require('./adapters/sqlite');
-        return new SQLiteAdapter(config);
-      case 'postgres':
-        // Use require for synchronous loading
-        const { PostgresAdapter } = require('./adapters/postgres');
-        return new PostgresAdapter(config);
+        const { DrizzleAdapter } = require('./adapters/drizzle');
+        return new DrizzleAdapter({ ...config, type: type as any });
       case 'inmemory':
         // Use require for synchronous loading
         const { InMemoryAdapter } = require('./adapters/inmemory');
