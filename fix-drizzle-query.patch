@@ -1,0 +1,29 @@
+--- a/packages/schemakit/src/database/adapters/drizzle.ts
++++ b/packages/schemakit/src/database/adapters/drizzle.ts
+@@ -319,11 +319,16 @@ export class DrizzleAdapter extends DatabaseAdapter {
+ 
+   // Dynamic query methods for SchemaKit's runtime schema
+   async select(table: string, filters: QueryFilter[], options: QueryOptions): Promise<any[]> {
+-    let query = `SELECT * FROM ${table}`;
++    // Escape table name for schema.table format
++    const escapedTable = table.includes('.') 
++      ? table.split('.').map(part => `"${part}"`).join('.')
++      : `"${table}"`;
++    
++    let query = `SELECT * FROM ${escapedTable}`;
+     const params: any[] = [];
+     const conditions: string[] = [];
+     
+     // Build filter conditions
+     filters.forEach(filter => {
+       const op = this.getOperator(filter.operator || 'eq');
+-      conditions.push(`${filter.field} ${op} ${this.placeholder(params.length)}`);
++      conditions.push(`"${filter.field}" ${op} ${this.placeholder(params.length)}`);
+       params.push(filter.value);
+@@ -336,5 +341,5 @@ export class DrizzleAdapter extends DatabaseAdapter {
+     
+     // Add ordering
+     if (options.orderBy?.length) {
+-      query += ` ORDER BY ${options.orderBy.map(o => `${o.field} ${o.direction}`).join(', ')}`;
++      query += ` ORDER BY ${options.orderBy.map(o => `"${o.field}" ${o.direction}`).join(', ')}`;
+     }
