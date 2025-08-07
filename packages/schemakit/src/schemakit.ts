@@ -1,21 +1,60 @@
 import { SchemaKitOptions } from './types/core';
-import { DB } from './database/db';
+import { DB, type MultiTenancyConfig } from './database/db';
 import { Entity } from './entities/entity/entity';
 import { SchemaKitError } from './errors';
 
-export class SchemaKit {
-  private readonly options: Readonly<SchemaKitOptions>;
-  private readonly db: DB;
+// Extended options to support both syntaxes
+type SchemaKitInitOptions = SchemaKitOptions | {
+  adapter?: string;
+  config?: any;
+  cache?: SchemaKitOptions['cache'];
+  multiTenancy?: MultiTenancyConfig;
+};
 
-  constructor(options: SchemaKitOptions = {}) {
+export class SchemaKit {
+  private readonly options: Readonly<SchemaKitInitOptions>;
+  public readonly db: DB;
+
+  constructor(options: SchemaKitInitOptions = {}) {
     this.options = options;
-    const adapterConfig = options.adapter || {};
+    
+    // Support both old and new syntax
+    let adapterType: string;
+    let adapterConfig: any;
+    
+    if ('adapter' in options && typeof options.adapter === 'string') {
+      // New simpler syntax: { adapter: 'postgres', config: {...} }
+      adapterType = options.adapter;
+      adapterConfig = (options as any).config || {};
+    } else if ('adapter' in options && options.adapter && typeof options.adapter === 'object') {
+      // Old syntax: { adapter: { type: 'postgres', config: {...} } }
+      const adapterObj = options.adapter as SchemaKitOptions['adapter'];
+      adapterType = adapterObj?.type || 'inmemory';
+      adapterConfig = adapterObj?.config || {};
+    } else {
+      // Default
+      adapterType = 'inmemory';
+      adapterConfig = {};
+    }
+    
+    // Extract multi-tenancy config
+    const multiTenancy = (options as any).multiTenancy;
+    
     // Allow tenantId in config, but fallback to 'system'
     this.db = new DB({
-      adapter: adapterConfig.type || 'inmemory',
-      tenantId: (adapterConfig as any).tenantId || 'system',
-      config: adapterConfig.config || {}
+      adapter: adapterType,
+      tenantId: adapterConfig.tenantId || 'system',
+      config: adapterConfig,
+      multiTenancy
     });
+  }
+  
+  /**
+   * Initialize the database adapter
+   * Must be called before using SchemaKit with database adapters
+   */
+  async init(): Promise<void> {
+    await this.db.init();
   }
   
   /**

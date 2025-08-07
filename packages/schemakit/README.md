@@ -341,3 +341,86 @@ MIT © [MobtakronIO](https://github.com/MobtakronIO)
 **SchemaKit: Where Business Logic Meets Runtime Flexibility**
 
 *Code Less. Deploy Less. Build Smarter.*
+
+## 🗄️ Database Adapters
+
+SchemaKit uses a flexible adapter pattern to support multiple databases. By default, it includes an in-memory adapter for testing and development.
+
+### Using Drizzle ORM (Recommended)
+
+For production use, SchemaKit integrates with Drizzle ORM to provide robust database support. This approach gives you:
+
+- 🚀 **Better Performance** - Connection pooling, prepared statements, and query optimization
+- 🔒 **Type Safety** - Full TypeScript support with Drizzle
+- 🛡️ **Security** - Automatic SQL injection protection
+- 📦 **Smaller Bundle** - Database drivers are peer dependencies
+
+#### Installation
+
+First, install Drizzle ORM and your database driver:
+
+```bash
+# For PostgreSQL
+npm install drizzle-orm pg
+
+# For MySQL
+npm install drizzle-orm mysql2
+
+# For SQLite
+npm install drizzle-orm better-sqlite3
+```
+
+#### Configuration
+
+```typescript
+import { SchemaKit } from '@mobtakronio/schemakit';
+
+// PostgreSQL
+const kit = new SchemaKit({
+  adapter: 'postgres',
+  config: {
+    host: 'localhost',
+    port: 5432,
+    database: 'mydb',
+    user: 'user',
+    password: 'password'
+  }
+});
+
+// MySQL
+const kit = new SchemaKit({
+  adapter: 'mysql',
+  config: {
+    host: 'localhost',
+    port: 3306,
+    database: 'mydb',
+    user: 'user',
+    password: 'password'
+  }
+});
+
+// SQLite
+const kit = new SchemaKit({
+  adapter: 'sqlite',
+  config: {
+    filename: './database.sqlite' // or ':memory:' for in-memory
+  }
+});
+
+// Initialize the adapter
+await kit.init();
+```
+
+### In-Memory Adapter
+
+Perfect for testing and development:
+
+```typescript
+const kit = new SchemaKit({
+  adapter: 'inmemory'
+});
+```
+
+### Custom Adapters
+
+You can create custom adapters by extending the `DatabaseAdapter` class. See the [adapter documentation](./docs/adapters.md) for details.
