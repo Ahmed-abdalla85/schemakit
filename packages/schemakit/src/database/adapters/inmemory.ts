@@ -341,15 +341,16 @@ export class InMemoryAdapter extends DatabaseAdapter {
     // ===== EntityKit-style multi-tenant methods =====
 
     /**
-     * Select records with tenant-aware filtering (EntityKit pattern)
+     * Select records from a table
      */
-    async select(table: string, filters: QueryFilter[], options: QueryOptions, tenantId: string): Promise<any[]> {
+    async select(table: string, filters: QueryFilter[], options: QueryOptions): Promise<any[]> {
         if (!this.isConnected()) {
             await this.connect();
         }
 
         try {
-            let records = this.getTableData(tenantId, table);
+            // Use default tenant for now - DB class will handle tenant resolution
+            let records = this.getTableData('default', table);
 
             // Apply filters
             if (filters.length > 0) {
@@ -388,21 +389,22 @@ export class InMemoryAdapter extends DatabaseAdapter {
         } catch (error) {
             throw new DatabaseError('select', { 
                 cause: error instanceof Error ? error : new Error(String(error)),
-                context: { table, filters, options, tenantId }
+                context: { table, filters, options }
             });
         }
     }
 
     /**
-     * Insert a record with tenant context (EntityKit pattern)
+     * Insert a record into a table
      */
-    async insert(table: string, data: Record<string, any>, tenantId?: string): Promise<any> {
+    async insert(table: string, data: Record<string, any>): Promise<any> {
         if (!this.isConnected()) {
             await this.connect();
         }
 
         try {
-            const tenant = tenantId || 'default';
+            // Use default tenant - DB class will handle tenant resolution
+            const tenant = 'default';
             this.ensureTableExists(tenant, table);
             
             // Generate ID if not provided
@@ -423,21 +425,22 @@ export class InMemoryAdapter extends DatabaseAdapter {
         } catch (error) {
             throw new DatabaseError('insert', { 
                 cause: error instanceof Error ? error : new Error(String(error)),
-                context: { table, data, tenantId }
+                context: { table, data }
             });
         }
     }
 
     /**
-     * Update a record with tenant context (EntityKit pattern)
+     * Update a record in a table
      */
-    async update(table: string, id: string, data: Record<string, any>, tenantId: string): Promise<any> {
+    async update(table: string, id: string, data: Record<string, any>): Promise<any> {
         if (!this.isConnected()) {
             await this.connect();
         }
 
         try {
-            const records = this.getTableData(tenantId, table);
+            // Use default tenant - DB class will handle tenant resolution
+            const records = this.getTableData('default', table);
             const idField = this.getIdField(table);
             const recordIndex = records.findIndex(r => r[idField] === id);
             
@@ -448,33 +451,34 @@ export class InMemoryAdapter extends DatabaseAdapter {
             // Add a small delay to ensure timestamp difference
             await new Promise(resolve => setTimeout(resolve, 1));
 
-            const updatedRecord = {
+            const now = getCurrentTimestamp();
+            records[recordIndex] = {
                 ...records[recordIndex],
                 ...data,
-                id, // Preserve ID
-                updated_at: new Date().toISOString()
+                [idField]: id,
+                updated_at: now
             };
 
-            records[recordIndex] = updatedRecord;
-            return updatedRecord;
+            return records[recordIndex];
         } catch (error) {
             throw new DatabaseError('update', { 
                 cause: error instanceof Error ? error : new Error(String(error)),
-                context: { table, id, data, tenantId }
+                context: { table, id, data }
             });
         }
     }
 
     /**
-     * Delete a record with tenant context (EntityKit pattern)
+     * Delete a record from a table
      */
-    async delete(table: string, id: string, tenantId: string): Promise<void> {
+    async delete(table: string, id: string): Promise<void> {
         if (!this.isConnected()) {
             await this.connect();
         }
 
         try {
-            const records = this.getTableData(tenantId, table);
+            // Use default tenant - DB class will handle tenant resolution
+            const records = this.getTableData('default', table);
             const idField = this.getIdField(table);
             const recordIndex = records.findIndex(r => r[idField] === id);
             
@@ -486,21 +490,22 @@ export class InMemoryAdapter extends DatabaseAdapter {
         } catch (error) {
             throw new DatabaseError('delete', { 
                 cause: error instanceof Error ? error : new Error(String(error)),
-                context: { table, id, tenantId }
+                context: { table, id }
             });
         }
     }
 
     /**
-     * Count records with tenant-aware filtering (EntityKit pattern)
+     * Count records in a table
      */
-    async count(table: string, filters: QueryFilter[], tenantId: string): Promise<number> {
+    async count(table: string, filters: QueryFilter[]): Promise<number> {
         if (!this.isConnected()) {
             await this.connect();
         }
 
         try {
-            let records = this.getTableData(tenantId, table);
+            // Use default tenant - DB class will handle tenant resolution
+            let records = this.getTableData('default', table);
 
             // Apply filters
             if (filters.length > 0) {
@@ -508,7 +513,6 @@ export class InMemoryAdapter extends DatabaseAdapter {
                     return filters.every(filter => {
                         const fieldValue = record[filter.field];
                         const filterValue = processFilterValue(filter.operator || 'eq', filter.value);
-                        
                         return this.matchesFilter(fieldValue, filterValue, filter.operator || 'eq');
                     });
                 });
@@ -518,27 +522,30 @@ export class InMemoryAdapter extends DatabaseAdapter {
         } catch (error) {
             throw new DatabaseError('count', { 
                 cause: error instanceof Error ? error : new Error(String(error)),
-                context: { table, filters, tenantId }
+                context: { table, filters }
             });
         }
     }
 
     /**
-     * Find a record by ID with tenant context (EntityKit pattern)
+     * Find a record by ID
      */
-    async findById(table: string, id: string, tenantId: string): Promise<any | null> {
+    async findById(table: string, id: string): Promise<any | null> {
         if (!this.isConnected()) {
             await this.connect();
         }
 
         try {
-            const records = this.getTableData(tenantId, table);
+            // Use default tenant - DB class will handle tenant resolution
+            const records = this.getTableData('default', table);
             const idField = this.getIdField(table);
-        return records.find(r => r[idField] === id) || null;
+            const record = records.find(r => r[idField] === id);
+            
+            return record || null;
         } catch (error) {
-            throw new DatabaseError('find_by_id', { 
+            throw new DatabaseError('findById', { 
                 cause: error instanceof Error ? error : new Error(String(error)),
-                context: { table, id, tenantId }
+                context: { table, id }
             });
         }
     }

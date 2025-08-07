@@ -129,54 +129,48 @@ export abstract class DatabaseAdapter {
   // ===== EntityKit-style multi-tenant methods =====
 
   /**
-   * Select records with tenant-aware filtering (EntityKit pattern)
+   * Select records from a table
    * @param table Table name
    * @param filters Query filters
    * @param options Query options
-   * @param tenantId Tenant identifier (schema name)
    */
-  abstract select(table: string, filters: QueryFilter[], options: QueryOptions, tenantId: string): Promise<any[]>;
+  abstract select(table: string, filters: QueryFilter[], options: QueryOptions): Promise<any[]>;
 
   /**
-   * Insert a record with tenant context (EntityKit pattern)
+   * Insert a record into a table
    * @param table Table name
    * @param data Data to insert
-   * @param tenantId Tenant identifier (schema name)
    */
-  abstract insert(table: string, data: Record<string, any>, tenantId?: string): Promise<any>;
+  abstract insert(table: string, data: Record<string, any>): Promise<any>;
 
   /**
-   * Update a record with tenant context (EntityKit pattern)
+   * Update a record in a table
    * @param table Table name
    * @param id Record ID
    * @param data Data to update
-   * @param tenantId Tenant identifier (schema name)
    */
-  abstract update(table: string, id: string, data: Record<string, any>, tenantId: string): Promise<any>;
+  abstract update(table: string, id: string, data: Record<string, any>): Promise<any>;
 
   /**
-   * Delete a record with tenant context (EntityKit pattern)
+   * Delete a record from a table
    * @param table Table name
    * @param id Record ID
-   * @param tenantId Tenant identifier (schema name)
    */
-  abstract delete(table: string, id: string, tenantId: string): Promise<void>;
+  abstract delete(table: string, id: string): Promise<void>;
 
   /**
-   * Count records with tenant-aware filtering (EntityKit pattern)
+   * Count records in a table
    * @param table Table name
    * @param filters Query filters
-   * @param tenantId Tenant identifier (schema name)
    */
-  abstract count(table: string, filters: QueryFilter[], tenantId: string): Promise<number>;
+  abstract count(table: string, filters: QueryFilter[]): Promise<number>;
 
   /**
-   * Find a record by ID with tenant context (EntityKit pattern)
+   * Find a record by ID
    * @param table Table name
    * @param id Record ID
-   * @param tenantId Tenant identifier (schema name)
    */
-  abstract findById(table: string, id: string, tenantId: string): Promise<any | null>;
+  abstract findById(table: string, id: string): Promise<any | null>;
 
   // ===== Schema management methods =====
 

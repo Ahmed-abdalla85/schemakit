@@ -318,18 +318,12 @@ export class DrizzleAdapter extends DatabaseAdapter {
   }
 
   // Dynamic query methods for SchemaKit's runtime schema
-  async select(table: string, filters: QueryFilter[], options: QueryOptions, tenantId: string): Promise<any[]> {
+  async select(table: string, filters: QueryFilter[], options: QueryOptions): Promise<any[]> {
     let query = `SELECT * FROM ${table}`;
     const params: any[] = [];
     const conditions: string[] = [];
     
-    // Add tenant filter
-    if (tenantId && tenantId !== 'default') {
-      conditions.push(`tenant_id = ${this.placeholder(params.length)}`);
-      params.push(tenantId);
-    }
-    
-    // Add filters
+    // Build filter conditions
     filters.forEach(filter => {
       const op = this.getOperator(filter.operator || 'eq');
       conditions.push(`${filter.field} ${op} ${this.placeholder(params.length)}`);
@@ -352,13 +346,9 @@ export class DrizzleAdapter extends DatabaseAdapter {
     return await this.query(query, params);
   }
 
-  async insert(table: string, data: Record<string, any>, tenantId?: string): Promise<any> {
-    const insertData = tenantId && tenantId !== 'default' 
-      ? { ...data, tenant_id: tenantId } 
-      : data;
-    
-    const fields = Object.keys(insertData);
-    const values = Object.values(insertData);
+  async insert(table: string, data: Record<string, any>): Promise<any> {
+    const fields = Object.keys(data);
+    const values = Object.values(data);
     const placeholders = values.map((_, i) => this.placeholder(i)).join(', ');
     
     const query = `INSERT INTO ${table} (${fields.join(', ')}) VALUES (${placeholders})`;
@@ -368,21 +358,16 @@ export class DrizzleAdapter extends DatabaseAdapter {
     
     return this.dbType === 'postgres' && result.lastInsertId
       ? result.lastInsertId
-      : { ...insertData, id: result.lastInsertId || insertData.id };
+      : { ...data, id: result.lastInsertId || data.id };
   }
 
-  async update(table: string, id: string, data: Record<string, any>, tenantId: string): Promise<any> {
+  async update(table: string, id: string, data: Record<string, any>): Promise<any> {
     const fields = Object.keys(data);
     const values = Object.values(data);
     const sets = fields.map((f, i) => `${f} = ${this.placeholder(i)}`).join(', ');
     
     values.push(id);
-    let where = `id = ${this.placeholder(values.length - 1)}`;
-    
-    if (tenantId && tenantId !== 'default') {
-      values.push(tenantId);
-      where += ` AND tenant_id = ${this.placeholder(values.length - 1)}`;
-    }
+    const where = `id = ${this.placeholder(values.length - 1)}`;
     
     const result = await this.execute(`UPDATE ${table} SET ${sets} WHERE ${where}`, values);
     if (result.changes === 0) throw new Error(`No record found with id: ${id}`);
@@ -390,28 +375,18 @@ export class DrizzleAdapter extends DatabaseAdapter {
     return { id, ...data };
   }
 
-  async delete(table: string, id: string, tenantId: string): Promise<void> {
+  async delete(table: string, id: string): Promise<void> {
     const values = [id];
-    let where = `id = ${this.placeholder(0)}`;
-    
-    if (tenantId && tenantId !== 'default') {
-      values.push(tenantId);
-      where += ` AND tenant_id = ${this.placeholder(values.length - 1)}`;
-    }
+    const where = `id = ${this.placeholder(0)}`;
     
     const result = await this.execute(`DELETE FROM ${table} WHERE ${where}`, values);
     if (result.changes === 0) throw new Error(`No record found with id: ${id}`);
   }
 
-  async count(table: string, filters: QueryFilter[], tenantId: string): Promise<number> {
+  async count(table: string, filters: QueryFilter[]): Promise<number> {
     let query = `SELECT COUNT(*) as count FROM ${table}`;
     const params: any[] = [];
     const conditions: string[] = [];
-    
-    if (tenantId && tenantId !== 'default') {
-      conditions.push(`tenant_id = ${this.placeholder(params.length)}`);
-      params.push(tenantId);
-    }
     
     filters.forEach(filter => {
       const op = this.getOperator(filter.operator || 'eq');
@@ -427,14 +402,9 @@ export class DrizzleAdapter extends DatabaseAdapter {
     return Number(result[0]?.count) || 0;
   }
 
-  async findById(table: string, id: string, tenantId: string): Promise<any | null> {
+  async findById(table: string, id: string): Promise<any | null> {
     const values = [id];
-    let where = `id = ${this.placeholder(0)}`;
-    
-    if (tenantId && tenantId !== 'default') {
-      values.push(tenantId);
-      where += ` AND tenant_id = ${this.placeholder(values.length - 1)}`;
-    }
+    const where = `id = ${this.placeholder(0)}`;
     
     const result = await this.query(`SELECT * FROM ${table} WHERE ${where} LIMIT 1`, values);
     return result[0] || null;

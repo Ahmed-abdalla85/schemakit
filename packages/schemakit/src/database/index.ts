@@ -4,6 +4,8 @@
  * Exports all database-related classes, interfaces, and utilities
  */
 
+// Core database class and types
+export { DB, type DBOptions, type MultiTenancyConfig } from './db';
 
 // Core database interfaces and adapters
 export { DatabaseAdapter } from './adapter';

@@ -1,5 +1,5 @@
 import { SchemaKitOptions } from './types/core';
-import { DB } from './database/db';
+import { DB, type MultiTenancyConfig } from './database/db';
 import { Entity } from './entities/entity/entity';
 import { SchemaKitError } from './errors';
 
@@ -8,6 +8,7 @@ type SchemaKitInitOptions = SchemaKitOptions | {
   adapter?: string;
   config?: any;
   cache?: SchemaKitOptions['cache'];
+  multiTenancy?: MultiTenancyConfig;
 };
 
 export class SchemaKit {
@@ -36,11 +37,15 @@ export class SchemaKit {
       adapterConfig = {};
     }
     
+    // Extract multi-tenancy config
+    const multiTenancy = (options as any).multiTenancy;
+    
     // Allow tenantId in config, but fallback to 'system'
     this.db = new DB({
       adapter: adapterType,
       tenantId: adapterConfig.tenantId || 'system',
-      config: adapterConfig
+      config: adapterConfig,
+      multiTenancy
     });
   }
   
