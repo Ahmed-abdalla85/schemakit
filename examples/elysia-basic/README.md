@@ -17,10 +17,25 @@ This example demonstrates how to use SchemaKit with Elysia to create a dynamic R
 
 ## Installation
 
+### Option 1: Install from workspace root (Recommended)
+
 ```bash
-# Install dependencies
+# From the workspace root
+cd ../.. # Go to workspace root
+bun install
+
+# Then navigate to the example
+cd examples/elysia-basic
+```
+
+### Option 2: Install from example directory
+
+```bash
+# From the example directory
 bun install
 ```
+
+**Note:** If you get workspace dependency errors, use Option 1 or ensure you're in a properly configured monorepo workspace.
 
 ## Running the Example
 
@@ -157,6 +172,13 @@ You can modify the example to:
 5. Implement proper authentication
 
 ## Troubleshooting
+
+### Workspace Dependency Errors
+
+If you get errors like "Workspace dependency not found":
+1. Make sure you're in a monorepo with proper workspace configuration
+2. Install dependencies from the workspace root instead
+3. Or use npm/yarn instead of bun
 
 ### Database Connection Issues
 

@@ -11,8 +11,8 @@
     "dev:postgres": "DB_TYPE=postgres bun run --watch index.ts"
   },
   "dependencies": {
-    "@mobtakronio/schemakit": "workspace:*",
-    "@mobtakronio/schemakit-elysia": "workspace:*",
+    "@mobtakronio/schemakit": "link:../../packages/schemakit",
+    "@mobtakronio/schemakit-elysia": "link:../../packages/schemakit-elysia",
     "elysia": "^1.0.0",
     "drizzle-orm": "^0.29.0",
     "better-sqlite3": "^9.0.0",
