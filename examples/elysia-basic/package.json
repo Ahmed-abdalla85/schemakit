@@ -3,17 +3,25 @@
   "version": "0.1.0",
   "description": "Basic example of SchemaKit with Elysia adapter",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "bun run --watch index.ts",
-    "start": "bun run index.ts"
+    "start": "bun run index.ts",
+    "dev:sqlite": "DB_TYPE=sqlite bun run --watch index.ts",
+    "dev:postgres": "DB_TYPE=postgres bun run --watch index.ts"
   },
   "dependencies": {
     "@mobtakronio/schemakit": "workspace:*",
     "@mobtakronio/schemakit-elysia": "workspace:*",
-    "elysia": "^1.0.0"
+    "elysia": "^1.0.0",
+    "drizzle-orm": "^0.29.0",
+    "better-sqlite3": "^9.0.0",
+    "pg": "^8.11.0"
   },
   "devDependencies": {
     "bun-types": "^1.0.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "@types/pg": "^8.10.0",
+    "@types/better-sqlite3": "^7.6.0"
   }
 }
