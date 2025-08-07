@@ -2,13 +2,14 @@ import { Elysia } from 'elysia';
 import { SchemaKit } from '@mobtakronio/schemakit';
 import { schemaKitElysia } from '@mobtakronio/schemakit-elysia';
 
+
 async function main() {
   // Get database type from environment or default to SQLite
   const dbType = process.env.DB_TYPE || 'sqlite';
   
   console.log(`🗄️  Using ${dbType.toUpperCase()} database adapter`);
   
-  // Initialize SchemaKit with the appropriate adapter and multi-tenancy
+  // Initialize SchemaKit with the appropriate adapter
   const kit = new SchemaKit({
     adapter: dbType,
     config: dbType === 'postgres' ? {
@@ -16,48 +17,32 @@ async function main() {
       port: parseInt(process.env.DB_PORT || '5432'),
       user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || 'postgrespassword',
-      database: process.env.DB_NAME || 'schemakit_demo'
+      database: process.env.DB_NAME || 'postgres'
     } : {
       filename: process.env.DB_FILE || './demo.sqlite'
     },
-    // Configure multi-tenancy
     multiTenancy: {
-      strategy: process.env.MULTI_TENANCY_STRATEGY as any || 'column',
-      columnName: 'tenant_id'
+      strategy: 'schema'  // Each tenant gets their own schema
     }
   });
 
-  // Initialize the database adapter
-  await kit.init();
-  console.log('✅ Database adapter initialized');
-  console.log(`🏢 Multi-tenancy strategy: ${kit.db.getMultiTenancyConfig().strategy}`);
-
-  // Setup example entities
-  await setupExampleEntities(kit);
-  
+ 
+  console.log('✅ SchemaKit initialized');
   // Create Elysia app
   const app = new Elysia();
-
-  // Add SchemaKit REST API with dynamic tenant resolution
+  // Add SchemaKit REST API
   app.use(
     schemaKitElysia(kit, {
       basePath: '/api',
       enableDocs: true,
       docsPath: '/docs',
-      contextProvider: (request) => {
-        // Get tenant from header, subdomain, or default
-        const tenantId = request.headers.get('x-tenant-id') || 
-                        extractTenantFromHost(request.headers.get('host')) || 
-                        'demo';
-        
-        return {
-          tenantId,
-          user: {
-            id: request.headers.get('x-user-id') || 'demo-user',
-            role: request.headers.get('x-user-role') || 'user',
-          },
-        };
-      },
+      contextProvider: (request) => ({
+        tenantId: 'demo',
+        user: {
+          id: request.headers.get('x-user-id') || 'demo-user',
+          role: request.headers.get('x-user-role') || 'user',
+        },
+      }),
     })
   );
 
@@ -65,7 +50,6 @@ async function main() {
   app.get('/', () => ({
     message: 'Welcome to SchemaKit + Elysia Demo!',
     database: dbType.toUpperCase(),
-    multiTenancy: kit.db.getMultiTenancyConfig(),
     endpoints: {
       'API Documentation': 'http://localhost:3000/docs',
       'List Entities': 'http://localhost:3000/api/entities',
@@ -76,27 +60,26 @@ async function main() {
       'Create User': {
         method: 'POST',
         url: 'http://localhost:3000/api/entity/users',
-        headers: {
-          'x-tenant-id': 'tenant1',
-          'Content-Type': 'application/json'
-        },
         body: {
           name: 'John Doe',
           email: 'john@example.com',
           role: 'user'
         }
       },
-      'List Users for Tenant': {
+      'List Users': {
         method: 'GET',
-        url: 'http://localhost:3000/api/entity/users?page=1&limit=10',
-        headers: {
-          'x-tenant-id': 'tenant1'
-        }
+        url: 'http://localhost:3000/api/entity/users?page=1&limit=10'
       },
-      'Cross-Tenant Admin Query': {
-        note: 'Requires admin role and raw query access',
+      'Get User by ID': {
         method: 'GET',
-        url: 'http://localhost:3000/api/admin/all-users'
+        url: 'http://localhost:3000/api/entity/users/{id}'
+      },
+      'Update User': {
+        method: 'PUT',
+        url: 'http://localhost:3000/api/entity/users/{id}',
+        body: {
+          name: 'Jane Doe'
+        }
       }
     }
   }));
@@ -114,41 +97,13 @@ async function main() {
         database: {
           type: dbType,
           connected: isConnected
-        },
-        multiTenancy: kit.db.getMultiTenancyConfig()
+        }
       };
     } catch (error) {
       return { 
         status: 'error', 
         timestamp: new Date().toISOString(),
         error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  });
-
-  // Example: Admin endpoint that queries across tenants
-  app.get('/api/admin/all-users', async ({ headers }) => {
-    const role = headers['x-user-role'];
-    if (role !== 'admin') {
-      return new Response('Forbidden', { status: 403 });
-    }
-
-    try {
-      // Use raw query to bypass tenant filtering
-      const users = await kit.db.raw(`
-        SELECT u.*, COUNT(*) OVER() as total_count
-        FROM users u
-        ORDER BY u.created_at DESC
-        LIMIT 100
-      `);
-
-      return {
-        users,
-        warning: 'This endpoint bypasses tenant isolation - admin only!'
-      };
-    } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : 'Query failed'
       };
     }
   });
@@ -163,28 +118,14 @@ async function main() {
   console.log(`📚 API Docs: http://localhost:${port}/docs`);
   console.log(`🔍 API Base: http://localhost:${port}/api`);
   console.log('');
-  console.log('🏢 Multi-Tenant Example:');
-  console.log(`curl -H "x-tenant-id: tenant1" http://localhost:${port}/api/entity/users`);
-  console.log(`curl -H "x-tenant-id: tenant2" http://localhost:${port}/api/entity/users`);
+  console.log('Example requests:');
+  console.log(`curl http://localhost:${port}/api/entities`);
+  console.log(`curl http://localhost:${port}/api/entity/users`);
   console.log('');
-  console.log('Create a user for tenant1:');
+  console.log('Create a user:');
   console.log(`curl -X POST http://localhost:${port}/api/entity/users \\`);
   console.log(`  -H "Content-Type: application/json" \\`);
-  console.log(`  -H "x-tenant-id: tenant1" \\`);
   console.log(`  -d '{"name":"Alice","email":"alice@example.com","role":"admin"}'`);
-}
-
-// Extract tenant from subdomain (e.g., tenant1.example.com)
-function extractTenantFromHost(host: string | null): string | null {
-  if (!host) return null;
-  
-  const parts = host.split('.');
-  if (parts.length >= 3) {
-    // Assume first part is tenant ID
-    return parts[0];
-  }
-  
-  return null;
 }
 
 async function setupExampleEntities(kit: SchemaKit) {

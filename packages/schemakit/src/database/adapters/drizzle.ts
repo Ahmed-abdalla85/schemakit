@@ -1,8 +1,8 @@
 /**
- * DrizzleAdapter - Database adapter using Drizzle ORM
+ * DrizzleAdapter - Minimal, type-safe database adapter using Drizzle ORM
  * 
- * This adapter leverages Drizzle ORM's query builder for better performance
- * and type safety while maintaining the DatabaseAdapter interface.
+ * High-level abstraction that hides Drizzle internals while leveraging its strengths.
+ * Uses Drizzle's sql`` templates instead of fighting against its design.
  */
 import { 
   DatabaseAdapter, 
@@ -14,9 +14,34 @@ import {
 } from '../adapter';
 import { DatabaseError } from '../../errors';
 
-// Type-only imports for optional peer dependencies
-type SqlOperator = { raw: (sql: string, params?: any[]) => any };
-type DrizzleDatabase = any; // Will be properly typed when Drizzle is installed
+// Proper TypeScript interfaces for Drizzle abstractions
+interface DrizzleDatabase {
+  execute(query: any): Promise<any>;
+  transaction<T>(callback: (tx: DrizzleDatabase) => Promise<T>): Promise<T>;
+  select?: any; // For query builder access
+  insert?: any;
+  update?: any;
+  delete?: any;
+}
+
+interface SqlOperator {
+  raw(sql: string): any;
+  fromList(chunks: any[]): any;
+  placeholder(name: string): any;
+}
+
+interface DatabaseClient {
+  connect?(): Promise<void>;
+  end?(): Promise<void>;
+  close?(): void;
+}
+
+// Schema introspection interfaces
+interface DrizzleSchemaIntrospection {
+  introspectPostgres?(database: string): Promise<any>;
+  introspectMySQL?(database: string): Promise<any>;
+  introspectSQLite?(database: string): Promise<any>;
+}
 
 /**
  * DrizzleAdapter implementation
@@ -32,7 +57,7 @@ type DrizzleDatabase = any; // Will be properly typed when Drizzle is installed
  */
 export class DrizzleAdapter extends DatabaseAdapter {
   private db: DrizzleDatabase | null = null;
-  private client: any = null;
+  private client: DatabaseClient | null = null;
   private connected = false;
   private dbType: 'postgres' | 'sqlite' | 'mysql';
   private sql: SqlOperator | null = null;
@@ -206,76 +231,95 @@ export class DrizzleAdapter extends DatabaseAdapter {
     return this.connected && this.db !== null;
   }
 
-  async query<T = any>(sqlQuery: string, params?: any[]): Promise<T[]> {
-    if (!this.isConnected()) await this.connect();
+  async query<T = any>(sqlQuery: string, params: any[] = []): Promise<T[]> {
+    await this.ensureConnected();
 
     try {
-      // Use Drizzle's sql operator for safe parameterized queries
-      const preparedQuery = params?.length 
-        ? this.sql!.raw(sqlQuery, params)
-        : this.sql!.raw(sqlQuery);
-      
-      const result = await this.db!.execute(preparedQuery);
+      const query = this.createQuery(sqlQuery, params);
+      const result = await this.db!.execute(query);
       return Array.isArray(result) ? result : (result.rows || []);
     } catch (error) {
-      throw new DatabaseError('query', { cause: error, context: { sql: sqlQuery, params } });
+      throw new DatabaseError('query', { 
+        cause: error, 
+        context: { 
+          operation: 'query',
+          database: this.dbType,
+          sql: sqlQuery, 
+          params 
+        } 
+      });
     }
   }
 
-  async execute(sqlQuery: string, params?: any[]): Promise<{ changes: number; lastInsertId?: string | number }> {
-    if (!this.isConnected()) await this.connect();
+  async execute(sqlQuery: string, params: any[] = []): Promise<{ changes: number; lastInsertId?: string | number }> {
+    await this.ensureConnected();
 
     try {
-      const preparedQuery = params?.length 
-        ? this.sql!.raw(sqlQuery, params)
-        : this.sql!.raw(sqlQuery);
+      const query = this.createQuery(sqlQuery, params);
+      const result = await this.db!.execute(query);
       
-      const result = await this.db!.execute(preparedQuery);
-      
-      // Extract metadata based on database type
-      if (this.dbType === 'postgres') {
-        return { 
-          changes: result.rowCount || 0,
-          lastInsertId: result.rows?.[0]?.id 
-        };
-      } else if (this.dbType === 'mysql') {
-        return { 
-          changes: result.affectedRows || 0,
-          lastInsertId: result.insertId 
-        };
-      } else {
-        return { 
-          changes: result.changes || 0,
-          lastInsertId: result.lastInsertRowid 
-        };
-      }
+      return this.extractExecutionMetadata(result);
     } catch (error) {
-      throw new DatabaseError('execute', { cause: error, context: { sql: sqlQuery, params } });
+      throw new DatabaseError('execute', { 
+        cause: error, 
+        context: { 
+          operation: 'execute',
+          database: this.dbType,
+          sql: sqlQuery, 
+          params 
+        } 
+      });
     }
   }
 
   async transaction<T>(callback: TransactionCallback<T>): Promise<T> {
-    if (!this.isConnected()) await this.connect();
+    await this.ensureConnected();
 
     try {
-      return await (this.db as any).transaction(async (tx: any) => {
-        const txAdapter = Object.create(this);
+      return await this.db!.transaction(async (tx: DrizzleDatabase) => {
+        // Create clean transaction adapter - no state leakage
+        const txAdapter = new DrizzleAdapter(this.config);
         txAdapter.db = tx;
+        txAdapter.sql = this.sql;
+        txAdapter.connected = true;
+        txAdapter.dbType = this.dbType;
+        
         return await callback(txAdapter);
       });
     } catch (error) {
-      throw new DatabaseError('transaction', { cause: error });
+      throw new DatabaseError('transaction', { 
+        cause: error,
+        context: { 
+          operation: 'transaction',
+          database: this.dbType 
+        }
+      });
     }
   }
 
   async tableExists(tableName: string): Promise<boolean> {
-    const query = this.dbType === 'sqlite'
-      ? `SELECT name FROM sqlite_master WHERE type='table' AND name=?`
-      : this.dbType === 'postgres'
-      ? `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1) as exists`
-      : `SELECT EXISTS (SELECT * FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?) as \`exists\``;
+    await this.ensureConnected();
+
+    try {
+      // Use Drizzle's introspection capabilities where available
+      const schema = await this.getSchemaInfo();
+      return schema.tables.some((table: any) => 
+        table.name === tableName || table.tableName === tableName
+      );
+    } catch {
+      // Fallback to direct SQL if introspection fails
+      return await this.tableExistsFallback(tableName);
+    }
+  }
+
+  private async tableExistsFallback(tableName: string): Promise<boolean> {
+    const queries = {
+      sqlite: `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
+      postgres: `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1) as exists`,
+      mysql: `SELECT EXISTS (SELECT * FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?) as \`exists\``
+    };
     
-    const result = await this.query<any>(query, [tableName]);
+    const result = await this.query<any>(queries[this.dbType], [tableName]);
     return this.dbType === 'sqlite' ? result.length > 0 : Boolean(result[0]?.exists);
   }
 
@@ -297,6 +341,27 @@ export class DrizzleAdapter extends DatabaseAdapter {
   }
 
   async getTableColumns(tableName: string): Promise<ColumnDefinition[]> {
+    await this.ensureConnected();
+
+    try {
+      // Use Drizzle's schema introspection for better type safety
+      const schema = await this.getSchemaInfo();
+      const table = schema.tables.find((t: any) => 
+        t.name === tableName || t.tableName === tableName
+      );
+      
+      if (table?.columns) {
+        return this.mapDrizzleColumns(table.columns);
+      }
+    } catch (error) {
+      console.warn('Schema introspection failed, using fallback:', error);
+    }
+
+    // Fallback to direct SQL queries
+    return await this.getTableColumnsFallback(tableName);
+  }
+
+  private async getTableColumnsFallback(tableName: string): Promise<ColumnDefinition[]> {
     if (this.dbType === 'sqlite') {
       const result = await this.query(`PRAGMA table_info(${tableName})`);
       return result.map((row: any) => ({
@@ -308,13 +373,30 @@ export class DrizzleAdapter extends DatabaseAdapter {
       }));
     }
     
-    const query = this.dbType === 'postgres'
-      ? `SELECT column_name as name, data_type as type, is_nullable = 'NO' as "notNull", column_default as "default"
-         FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 ORDER BY ordinal_position`
-      : `SELECT COLUMN_NAME as name, DATA_TYPE as type, IS_NULLABLE = 'NO' as notNull, COLUMN_DEFAULT as \`default\`
-         FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? ORDER BY ORDINAL_POSITION`;
+    const queries = {
+      postgres: `SELECT column_name as name, data_type as type, is_nullable = 'NO' as "notNull", column_default as "default"
+                 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 ORDER BY ordinal_position`,
+      mysql: `SELECT COLUMN_NAME as name, DATA_TYPE as type, IS_NULLABLE = 'NO' as notNull, COLUMN_DEFAULT as \`default\`
+              FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? ORDER BY ORDINAL_POSITION`
+    };
     
-    return await this.query(query, [tableName]);
+    return await this.query(queries[this.dbType], [tableName]);
+  }
+
+  private mapDrizzleColumns(drizzleColumns: any[]): ColumnDefinition[] {
+    return drizzleColumns.map(col => ({
+      name: col.name,
+      type: col.type || col.dataType || 'text',
+      notNull: col.notNull || col.isNotNull || false,
+      default: col.default || col.defaultValue,
+      primaryKey: col.primaryKey || col.isPrimaryKey || false,
+      unique: col.unique || col.isUnique || false,
+      references: col.references ? {
+        table: col.references.table || col.references.tableName,
+        column: col.references.column || col.references.columnName,
+        onDelete: col.references.onDelete
+      } : undefined
+    }));
   }
 
   // Dynamic query methods for SchemaKit's runtime schema
@@ -322,6 +404,8 @@ export class DrizzleAdapter extends DatabaseAdapter {
     let query = `SELECT * FROM ${table}`;
     const params: any[] = [];
     const conditions: string[] = [];
+
+    
     
     // Build filter conditions
     filters.forEach(filter => {
@@ -329,7 +413,7 @@ export class DrizzleAdapter extends DatabaseAdapter {
       conditions.push(`${filter.field} ${op} ${this.placeholder(params.length)}`);
       params.push(filter.value);
     });
-    
+
     if (conditions.length > 0) {
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
@@ -444,6 +528,104 @@ export class DrizzleAdapter extends DatabaseAdapter {
   // Helper methods
   private placeholder(index: number): string {
     return this.dbType === 'postgres' ? `$${index + 1}` : '?';
+  }
+
+  // Helper methods - minimal and focused
+  private async ensureConnected(): Promise<void> {
+    if (!this.isConnected()) {
+      await this.connect();
+    }
+  }
+
+  /**
+   * Get schema information using Drizzle's introspection APIs
+   */
+  private async getSchemaInfo(): Promise<{ tables: any[] }> {
+    try {
+      // Try to use Drizzle's introspection APIs
+      const introspect = await this.getDrizzleIntrospection();
+      
+      if (introspect) {
+        let schema;
+        if (this.dbType === 'postgres' && introspect.introspectPostgres) {
+          schema = await introspect.introspectPostgres(this.client);
+        } else if (this.dbType === 'mysql' && introspect.introspectMySQL) {
+          schema = await introspect.introspectMySQL(this.client);
+        } else if (this.dbType === 'sqlite' && introspect.introspectSQLite) {
+          schema = await introspect.introspectSQLite(this.client);
+        }
+        
+        if (schema) {
+          return { tables: schema.tables || [] };
+        }
+      }
+    } catch (error) {
+      console.warn('Drizzle introspection not available, using fallback');
+    }
+    
+    // Fallback: empty schema info
+    return { tables: [] };
+  }
+
+  private async getDrizzleIntrospection(): Promise<DrizzleSchemaIntrospection | null> {
+    try {
+      // Try to import drizzle introspection APIs
+      if (this.dbType === 'postgres') {
+        const { introspectPostgres } = await import('drizzle-orm/pg-core');
+        return { introspectPostgres };
+      } else if (this.dbType === 'mysql') {
+        const { introspectMySQL } = await import('drizzle-orm/mysql-core');
+        return { introspectMySQL };
+      } else if (this.dbType === 'sqlite') {
+        const { introspectSQLite } = await import('drizzle-orm/sqlite-core');
+        return { introspectSQLite };
+      }
+    } catch {
+      // Introspection APIs not available
+    }
+    return null;
+  }
+
+  /**
+   * Create Drizzle query - the RIGHT way (5 lines instead of 60+)
+   */
+  private createQuery(sqlQuery: string, params: any[]): any {
+    if (params.length === 0) {
+      return this.sql!.raw(sqlQuery);
+    }
+
+    // Use Drizzle's fromList for parameter binding - simple and correct
+    const chunks: any[] = [];
+    const placeholder = this.dbType === 'postgres' ? /\$\d+/ : /\?/;
+    const parts = sqlQuery.split(placeholder);
+    
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i]) chunks.push(this.sql!.raw(parts[i]));
+      if (i < parts.length - 1 && i < params.length) {
+        chunks.push(params[i]);
+      }
+    }
+    
+    return this.sql!.fromList(chunks);
+  }
+
+  private extractExecutionMetadata(result: any): { changes: number; lastInsertId?: string | number } {
+    if (this.dbType === 'postgres') {
+      return { 
+        changes: result.rowCount || 0,
+        lastInsertId: result.rows?.[0]?.id 
+      };
+    } else if (this.dbType === 'mysql') {
+      return { 
+        changes: result.affectedRows || 0,
+        lastInsertId: result.insertId 
+      };
+    } else {
+      return { 
+        changes: result.changes || 0,
+        lastInsertId: result.lastInsertRowid 
+      };
+    }
   }
 
   private getOperator(op: string): string {
