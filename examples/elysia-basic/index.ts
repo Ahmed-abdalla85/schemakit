@@ -1,18 +1,23 @@
 import { Elysia } from 'elysia';
-import { SchemaKit } from '@mobtakronio/schemakit';
-import { schemaKitElysia } from '@mobtakronio/schemakit-elysia';
+import { SchemaKit } from '../../packages/schemakit/dist/index.js';
+import { schemaKitElysia } from '../../packages/schemakit-elysia/dist/index.js';
 
 async function main() {
   // Initialize SchemaKit
   const kit = new SchemaKit({
     adapter: {
-      type: 'inmemory', // Use in-memory database for this example
-    },
+      type: 'postgres',
+      config: {
+        host: 'localhost',
+        port: 5852,
+        user: 'postgres',
+        password: 'postgrespassword',
+        database: 'processkit'
+      }
+    }
   });
 
-  // Set up some example entities
-  await setupExampleEntities(kit);
-
+  
   // Create Elysia app
   const app = new Elysia();
 
@@ -61,7 +66,7 @@ async function main() {
   // Health check
   app.get('/health', () => ({ status: 'ok', timestamp: new Date().toISOString() }));
 
-  // Start server
+   // Start server
   const port = 3000;
   app.listen(port);
 
@@ -72,7 +77,7 @@ async function main() {
   console.log('');
   console.log('Example requests:');
   console.log(`curl http://localhost:${port}/api/entities`);
-  console.log(`curl http://localhost:${port}/api/entity/users`);
+  console.log(`curl http://localhost:${port}/api/entity/entities`);
   console.log('');
   console.log('Create a user:');
   console.log(`curl -X POST http://localhost:${port}/api/entity/users \\`);
@@ -80,75 +85,75 @@ async function main() {
   console.log(`  -d '{"name":"Alice","email":"alice@example.com","role":"admin"}'`);
 }
 
-async function setupExampleEntities(kit: SchemaKit) {
-  console.log('Setting up example entities...');
+// async function setupExampleEntities(kit: SchemaKit) {
+//   console.log('Setting up example entities...');
   
-  try {
-    // Create Users entity
-    const users = await kit.entity('users', 'demo');
+//   try {
+//     // Create Users entity
+//     const users = await kit.entity('users', 'demo');
     
-    // Define fields for users
-    await users.field('name', 'text', { required: true });
-    await users.field('email', 'text', { required: true, unique: true });
-    await users.field('role', 'text', { defaultValue: 'user' });
-    await users.field('is_active', 'boolean', { defaultValue: true });
-    await users.field('profile', 'json');
+//     // Define fields for users
+//     await users.field('name', 'text', { required: true });
+//     await users.field('email', 'text', { required: true, unique: true });
+//     await users.field('role', 'text', { defaultValue: 'user' });
+//     await users.field('is_active', 'boolean', { defaultValue: true });
+//     await users.field('profile', 'json');
 
-    // Add some permissions
-    await users.permission('create', { role: ['admin', 'user'] });
-    await users.permission('read', { role: ['admin', 'user'] });
-    await users.permission('update', { role: ['admin'], own: true });
-    await users.permission('delete', { role: ['admin'] });
+//     // Add some permissions
+//     await users.permission('create', { role: ['admin', 'user'] });
+//     await users.permission('read', { role: ['admin', 'user'] });
+//     await users.permission('update', { role: ['admin'], own: true });
+//     await users.permission('delete', { role: ['admin'] });
 
-    console.log('✅ Users entity configured');
+//     console.log('✅ Users entity configured');
 
-    // Create Posts entity
-    const posts = await kit.entity('posts', 'demo');
+//     // Create Posts entity
+//     const posts = await kit.entity('posts', 'demo');
     
-    await posts.field('title', 'text', { required: true });
-    await posts.field('content', 'text', { required: true });
-    await posts.field('author_id', 'text', { required: true });
-    await posts.field('status', 'text', { defaultValue: 'draft' });
-    await posts.field('published_at', 'datetime');
-    await posts.field('tags', 'json');
+//     await posts.field('title', 'text', { required: true });
+//     await posts.field('content', 'text', { required: true });
+//     await posts.field('author_id', 'text', { required: true });
+//     await posts.field('status', 'text', { defaultValue: 'draft' });
+//     await posts.field('published_at', 'datetime');
+//     await posts.field('tags', 'json');
 
-    // Posts permissions
-    await posts.permission('create', { role: ['admin', 'user'] });
-    await posts.permission('read', { role: ['admin', 'user'] });
-    await posts.permission('update', { role: ['admin'], own: true });
-    await posts.permission('delete', { role: ['admin'] });
+//     // Posts permissions
+//     await posts.permission('create', { role: ['admin', 'user'] });
+//     await posts.permission('read', { role: ['admin', 'user'] });
+//     await posts.permission('update', { role: ['admin'], own: true });
+//     await posts.permission('delete', { role: ['admin'] });
 
-    console.log('✅ Posts entity configured');
+//     console.log('✅ Posts entity configured');
 
-    // Insert some sample data
-    await users.insert({
-      name: 'Demo Admin',
-      email: 'admin@example.com',
-      role: 'admin',
-      is_active: true,
-    });
+//     // Insert some sample data
+//     await users.insert({
+//       name: 'Demo Admin',
+//       email: 'admin@example.com',
+//       role: 'admin',
+//       is_active: true,
+//     });
 
-    await users.insert({
-      name: 'Demo User',
-      email: 'user@example.com',
-      role: 'user',
-      is_active: true,
-    });
+//     await users.insert({
+//       name: 'Demo User',
+//       email: 'user@example.com',
+//       role: 'user',
+//       is_active: true,
+//     });
 
-    await posts.insert({
-      title: 'Welcome to SchemaKit!',
-      content: 'This is a demo post created with SchemaKit and Elysia.',
-      author_id: 'demo-user',
-      status: 'published',
-      tags: ['demo', 'schemakit', 'elysia'],
-    });
+//     await posts.insert({
+//       title: 'Welcome to SchemaKit!',
+//       content: 'This is a demo post created with SchemaKit and Elysia.',
+//       author_id: 'demo-user',
+//       status: 'published',
+//       tags: ['demo', 'schemakit', 'elysia'],
+//     });
 
-    console.log('✅ Sample data inserted');
+//     console.log('✅ Sample data inserted');
     
-  } catch (error) {
-    console.error('Error setting up entities:', error);
-  }
-}
+//   } catch (error) {
+//     console.error('Error setting up entities:', error);
+//   }
+// }
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
