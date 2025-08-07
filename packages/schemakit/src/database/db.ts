@@ -81,11 +81,6 @@ export class DB {
    * Resolve table name based on multi-tenancy strategy
    */
   private resolveTableName(table: string): string {
-    // Don't apply multi-tenancy to system tables
-    if (table.startsWith('system_')) {
-      return table;
-    }
-    
     switch (this.multiTenancy.strategy) {
       case 'schema':
         // For schema-based, prepend schema name
