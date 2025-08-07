@@ -14,14 +14,15 @@ interface Adapter {
 }
 
 // Adapter imports
-import { PostgresAdapter } from './adapters/postgres';
-import { SQLiteAdapter } from './adapters/sqlite';
+import { DatabaseAdapter, DatabaseAdapterConfig } from './adapter';
 import { InMemoryAdapter } from './adapters/inmemory';
+import { DatabaseError } from '../errors';
 
-type AdapterInstance = PostgresAdapter | SQLiteAdapter | InMemoryAdapter;
+type AdapterInstance = DatabaseAdapter;
 
 export class DB {
-  private adapter: AdapterInstance;
+  private adapter: AdapterInstance | null = null;
+  private adapterConfig: { type: string; config: any };
   private tenantId: string;
   private _select: string[] = [];
   private _from: string = "";
@@ -32,16 +33,31 @@ export class DB {
 
   constructor(opts: DBOptions) {
     this.tenantId = opts.tenantId;
-    const adapterName = opts.adapter?.toLowerCase();
-    const config = opts.config || {};
-    if (adapterName === 'postgres') {
-      this.adapter = new PostgresAdapter(config);
-    } else if (adapterName === 'sqlite') {
-      this.adapter = new SQLiteAdapter(config);
-    } else if (adapterName === 'inmemory' || adapterName === 'memory' || adapterName === 'mock') {
-      this.adapter = new InMemoryAdapter(config);
-    } else {
-      throw new Error(`Unknown adapter: ${adapterName}`);
+    this.adapterConfig = {
+      type: opts.adapter,
+      config: opts.config || {}
+    };
+  }
+
+  /**
+   * Initialize the database adapter
+   * Must be called before using the DB instance
+   */
+  async init(): Promise<void> {
+    if (!this.adapter) {
+      this.adapter = await DatabaseAdapter.create(
+        this.adapterConfig.type,
+        this.adapterConfig.config
+      );
+    }
+  }
+
+  /**
+   * Ensure adapter is initialized
+   */
+  private async ensureAdapter(): Promise<void> {
+    if (!this.adapter) {
+      await this.init();
     }
   }
 
@@ -108,10 +124,11 @@ export class DB {
   }
 
   async get(table?: string): Promise<any> {
+    await this.ensureAdapter();
     const filters = this.buildFilters();
     const options = this.buildOptions();
     const tableName = table || this._from;
-    const res = await this.adapter.select(
+    const res = await this.adapter!.select(
       tableName,
       filters,
       options,
@@ -122,26 +139,29 @@ export class DB {
   }
 
   async insert(table: string, data: Record<string, any>): Promise<any> {
-    const res = await this.adapter.insert(table, data, this.tenantId);
+    await this.ensureAdapter();
+    const res = await this.adapter!.insert(table, data, this.tenantId);
     this.reset();
     return res;
   }
 
   async update(table: string, data: Record<string, any>): Promise<any> {
+    await this.ensureAdapter();
     // For now, only support update by filters (not by ID)
     // You may want to extend for update by ID
     const filters = this.buildFilters();
     // Assume first filter is the ID if present
     const id = filters[0]?.value;
-    const res = await this.adapter.update(table, id, data, this.tenantId);
+    const res = await this.adapter!.update(table, id, data, this.tenantId);
     this.reset();
     return res;
   }
 
   async delete(table: string): Promise<any> {
+    await this.ensureAdapter();
     const filters = this.buildFilters();
     const id = filters[0]?.value;
-    const res = await this.adapter.delete(table, id, this.tenantId);
+    const res = await this.adapter!.delete(table, id, this.tenantId);
     this.reset();
     return res;
   }
@@ -154,5 +174,14 @@ export class DB {
     this._orderBy = [];
     this._limit = undefined;
     return this;
+  }
+
+  /**
+   * Get the underlying adapter instance (escape hatch)
+   * @warning This bypasses some SchemaKit features. Use with caution.
+   */
+  async getAdapter(): Promise<DatabaseAdapter> {
+    await this.ensureAdapter();
+    return this.adapter!;
   }
 }

@@ -13,24 +13,29 @@ import {
   QueryOptions 
 } from '../adapter';
 import { DatabaseError } from '../../errors';
-import { sql } from 'drizzle-orm';
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import type { MySql2Database } from 'drizzle-orm/mysql2';
 
-type DrizzleDatabase = NodePgDatabase | BetterSQLite3Database | MySql2Database;
+// Type-only imports for optional peer dependencies
+type SqlOperator = { raw: (sql: string, params?: any[]) => any };
+type DrizzleDatabase = any; // Will be properly typed when Drizzle is installed
 
 /**
  * DrizzleAdapter implementation
  * 
  * Uses Drizzle ORM for all database operations, providing connection pooling,
  * prepared statements, and query optimization out of the box.
+ * 
+ * Note: Requires the following peer dependencies to be installed:
+ * - drizzle-orm
+ * - For PostgreSQL: pg
+ * - For MySQL: mysql2  
+ * - For SQLite: better-sqlite3
  */
 export class DrizzleAdapter extends DatabaseAdapter {
   private db: DrizzleDatabase | null = null;
   private client: any = null;
   private connected = false;
   private dbType: 'postgres' | 'sqlite' | 'mysql';
+  private sql: SqlOperator | null = null;
 
   constructor(config: DatabaseAdapterConfig) {
     super(config);
@@ -41,6 +46,17 @@ export class DrizzleAdapter extends DatabaseAdapter {
     if (this.connected) return;
 
     try {
+      // Import sql operator from drizzle-orm
+      try {
+        // @ts-ignore - Optional peer dependency
+        const drizzleCore = await import('drizzle-orm');
+        this.sql = drizzleCore.sql;
+      } catch (error) {
+        throw new Error(
+          'drizzle-orm is not installed. Please install it as a peer dependency: npm install drizzle-orm'
+        );
+      }
+
       switch (this.dbType) {
         case 'postgres':
           await this.connectPostgres();
@@ -60,8 +76,28 @@ export class DrizzleAdapter extends DatabaseAdapter {
   }
 
   private async connectPostgres(): Promise<void> {
-    const { Client } = await import('pg');
-    const { drizzle } = await import('drizzle-orm/node-postgres');
+    let Client: any;
+    let drizzle: any;
+    
+    try {
+      // @ts-ignore - Optional peer dependency
+      const pgModule = await import('pg');
+      Client = pgModule.Client;
+    } catch (error) {
+      throw new Error(
+        'pg is not installed. Please install it as a peer dependency: npm install pg'
+      );
+    }
+    
+    try {
+      // @ts-ignore - Optional peer dependency
+      const drizzleModule = await import('drizzle-orm/node-postgres');
+      drizzle = drizzleModule.drizzle;
+    } catch (error) {
+      throw new Error(
+        'drizzle-orm is not installed. Please install it as a peer dependency: npm install drizzle-orm'
+      );
+    }
     
     this.client = new Client({
       host: this.config.host || 'localhost',
@@ -77,8 +113,27 @@ export class DrizzleAdapter extends DatabaseAdapter {
   }
 
   private async connectMySQL(): Promise<void> {
-    const mysql = await import('mysql2/promise');
-    const { drizzle } = await import('drizzle-orm/mysql2');
+    let mysql: any;
+    let drizzle: any;
+    
+    try {
+      // @ts-ignore - Optional peer dependency
+      mysql = await import('mysql2/promise');
+    } catch (error) {
+      throw new Error(
+        'mysql2 is not installed. Please install it as a peer dependency: npm install mysql2'
+      );
+    }
+    
+    try {
+      // @ts-ignore - Optional peer dependency
+      const drizzleModule = await import('drizzle-orm/mysql2');
+      drizzle = drizzleModule.drizzle;
+    } catch (error) {
+      throw new Error(
+        'drizzle-orm is not installed. Please install it as a peer dependency: npm install drizzle-orm'
+      );
+    }
     
     this.client = await mysql.createConnection({
       host: this.config.host || 'localhost',
@@ -92,11 +147,31 @@ export class DrizzleAdapter extends DatabaseAdapter {
   }
 
   private async connectSQLite(): Promise<void> {
-    const Database = await import('better-sqlite3');
-    const { drizzle } = await import('drizzle-orm/better-sqlite3');
+    let Database: any;
+    let drizzle: any;
+    
+    try {
+      // @ts-ignore - Optional peer dependency
+      const sqliteModule = await import('better-sqlite3');
+      Database = sqliteModule.default;
+    } catch (error) {
+      throw new Error(
+        'better-sqlite3 is not installed. Please install it as a peer dependency: npm install better-sqlite3'
+      );
+    }
+    
+    try {
+      // @ts-ignore - Optional peer dependency
+      const drizzleModule = await import('drizzle-orm/better-sqlite3');
+      drizzle = drizzleModule.drizzle;
+    } catch (error) {
+      throw new Error(
+        'drizzle-orm is not installed. Please install it as a peer dependency: npm install drizzle-orm'
+      );
+    }
     
     const filename = this.config.filename || ':memory:';
-    this.client = new Database.default(filename);
+    this.client = new Database(filename);
     
     // Enable foreign keys and WAL mode for SQLite
     this.client.pragma('foreign_keys = ON');
@@ -137,8 +212,8 @@ export class DrizzleAdapter extends DatabaseAdapter {
     try {
       // Use Drizzle's sql operator for safe parameterized queries
       const preparedQuery = params?.length 
-        ? sql.raw(sqlQuery, params)
-        : sql.raw(sqlQuery);
+        ? this.sql!.raw(sqlQuery, params)
+        : this.sql!.raw(sqlQuery);
       
       const result = await this.db!.execute(preparedQuery);
       return Array.isArray(result) ? result : (result.rows || []);
@@ -152,8 +227,8 @@ export class DrizzleAdapter extends DatabaseAdapter {
 
     try {
       const preparedQuery = params?.length 
-        ? sql.raw(sqlQuery, params)
-        : sql.raw(sqlQuery);
+        ? this.sql!.raw(sqlQuery, params)
+        : this.sql!.raw(sqlQuery);
       
       const result = await this.db!.execute(preparedQuery);
       
