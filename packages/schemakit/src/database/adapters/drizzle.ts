@@ -34,13 +34,14 @@ interface DatabaseClient {
   connect?(): Promise<void>;
   end?(): Promise<void>;
   close?(): void;
+  pragma?(pragma: string): any; // For SQLite
 }
 
 // Schema introspection interfaces
 interface DrizzleSchemaIntrospection {
-  introspectPostgres?(database: string): Promise<any>;
-  introspectMySQL?(database: string): Promise<any>;
-  introspectSQLite?(database: string): Promise<any>;
+  introspectPostgres?(database: any): Promise<any>;
+  introspectMySQL?(database: any): Promise<any>;
+  introspectSQLite?(database: any): Promise<any>;
 }
 
 /**
@@ -133,8 +134,8 @@ export class DrizzleAdapter extends DatabaseAdapter {
       ssl: this.config.ssl ? { rejectUnauthorized: false } : undefined,
     });
     
-    await this.client.connect();
-    this.db = drizzle(this.client) as DrizzleDatabase;
+    await this.client?.connect?.();
+    this.db = drizzle(this.client!) as DrizzleDatabase;
   }
 
   private async connectMySQL(): Promise<void> {
@@ -199,9 +200,9 @@ export class DrizzleAdapter extends DatabaseAdapter {
     this.client = new Database(filename);
     
     // Enable foreign keys and WAL mode for SQLite
-    this.client.pragma('foreign_keys = ON');
+    this.client?.pragma?.('foreign_keys = ON');
     if (filename !== ':memory:') {
-      this.client.pragma('journal_mode = WAL');
+      this.client?.pragma?.('journal_mode = WAL');
     }
     
     this.db = drizzle(this.client) as DrizzleDatabase;
@@ -429,6 +430,7 @@ export class DrizzleAdapter extends DatabaseAdapter {
     
     return await this.query(query, params);
   }
+  
 
   async insert(table: string, data: Record<string, any>): Promise<any> {
     const fields = Object.keys(data);
@@ -547,12 +549,12 @@ export class DrizzleAdapter extends DatabaseAdapter {
       
       if (introspect) {
         let schema;
-        if (this.dbType === 'postgres' && introspect.introspectPostgres) {
-          schema = await introspect.introspectPostgres(this.client);
-        } else if (this.dbType === 'mysql' && introspect.introspectMySQL) {
-          schema = await introspect.introspectMySQL(this.client);
-        } else if (this.dbType === 'sqlite' && introspect.introspectSQLite) {
-          schema = await introspect.introspectSQLite(this.client);
+        if (this.dbType === 'postgres' && introspect.introspectPostgres && this.db) {
+          schema = await introspect.introspectPostgres(this.db);
+        } else if (this.dbType === 'mysql' && introspect.introspectMySQL && this.db) {
+          schema = await introspect.introspectMySQL(this.db);
+        } else if (this.dbType === 'sqlite' && introspect.introspectSQLite && this.db) {
+          schema = await introspect.introspectSQLite(this.db);
         }
         
         if (schema) {
@@ -568,21 +570,8 @@ export class DrizzleAdapter extends DatabaseAdapter {
   }
 
   private async getDrizzleIntrospection(): Promise<DrizzleSchemaIntrospection | null> {
-    try {
-      // Try to import drizzle introspection APIs
-      if (this.dbType === 'postgres') {
-        const { introspectPostgres } = await import('drizzle-orm/pg-core');
-        return { introspectPostgres };
-      } else if (this.dbType === 'mysql') {
-        const { introspectMySQL } = await import('drizzle-orm/mysql-core');
-        return { introspectMySQL };
-      } else if (this.dbType === 'sqlite') {
-        const { introspectSQLite } = await import('drizzle-orm/sqlite-core');
-        return { introspectSQLite };
-      }
-    } catch {
-      // Introspection APIs not available
-    }
+    // Drizzle introspection APIs are not available in current version
+    // This is a placeholder for future enhancement
     return null;
   }
 
