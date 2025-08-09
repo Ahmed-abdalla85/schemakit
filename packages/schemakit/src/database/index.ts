@@ -12,6 +12,7 @@ export { DatabaseAdapter } from './adapter';
 
 // Specific adapters
 export { DrizzleAdapter } from './adapters/drizzle';
+export { DrizzleAdapter_old } from './adapters/drizzle_old';
 export { InMemoryAdapter } from './adapters/inmemory';
 
 // Database management utilities

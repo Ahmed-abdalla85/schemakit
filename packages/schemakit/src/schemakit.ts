@@ -37,6 +37,12 @@ export class SchemaKit {
       adapterConfig = {};
     }
     
+    // Validate adapter type early to surface configuration errors synchronously
+    const supportedAdapters = new Set(['inmemory', 'sqlite', 'postgres', 'mysql']);
+    if (!supportedAdapters.has(adapterType)) {
+      throw new SchemaKitError(`Unsupported adapter type: ${adapterType}`);
+    }
+
     // Extract multi-tenancy config
     const multiTenancy = (options as any).multiTenancy;
     
