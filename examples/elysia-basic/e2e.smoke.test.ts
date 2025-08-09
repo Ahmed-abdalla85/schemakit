@@ -17,6 +17,7 @@ try {
 if (!process.env.DB_TYPE) process.env.DB_TYPE = 'postgres';
 
 const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:3000';
+const HEADERS: HeadersInit = { 'x-tenant-id': 'demo', 'x-tenant-key': 'e2e' };
 let stopServer: (() => void) | undefined;
 
 async function waitForHealth(timeoutMs = 15000): Promise<void> {
@@ -54,16 +55,21 @@ test('health returns ok', async () => {
 
 // List entities (placeholder endpoint)
 test('list entities', async () => {
-  const res = await fetch(`${BASE_URL}/api/entities`);
+  const res = await fetch(`${BASE_URL}/api/entities`, { headers: HEADERS });
   expect(res.ok).toBe(true);
   const body = await res.json();
   expect(body.success).toBe(true);
 });
 
+test('list entities without tenant headers should fail', async () => {
+  const res = await fetch(`${BASE_URL}/api/entities`);
+  expect(res.ok).toBe(false);
+});
+
 
 // Additional endpoints requested
 test('system entities list endpoint success true', async () => {
-  const res = await fetch(`${BASE_URL}/api/entity/entities?page=1&limit=5`);
+  const res = await fetch(`${BASE_URL}/api/entity/entities?page=1&limit=5`, { headers: HEADERS });
   const body = await res.json().catch(() => ({}));
   if (!res.ok || body.success === false) {
     throw new Error(`entities list failed: status=${res.status} body=${JSON.stringify(body)}`);
@@ -71,8 +77,13 @@ test('system entities list endpoint success true', async () => {
   expect(body.success).toBe(true);
 });
 
+test('system entities list endpoint without tenant headers should fail', async () => {
+  const res = await fetch(`${BASE_URL}/api/entity/entities?page=1&limit=5`);
+  expect(res.ok).toBe(false);
+});
+
 test('system entities default view success true', async () => {
-  const res = await fetch(`${BASE_URL}/api/entity/entities/views/default`);
+  const res = await fetch(`${BASE_URL}/api/entity/entities/views/default`, { headers: HEADERS });
   const body = await res.json().catch(() => ({}));
   if (!res.ok || body.success === false) {
     throw new Error(`entities default view failed: status=${res.status} body=${JSON.stringify(body)}`);
