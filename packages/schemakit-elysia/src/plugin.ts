@@ -65,6 +65,10 @@ export function schemaKitElysia(
               name: 'Entities',
               description: 'CRUD operations for dynamic entities',
             },
+            {
+              name: 'Views',
+              description: 'View execution endpoints for dynamic entities',
+            },
           ],
         },
       })
@@ -178,7 +182,13 @@ export function schemaKitElysia(
           const entity = await getEntity(entityName);
           const context = await getContext(request);
 
-          const record = await entity.insert(body as Record<string, any>, context);
+          // Sanitize body keys to valid identifiers to avoid invalid identifier errors
+          const validKey = /^[A-Za-z_][A-Za-z0-9_]*$/;
+          const sanitized: Record<string, any> = {};
+          for (const [k, v] of Object.entries((body as any) || {})) {
+            if (validKey.test(k)) sanitized[k] = v;
+          }
+          const record = await entity.insert(sanitized, context);
           return createSuccessResponse(record, 'Record created successfully');
         }, entityName, 'create');
 
@@ -233,6 +243,51 @@ export function schemaKitElysia(
         }),
       });
 
+      // GET /entity/:entityName/views/:viewName - Execute a view
+      entityApp.get('/:entityName/views/:viewName', async ({ params, query, request }) => {
+        const { entityName, viewName } = params as any;
+
+        if (!shouldIncludeEntity(entityName, config)) {
+          return createErrorResponse('Entity not accessible', 'Access denied');
+        }
+
+        const result = await handleAsync(async () => {
+          const entity = await getEntity(entityName);
+          const context = await getContext(request);
+          const { pagination, filters } = parseListQuery(query);
+          const stats = String((query as any).stats || '').toLowerCase() === 'true';
+
+          const viewResult = await entity.view(
+            viewName,
+            { filters, pagination, stats },
+            context
+          );
+
+          return createSuccessResponse(viewResult, 'View executed successfully');
+        }, entityName, 'view');
+
+        if (!result.success) {
+          return handleError(result.error, entityName, 'view');
+        }
+
+        return result.data;
+      }, {
+        detail: {
+          tags: ['Views'],
+          summary: 'Execute view',
+          description: 'Execute a named view for the entity with optional pagination and filters',
+        },
+        params: t.Object({
+          entityName: t.String(),
+          viewName: t.String(),
+        }),
+        query: t.Object({
+          page: t.Optional(t.Number({ minimum: 1 })),
+          limit: t.Optional(t.Number({ minimum: 1, maximum: 100 })),
+          stats: t.Optional(t.Union([t.Literal('true'), t.Literal('false')])),
+        }),
+      });
+
       // PUT /entity/:entityName/:id - Update record
       entityApp.put('/:entityName/:id', async ({ params, body, request }) => {
         const { entityName, id } = params;
@@ -245,7 +300,12 @@ export function schemaKitElysia(
           const entity = await getEntity(entityName);
           const context = await getContext(request);
 
-          const record = await entity.update(id, body as Record<string, any>, context);
+          const validKey = /^[A-Za-z_][A-Za-z0-9_]*$/;
+          const sanitized: Record<string, any> = {};
+          for (const [k, v] of Object.entries((body as any) || {})) {
+            if (validKey.test(k)) sanitized[k] = v;
+          }
+          const record = await entity.update(id, sanitized, context);
           return createSuccessResponse(record, 'Record updated successfully');
         }, entityName, 'update');
 

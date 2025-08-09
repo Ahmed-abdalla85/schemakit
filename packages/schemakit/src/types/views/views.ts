@@ -123,26 +123,39 @@ export interface ViewDefinition {
   view_entity_id: string;
   /** View name for reference */
   view_name: string;
-  /** Query configuration */
-  view_query_config: {
-    /** Fixed filters applied to all executions */
+
+  /** Audit fields */
+  view_created_at?: string;
+  view_updated_at?: string;
+  view_created_by?: string;
+  view_modified_by?: string;
+
+  /** Ordering and placement */
+  view_weight?: number;
+  view_status?: string; // e.g. 'active' | 'archived'
+  view_slot?: number;
+
+  /** Fields to include in results (empty = all fields) */
+  view_fields?: string[];
+  /** Fixed filters applied to all executions */
+  view_filters?: Record<string, any>;
+  /** Entity joins to include related data */
+  view_joins?: JoinDefinition[];
+  /** Default sorting order */
+  view_sort?: SortDefinition[];
+
+  /** Optional display title */
+  view_title?: string;
+
+  /** Optional: retained for compatibility with older data; ignored by new code */
+  view_query_config?: {
     filters?: Record<string, any>;
-    /** Entity joins to include related data */
     joins?: JoinDefinition[];
-    /** Default sorting order */
     sorting?: SortDefinition[];
-    /** Pagination configuration */
     pagination?: PaginationDefinition;
   };
-  /** Fields to include in results (empty = all fields) */
-  view_fields: string[];
-  /** Whether this is the default view for the entity */
-  view_is_default: boolean;
-  /** User who created this view */
-  view_created_by?: string;
-  /** Whether other users can use this view */
-  view_is_public: boolean;
-  /** Additional metadata */
+  view_is_default?: boolean;
+  view_is_public?: boolean;
   view_metadata?: Record<string, any>;
 }
 
@@ -177,6 +190,8 @@ export interface ViewOptions {
     /** Records per page */
     limit: number;
   };
+  /** Whether to compute totals/stats (grouped counts) */
+  stats?: boolean;
 }
 
 /**
@@ -220,4 +235,15 @@ export interface ViewResult {
     /** Generated SQL query (for debugging) */
     query?: string;
   };
+  /** Optional: stats array similar to legacy temp output */
+  stats?: any[];
+  // Legacy compatibility fields are intentionally optional and should only be populated
+  // when explicitly requested to avoid breaking existing consumers/tests.
+  defaultField?: string;
+  modelName?: string;
+  modelSystemName?: string;
+  isProcessOn?: boolean;
+  addAllowed?: boolean;
+  modifyAllowed?: boolean;
+  manageAllowed?: boolean;
 }

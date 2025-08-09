@@ -227,6 +227,30 @@ export class OpenAPIGenerator {
         },
       },
     };
+
+    // Views endpoint
+    spec.paths[`${basePath}/views/{viewName}`] = {
+      get: {
+        tags: ['Views'],
+        summary: `Execute view for ${entityName}`,
+        parameters: [
+          { name: 'viewName', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100 } },
+          { name: 'stats', in: 'query', schema: { type: 'boolean' } },
+        ],
+        responses: {
+          '200': {
+            description: 'View executed successfully',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ApiResponse' },
+              },
+            },
+          },
+        },
+      },
+    };
   }
 }
 

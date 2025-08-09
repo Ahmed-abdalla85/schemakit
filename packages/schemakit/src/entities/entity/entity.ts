@@ -62,13 +62,12 @@ export class Entity {
         throw new Error(`Entity '${this.entityName}' not found`);
       }
 
-      const [fields, permissions, workflows, views] = await Promise.all([
-        this.loadFields(this.entityDefinition.entity_id),
-        this.loadPermissions(this.entityDefinition.entity_id, contextWithTenant),
-        this.loadWorkflows(this.entityDefinition.entity_id),
-        // this.loadRLS(this.entityDefinition.entity_id, contextWithTenant),
-        this.loadViews(this.entityDefinition.entity_id)
-      ]);
+      // IMPORTANT: Avoid concurrent DB query-builder usage on the same DB instance.
+      // Run sequentially to prevent cross-contamination of where/select state.
+      const fields = await this.loadFields(this.entityDefinition.entity_id);
+      const permissions = await this.loadPermissions(this.entityDefinition.entity_id, contextWithTenant);
+      const workflows = await this.loadWorkflows(this.entityDefinition.entity_id);
+      const views = await this.loadViews(this.entityDefinition.entity_id);
       this.fields = fields;
       this.permissions = permissions;
       this.workflow = workflows;
@@ -257,7 +256,7 @@ export class Entity {
     const results = await this.db
       .select('*')
       .from('system_entities')
-      .where({ entity_status: 'active', entity_name: this.entityName })
+      .where({ entity_name: this.entityName })
       .get();
 
     // For compatibility, treat results as array (mock returns object)
@@ -276,7 +275,7 @@ export class Entity {
     const fields = await this.db
       .select('*')
       .from('system_fields')
-      // .where({ field_entity_id: entityId, field_status: 'active' })
+      .where({ field_entity_id: entityId })
       .get();
 
     return fields.map((field: any) => ({
@@ -350,12 +349,31 @@ export class Entity {
       .where({ "system_views.view_entity_id": entityId })
       .get();
 
-    return views.map((view: any) => ({
-      ...view,
-      query_config: view.query_config && typeof view.query_config === 'string'
-        ? safeJsonParse(view.query_config, {})
-        : view.query_config
-    }));
+    return views.map((view: any) => {
+      const normalized: ViewDefinition = {
+        ...view,
+        // Normalize JSON-like string fields to objects/arrays
+        view_fields: typeof view.view_fields === 'string' 
+          ? safeJsonParse(view.view_fields, []) 
+          : view.view_fields,
+        view_filters: typeof view.view_filters === 'string' 
+          ? safeJsonParse(view.view_filters, {}) 
+          : view.view_filters,
+        view_joins: typeof view.view_joins === 'string' 
+          ? safeJsonParse(view.view_joins, []) 
+          : view.view_joins,
+        view_sort: typeof view.view_sort === 'string' 
+          ? safeJsonParse(view.view_sort, []) 
+          : view.view_sort,
+      } as ViewDefinition;
+
+      // Backward compatibility: if legacy query_config exists, keep it parsed
+      if (view.query_config && typeof view.query_config === 'string') {
+        (normalized as any).view_query_config = safeJsonParse(view.query_config, {});
+      }
+
+      return normalized;
+    });
   }
 
   private async checkPermission(action: string, context: Context): Promise<void> {

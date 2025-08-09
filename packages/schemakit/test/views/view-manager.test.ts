@@ -67,14 +67,10 @@ describe('ViewManager', () => {
         view_id: 'view_1',
         view_entity_id: 'entity_1',
         view_name: 'active-records',
-        view_query_config: {
-          filters: { status: 'active' },
-          sorting: [{ field: 'created_at', direction: 'desc' }]
-        },
+        view_filters: { status: 'active' },
+        view_sort: [{ field: 'created_at', direction: 'desc' }],
         view_fields: ['id', 'name'],
-        view_is_default: false,
-        view_is_public: true
-      }
+      } as any
     ];
 
     viewManager = new ViewManager(
@@ -147,10 +143,7 @@ describe('ViewManager', () => {
         view_id: 'view_all',
         view_entity_id: 'entity_1',
         view_name: 'all-fields',
-        view_query_config: {},
         view_fields: [], // Empty fields array
-        view_is_default: false,
-        view_is_public: true
       };
 
       const vmWithAllFields = new ViewManager(

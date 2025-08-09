@@ -40,6 +40,7 @@ export class DB {
   private _orWhere: WhereClause[] = [];
   private _orderBy: { field: string; dir: "ASC" | "DESC" }[] = [];
   private _limit?: number;
+  private _offset?: number;
 
   constructor(opts: DBOptions) {
     this.tenantId = opts.tenantId;
@@ -158,6 +159,14 @@ export class DB {
   }
 
   /**
+   * Set result offset for pagination
+   */
+  offset(n: number): this {
+    this._offset = n;
+    return this;
+  }
+
+  /**
    * Helper to convert where/orWhere to QueryFilter[]
    */
   private buildFilters(): any[] {
@@ -182,6 +191,9 @@ export class DB {
     }
     if (this._limit !== undefined) {
       options.limit = this._limit;
+    }
+    if (this._offset !== undefined) {
+      options.offset = this._offset;
     }
     if (this._select.length > 0) {
       options.select = this._select;
@@ -249,6 +261,7 @@ export class DB {
     this._orWhere = [];
     this._orderBy = [];
     this._limit = undefined;
+    this._offset = undefined;
     return this;
   }
 
