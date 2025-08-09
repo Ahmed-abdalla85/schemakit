@@ -6,7 +6,7 @@
  */
 
 // Note: This would normally import from '@mobtakronio/schemakit' but for build purposes we'll use relative import
-import { ResponseHelpers, QueryHelpers, sanitizePayloadKeys } from './helpers';
+import { ResponseHelpers, QueryHelpers } from './helpers';
 import type { ApiResponse, PaginatedResponse } from './types';
 
 // Placeholder types for SchemaKit (in real implementation these would be imported)
@@ -24,7 +24,7 @@ export class CrudOperations {
     context: Context
   ): Promise<ApiResponse> {
     try {
-      const record = await entity.insert(sanitizePayloadKeys(data), context);
+      const record = await entity.insert(data, context);
       return ResponseHelpers.success(record, 'Record created successfully');
     } catch (error) {
       return ResponseHelpers.error(error as Error, 'Failed to create record');
@@ -91,7 +91,7 @@ export class CrudOperations {
     context: Context
   ): Promise<ApiResponse> {
     try {
-      const record = await entity.update(id, sanitizePayloadKeys(data), context);
+      const record = await entity.update(id, data, context);
       return ResponseHelpers.success(record, 'Record updated successfully');
     } catch (error) {
       return ResponseHelpers.error(error as Error, 'Failed to update record');
