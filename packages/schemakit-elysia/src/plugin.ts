@@ -182,13 +182,7 @@ export function schemaKitElysia(
           const entity = await getEntity(entityName);
           const context = await getContext(request);
 
-          // Sanitize body keys to valid identifiers to avoid invalid identifier errors
-          const validKey = /^[A-Za-z_][A-Za-z0-9_]*$/;
-          const sanitized: Record<string, any> = {};
-          for (const [k, v] of Object.entries((body as any) || {})) {
-            if (validKey.test(k)) sanitized[k] = v;
-          }
-          const record = await entity.insert(sanitized, context);
+          const record = await entity.insert(body as Record<string, any>, context);
           return createSuccessResponse(record, 'Record created successfully');
         }, entityName, 'create');
 
@@ -300,12 +294,7 @@ export function schemaKitElysia(
           const entity = await getEntity(entityName);
           const context = await getContext(request);
 
-          const validKey = /^[A-Za-z_][A-Za-z0-9_]*$/;
-          const sanitized: Record<string, any> = {};
-          for (const [k, v] of Object.entries((body as any) || {})) {
-            if (validKey.test(k)) sanitized[k] = v;
-          }
-          const record = await entity.update(id, sanitized, context);
+          const record = await entity.update(id, body as Record<string, any>, context);
           return createSuccessResponse(record, 'Record updated successfully');
         }, entityName, 'update');
 
