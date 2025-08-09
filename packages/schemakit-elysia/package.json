@@ -47,7 +47,8 @@
   "dependencies": {
     "@mobtakronio/schemakit": "workspace:*",
     "elysia": "^1.0.0",
-    "@elysiajs/swagger": "^1.0.0"
+    "@elysiajs/swagger": "^1.0.0",
+    "@mobtakronio/schemakit-api": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^18.19.119",
