@@ -1,5 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { swagger } from '@elysiajs/swagger';
+import { OpenAPIGenerator } from '@mobtakronio/schemakit-api';
 import type { SchemaKit, Entity, Context } from '@mobtakronio/schemakit';
 import type { SchemaKitElysiaOptions, RouteMetadata } from './types';
 import {
@@ -51,28 +52,8 @@ export function schemaKitElysia(
 
   // Add Swagger/OpenAPI documentation if enabled
   if (config.enableDocs) {
-    plugin.use(
-      swagger({
-        path: config.docsPath,
-        documentation: {
-          info: {
-            title: 'SchemaKit API',
-            description: 'Auto-generated REST API for SchemaKit entities',
-            version: '1.0.0',
-          },
-          tags: [
-            {
-              name: 'Entities',
-              description: 'CRUD operations for dynamic entities',
-            },
-            {
-              name: 'Views',
-              description: 'View execution endpoints for dynamic entities',
-            },
-          ],
-        },
-      })
-    );
+    const spec = OpenAPIGenerator.generateSpec({ title: 'SchemaKit API', version: '1.0.0' });
+    plugin.use(swagger({ path: config.docsPath, documentation: spec }));
   }
 
   // Error handler
@@ -92,7 +73,11 @@ export function schemaKitElysia(
 
   // Helper to get context from request
   const getContext = async (request: Request): Promise<Context> => {
-    const context = extractContext(request, config.tenantId, config.contextProvider);
+    // Read tenant from headers if provided
+    const headers = request.headers;
+    const headerTenant = headers.get('x-tenant-id') || headers.get('X-Tenant-Id');
+    const tenant = headerTenant || config.tenantId;
+    const context = extractContext(request, tenant, config.contextProvider);
     return context instanceof Promise ? await context : context;
   };
 

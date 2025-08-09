@@ -152,8 +152,10 @@ export class ContextHelpers {
     }
 
     // Default context extraction
+    const headerTenant = (request.headers['x-tenant-id'] || request.headers['X-Tenant-Id']) as string | undefined;
+    const headerTenantKey = (request.headers['x-tenant-key'] || request.headers['X-Tenant-Key']) as string | undefined;
     const context: Context = {
-      tenantId,
+      tenantId: headerTenant || tenantId,
       user: {
         id: request.headers['x-user-id'] || 'anonymous',
         role: request.headers['x-user-role'] || 'user',
@@ -162,6 +164,9 @@ export class ContextHelpers {
         ip: request.headers['x-forwarded-for'] || request.headers['x-real-ip'] || 'unknown',
         userAgent: request.headers['user-agent'] || 'unknown',
       },
+      auth: {
+        tenantKey: headerTenantKey,
+      }
     };
 
     return context;
