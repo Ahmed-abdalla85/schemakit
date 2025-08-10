@@ -20,15 +20,13 @@ async function main() {
     // ===== 1. Initialize SchemaKit =====
     console.log('1. Initializing SchemaKit...');
     schemaKit = await new SchemaKit({
-      adapter: {
-        type: 'postgres',
-        config: {
-          host: 'localhost',
-          port: 5852,
-          user: 'postgres',
-          password: 'postgrespassword',
-          database: 'postgres'
-        }
+      adapter: 'postgres',
+      config: {
+        host: 'localhost',
+        port: 5852,
+        user: 'postgres',
+        password: 'postgrespassword',
+        database: 'postgres'
       }
     });
     
