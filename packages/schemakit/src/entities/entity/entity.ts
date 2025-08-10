@@ -1,14 +1,10 @@
-/**
- * Entity - Refactored for Simplicity and Purpose-Driven Architecture
- */
 import { DB } from '../../database/db';
 import { 
-  EntityConfiguration, EntityDefinition, FieldDefinition, Context 
+  EntityDefinition, FieldDefinition, Context 
 } from '../../types/core';
 import { PermissionDefinition, RLSDefinition } from '../../types/permissions';
 import { ViewDefinition } from '../../types/views';
 import { WorkflowDefinition } from '../../types/workflows';
-import { ValidationResult } from '../../types/validation';
 import { SchemaKitError } from '../../errors';
 import { generateId } from '../../utils/id-generation';
 import { getCurrentTimestamp } from '../../utils/date-helpers';
@@ -95,20 +91,20 @@ export class Entity {
       }
 
       // Load metadata in parallel, DB query builder is concurrency-safe
-      const [fields, permissions, workflows, views] = await Promise.all([
+      const [fields, permissions, workflows, views, rls] = await Promise.all([
         this.loadFields(this.entityDefinition.entity_id),
         this.loadPermissions(this.entityDefinition.entity_id, contextWithTenant),
         this.loadWorkflows(this.entityDefinition.entity_id),
-        this.loadViews(this.entityDefinition.entity_id)
+        this.loadViews(this.entityDefinition.entity_id),
+        this.loadRLS(this.entityDefinition.entity_id)
       ]);
       this.fields = fields;
       this.permissions = permissions;
       this.workflow = workflows;
-      this.rls = [];
+      this.rls = rls;
       this.views = views;
       this.tableName = this.entityDefinition.entity_table_name || this.entityName;
       await this.ensureTable();
-      
       // Build validation schema if adapter is configured
       if (this.validationAdapter) {
         const entityId = this.entityDefinition.entity_id || `${this.tenantId}:${this.entityName}`;
@@ -396,21 +392,16 @@ export class Entity {
     }));
   }
 
-  // private async loadRLS(entityId: string, context: Context): Promise<RLSDefinition[]> {
-  //   const userRoles = context.user?.roles || ['public'];
-  //   let query = this.db.select('*').from('system_rls').where({ entity_id: entityId, is_active: 1 });
-  //   if (userRoles.length > 0) {
-  //     query = query.where({ role: userRoles[0] }); // TODO: support multi-role IN
-  //   }
-  //   const rlsRules = await query.get();
-
-  //   return rlsRules.map((rule: any) => ({
-  //     ...rule,
-  //     rls_config: rule.rls_config && typeof rule.rls_config === 'string'
-  //       ? safeJsonParse(rule.rls_config, { relationbetweenconditions: 'and', conditions: [] })
-  //       : rule.rls_config
-  //   }));
-  // }
+  private async loadRLS(entityId: string): Promise<RLSDefinition[]> {
+    let query = this.db.select('*').from('system_rls').where({ rls_entity_id: entityId, rls_is_active: true });
+    const rlsRules = await query.get();
+    return rlsRules.map((rule: any) => ({
+      ...rule,
+      rls_config: rule.rls_config && typeof rule.rls_config === 'string'
+        ? safeJsonParse(rule.rls_config, { relationbetweenconditions: 'and', conditions: [] })
+        : rule.rls_config
+    }));
+  }
 
   private async loadViews(entityId: string): Promise<ViewDefinition[]> {
     const views = await this.db
