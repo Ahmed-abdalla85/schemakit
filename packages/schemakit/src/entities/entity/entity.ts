@@ -15,6 +15,7 @@ import { getCurrentTimestamp } from '../../utils/date-helpers';
 import { safeJsonParse } from '../../utils/json-helpers';
 import { ViewManager } from '../views/view-manager';
 import { ViewOptions, ViewResult } from '../../types/views';
+import type { ValidationAdapter, CompiledSchema, UnknownFieldPolicy } from '../../validation/adapter';
 
 
 export class Entity {
@@ -24,6 +25,11 @@ export class Entity {
   private readonly tenantId: string;
   private readonly db: DB;
   private initialized = false;
+  
+  // Validation adapter and compiled schema managed at the Entity level
+  private validationAdapter: ValidationAdapter | null = null;
+  private compiledSchema: CompiledSchema | null = null;
+  private unknownFieldPolicy: UnknownFieldPolicy = 'strip';
   
   public fields: FieldDefinition[] = [];
   public permissions: PermissionDefinition[] = [];
@@ -50,6 +56,25 @@ export class Entity {
   get isInitialized(): boolean { return this.initialized; }
   get name(): string { return this.entityName; }
   get tenant(): string { return this.tenantId; }
+  
+  /**
+   * Configure validation for this entity instance. Safe to call multiple times; will rebuild schema on next initialize.
+   */
+  setValidation(adapter: ValidationAdapter, unknownFieldPolicy?: UnknownFieldPolicy): void {
+    this.validationAdapter = adapter;
+    if (unknownFieldPolicy) this.unknownFieldPolicy = unknownFieldPolicy;
+    // Invalidate compiled schema so it can be rebuilt with new config
+    if (this.initialized) {
+      // Rebuild immediately if we already have fields loaded
+      const entityId = this.entityDefinition?.entity_id || `${this.tenantId}:${this.entityName}`;
+      this.compiledSchema = this.validationAdapter.buildSchema(entityId, this.fields, {
+        unknownFieldPolicy: this.unknownFieldPolicy
+      });
+    } else {
+      this.compiledSchema = null;
+    }
+  }
+  
   async initialize(context: Context = {}): Promise<void> {
     if (this.initialized) return;
 
@@ -75,6 +100,14 @@ export class Entity {
       this.views = views;
       this.tableName = this.entityDefinition.entity_table_name || this.entityName;
       await this.ensureTable();
+      
+      // Build validation schema if adapter is configured
+      if (this.validationAdapter) {
+        const entityId = this.entityDefinition.entity_id || `${this.tenantId}:${this.entityName}`;
+        this.compiledSchema = this.validationAdapter.buildSchema(entityId, this.fields, {
+          unknownFieldPolicy: this.unknownFieldPolicy
+        });
+      }
       
       // Initialize ViewManager with loaded metadata
       this.viewManager = new ViewManager(
@@ -119,6 +152,16 @@ export class Entity {
     const contextWithTenant = { ...context, tenantId: this.tenantId };
 
     await this.checkPermission('create', contextWithTenant);
+    
+    // Adapter-based validation/sanitization first (if configured)
+    if (this.validationAdapter && this.compiledSchema) {
+      const res = this.validationAdapter.validate('create', this.compiledSchema, data);
+      if (!res.ok) {
+        throw new SchemaKitError('Validation failed', { code: 'VALIDATION_FAILED', context: res.errors });
+      }
+      data = res.data as Record<string, any>;
+    }
+    
     this.validateData(data, 'create');
 
     // Add system fields
@@ -173,6 +216,16 @@ export class Entity {
     const contextWithTenant = { ...context, tenantId: this.tenantId };
 
     await this.checkPermission('update', contextWithTenant);
+    
+    // Adapter-based validation/sanitization first (if configured)
+    if (this.validationAdapter && this.compiledSchema) {
+      const res = this.validationAdapter.validate('update', this.compiledSchema, data);
+      if (!res.ok) {
+        throw new SchemaKitError('Validation failed', { code: 'VALIDATION_FAILED', context: res.errors });
+      }
+      data = res.data as Record<string, any>;
+    }
+    
     this.validateData(data, 'update');
 
     // Get old data for workflow
