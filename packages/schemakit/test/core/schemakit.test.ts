@@ -37,12 +37,7 @@ describe('SchemaKit Core', () => {
     });
 
     test('should initialize with custom adapter configuration', () => {
-      const schemaKit = new SchemaKit({
-        adapter: {
-          type: 'sqlite',
-          config: { database: ':memory:' }
-        }
-      });
+      const schemaKit = new SchemaKit({ adapter: 'sqlite' });
       expect(schemaKit).toBeInstanceOf(SchemaKit);
     });
 
@@ -61,9 +56,7 @@ describe('SchemaKit Core', () => {
     let schemaKit: SchemaKit;
 
     beforeEach(() => {
-      schemaKit = new SchemaKit({
-        adapter: { type: 'inmemory' }
-      });
+      schemaKit = new SchemaKit({ adapter: 'inmemory' });
     });
 
     test('should create entity instance', async () => {
@@ -89,9 +82,7 @@ describe('SchemaKit Core', () => {
     let schemaKit: SchemaKit;
 
     beforeEach(() => {
-      schemaKit = new SchemaKit({
-        adapter: { type: 'inmemory' }
-      });
+      schemaKit = new SchemaKit({ adapter: 'inmemory' });
     });
 
     test('should provide cache statistics', async () => {
@@ -99,7 +90,7 @@ describe('SchemaKit Core', () => {
       await schemaKit.entity('users', 'tenant-1');
       await schemaKit.entity('orders', 'tenant-1');
       
-      const stats = schemaKit.getCacheStats();
+      const stats = Entity.getCacheStats();
       expect(stats.size).toBeGreaterThan(0);
       expect(stats.entities).toContain('tenant-1:users');
       expect(stats.entities).toContain('tenant-1:orders');
@@ -108,12 +99,12 @@ describe('SchemaKit Core', () => {
     test('should clear specific entity cache', async () => {
       await schemaKit.entity('users', 'tenant-1');
       
-      let stats = schemaKit.getCacheStats();
+      let stats = Entity.getCacheStats();
       expect(stats.size).toBe(1);
       
-      schemaKit.clearEntityCache('users', 'tenant-1');
+      Entity.clearCache('users', 'tenant-1');
       
-      stats = schemaKit.getCacheStats();
+      stats = Entity.getCacheStats();
       expect(stats.size).toBe(0);
     });
 
@@ -121,23 +112,19 @@ describe('SchemaKit Core', () => {
       await schemaKit.entity('users', 'tenant-1');
       await schemaKit.entity('orders', 'tenant-1');
       
-      let stats = schemaKit.getCacheStats();
+      let stats = Entity.getCacheStats();
       expect(stats.size).toBe(2);
       
-      schemaKit.clearEntityCache();
+      Entity.clearCache();
       
-      stats = schemaKit.getCacheStats();
+      stats = Entity.getCacheStats();
       expect(stats.size).toBe(0);
     });
   });
 
   describe('Error Handling', () => {
     test('should handle invalid adapter type gracefully', () => {
-      expect(() => {
-        new SchemaKit({
-          adapter: { type: 'nonexistent-adapter' }
-        });
-      }).toThrow();
+      expect(() => { new SchemaKit({ adapter: 'nonexistent-adapter' }); }).toThrow();
     });
   });
 });

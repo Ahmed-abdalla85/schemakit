@@ -1,4 +1,3 @@
-import { SchemaKitOptions } from './types/core';
 import { DB, type MultiTenancyConfig } from './database/db';
 import { Entity } from './entities/entity/entity';
 import { SchemaKitError } from './errors';
@@ -8,12 +7,15 @@ import type {
 } from './validation/adapter';
 import { SimpleValidationAdapter } from './validation/adapters/simple';
 
-// Extended options to support both syntaxes
-type SchemaKitInitOptions = SchemaKitOptions | {
+// Minimal, string-only adapter options
+type SchemaKitInitOptions = {
   adapter?: string;
   config?: any;
-  cache?: SchemaKitOptions['cache'];
   multiTenancy?: MultiTenancyConfig;
+  cache?: {
+    enabled?: boolean;
+    ttl?: number;
+  };
   validation?: {
     adapter?: ValidationAdapter;
     unknownFieldPolicy?: UnknownFieldPolicy;
@@ -30,16 +32,9 @@ export class SchemaKit {
     
     let adapterType: string = 'inmemory';
     let adapterConfig: any = {};
-    
-    if ('adapter' in options) {
-      const opt: any = options as any;
-      if (typeof opt.adapter === 'string') {
-        adapterType = opt.adapter;
-        adapterConfig = opt.config || {};
-      } else if (opt.adapter && typeof opt.adapter === 'object') {
-        adapterType = opt.adapter.type || adapterType;
-        adapterConfig = opt.adapter.config || {};
-      }
+    if (typeof (options as any).adapter === 'string') {
+      adapterType = (options as any).adapter;
+      adapterConfig = (options as any).config || {};
     }
     
     // Validate adapter type early to surface configuration errors synchronously
@@ -76,20 +71,6 @@ export class SchemaKit {
     entity.setValidation(this.validationAdapter, (this.options as any)?.validation?.unknownFieldPolicy || 'strip');
     await entity.initialize();
     return entity;
-  }
-
-  /**
-   * Clear cached entity definitions
-   */
-  clearEntityCache(entityName?: string, tenantId?: string): void {
-    Entity.clearCache(entityName, tenantId);
-  }
-
-  /**
-   * Get cache statistics
-   */
-  getCacheStats(): { size: number; entities: string[] } {
-    return Entity.getCacheStats();
   }
 
 }

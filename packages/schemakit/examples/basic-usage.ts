@@ -20,21 +20,20 @@ async function main() {
     // ===== 1. Initialize SchemaKit =====
     console.log('1. Initializing SchemaKit...');
     schemaKit = await new SchemaKit({
-      adapter: {
-        type: 'postgres',
-        config: {
-          host: 'localhost',
-          port: 5852,
-          user: 'postgres',
-          password: 'postgrespassword',
-          database: 'postgres'
-        }
-      }
+      adapter: 'postgres',
+      config: {
+        host: 'localhost',
+        port: 5852,
+        user: 'postgres',
+        password: 'postgrespassword',
+        database: 'processkit',
+      },
+      multiTenancy: { strategy: 'schema' }
     });
     
     // Get entity instance (now async and auto-initialized)
     try {
-      const Entity = await schemaKit.entity('products','system');
+      const Entity = await schemaKit.entity('entities','system');
       // Try to create a new user (may fail due to missing configuration)
       try {
         const Entities = await Entity.get();
