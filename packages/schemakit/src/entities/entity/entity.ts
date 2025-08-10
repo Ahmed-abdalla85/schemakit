@@ -47,6 +47,13 @@ export class Entity {
     return entity;
   }
 
+  /**
+   * Determine the primary key field name for this entity's table
+   */
+  private getPrimaryKeyFieldName(): string {
+    return `${this.tableName}_id`;
+  }
+
   private constructor(entityName: string, tenantId: string, db: DB) {
     this.entityName = entityName;
     this.tenantId = tenantId;
@@ -87,12 +94,13 @@ export class Entity {
         throw new Error(`Entity '${this.entityName}' not found`);
       }
 
-      // IMPORTANT: Avoid concurrent DB query-builder usage on the same DB instance.
-      // Run sequentially to prevent cross-contamination of where/select state.
-      const fields = await this.loadFields(this.entityDefinition.entity_id);
-      const permissions = await this.loadPermissions(this.entityDefinition.entity_id, contextWithTenant);
-      const workflows = await this.loadWorkflows(this.entityDefinition.entity_id);
-      const views = await this.loadViews(this.entityDefinition.entity_id);
+      // Load metadata in parallel, DB query builder is concurrency-safe
+      const [fields, permissions, workflows, views] = await Promise.all([
+        this.loadFields(this.entityDefinition.entity_id),
+        this.loadPermissions(this.entityDefinition.entity_id, contextWithTenant),
+        this.loadWorkflows(this.entityDefinition.entity_id),
+        this.loadViews(this.entityDefinition.entity_id)
+      ]);
       this.fields = fields;
       this.permissions = permissions;
       this.workflow = workflows;
@@ -144,44 +152,7 @@ export class Entity {
     return this.viewManager.executeView(viewName, context, options);
   }
 
-  /**
-   * Create a new record
-   */
-  async insert(data: Record<string, any>, context: Context = {}): Promise<Record<string, any>> {
-    await this.ensureInitialized();
-    const contextWithTenant = { ...context, tenantId: this.tenantId };
 
-    await this.checkPermission('create', contextWithTenant);
-    
-    // Adapter-based validation/sanitization first (if configured)
-    if (this.validationAdapter && this.compiledSchema) {
-      const res = this.validationAdapter.validate('create', this.compiledSchema, data);
-      if (!res.ok) {
-        throw new SchemaKitError('Validation failed', { code: 'VALIDATION_FAILED', context: res.errors });
-      }
-      data = res.data as Record<string, any>;
-    }
-    
-    this.validateData(data, 'create');
-
-    // Add system fields
-    const enrichedData = {
-      ...data,
-      id: data.id || generateId(),
-      created_at: getCurrentTimestamp(),
-      updated_at: getCurrentTimestamp(),
-      ...(contextWithTenant.user?.id && {
-        created_by: contextWithTenant.user.id,
-        updated_by: contextWithTenant.user.id
-      })
-    };
-
-    // Use DB insert
-    await this.db.insert(this.tableName, enrichedData);
-
-    await this.executeWorkflows('create', null, enrichedData, contextWithTenant);
-    return enrichedData;
-  }
 
   /**
    * Read records with optional filters
@@ -208,6 +179,73 @@ export class Entity {
     return await query.get();
   }
 
+
+  /**
+   * Find a record by ID
+   */
+  async getById(id: string | number, context: Context = {}): Promise<Record<string, any> | null> {
+    await this.ensureInitialized();
+    const contextWithTenant = { ...context, tenantId: this.tenantId };
+
+    await this.checkPermission('read', contextWithTenant);
+
+    const idField = this.getPrimaryKeyFieldName();
+    let query = this.db.select('*').from(this.tableName).where({ [idField]: id });
+
+    // Apply RLS conditions
+    const rlsConditions = this.buildRLSConditions(contextWithTenant);
+    for (const condition of rlsConditions) {
+      query = query.where({ [condition.field]: condition.value });
+    }
+
+    const results = await query.get();
+    return results && results.length > 0 ? results[0] : null;
+  }
+
+  /**
+   * Create a new record
+   */
+  async insert(data: Record<string, any>, context: Context = {}): Promise<Record<string, any>> {
+    await this.ensureInitialized();
+    const contextWithTenant = { ...context, tenantId: this.tenantId };
+
+    await this.checkPermission('create', contextWithTenant);
+    
+    // Adapter-based validation/sanitization first (if configured). Skip internal validateData when adapter is present
+    if (this.validationAdapter && this.compiledSchema) {
+      const res = this.validationAdapter.validate('create', this.compiledSchema, data);
+      if (!res.ok) {
+        throw new SchemaKitError('Validation failed', { code: 'VALIDATION_FAILED', context: res.errors });
+      }
+      data = res.data as Record<string, any>;
+    } else {
+      this.validateData(data, 'create');
+    }
+
+    // Add system fields and ensure both generic 'id' and '{table}_id' are set
+    const pkField = this.getPrimaryKeyFieldName();
+    const generatedId = data.id || (data as any)[pkField] || generateId();
+    const enrichedData: Record<string, any> = {
+      ...data,
+      id: generatedId,
+      [pkField]: generatedId,
+      created_at: getCurrentTimestamp(),
+      updated_at: getCurrentTimestamp(),
+      ...(contextWithTenant.user?.id && {
+        created_by: contextWithTenant.user.id,
+        updated_by: contextWithTenant.user.id
+      })
+    };
+
+    // Use DB insert
+    await this.db.insert(this.tableName, enrichedData);
+
+    await this.executeWorkflows('create', null, enrichedData, contextWithTenant);
+    return enrichedData;
+  }
+
+  
+
   /**
    * Update a record by ID
    */
@@ -217,16 +255,16 @@ export class Entity {
 
     await this.checkPermission('update', contextWithTenant);
     
-    // Adapter-based validation/sanitization first (if configured)
+    // Adapter-based validation/sanitization first (if configured). Skip internal validateData when adapter is present
     if (this.validationAdapter && this.compiledSchema) {
       const res = this.validationAdapter.validate('update', this.compiledSchema, data);
       if (!res.ok) {
         throw new SchemaKitError('Validation failed', { code: 'VALIDATION_FAILED', context: res.errors });
       }
       data = res.data as Record<string, any>;
+    } else {
+      this.validateData(data, 'update');
     }
-    
-    this.validateData(data, 'update');
 
     // Get old data for workflow
     const oldData = await this.getById(id, contextWithTenant);
@@ -240,10 +278,13 @@ export class Entity {
       updated_at: getCurrentTimestamp(),
       ...(contextWithTenant.user?.id && { updated_by: contextWithTenant.user.id })
     };
-    delete updateData.id; // Remove ID from update data
+    // Do not allow changing primary key
+    delete updateData.id;
+    delete (updateData as any)[this.getPrimaryKeyFieldName()];
 
-    // Use DB update
-    await this.db.update(this.tableName, updateData);
+    // Use DB update (filter by id)
+    const idField = this.getPrimaryKeyFieldName();
+    await this.db.where({ [idField]: id }).update(this.tableName, updateData);
 
     const newData = { ...oldData, ...updateData };
     await this.executeWorkflows('update', oldData, newData, contextWithTenant);
@@ -265,33 +306,15 @@ export class Entity {
       throw new SchemaKitError(`Record not found: ${this.entityName} with ID ${id}`);
     }
 
-    // Use DB delete
-    await this.db.delete(this.tableName);
+    // Use DB delete (filter by id)
+    const idField = this.getPrimaryKeyFieldName();
+    await this.db.where({ [idField]: id }).delete(this.tableName);
 
     await this.executeWorkflows('delete', oldData, null, contextWithTenant);
     return true;
   }
 
-  /**
-   * Find a record by ID
-   */
-  async getById(id: string | number, context: Context = {}): Promise<Record<string, any> | null> {
-    await this.ensureInitialized();
-    const contextWithTenant = { ...context, tenantId: this.tenantId };
-
-    await this.checkPermission('read', contextWithTenant);
-
-    let query = this.db.select('*').from(this.tableName).where({ id });
-
-    // Apply RLS conditions
-    const rlsConditions = this.buildRLSConditions(contextWithTenant);
-    for (const condition of rlsConditions) {
-      query = query.where({ [condition.field]: condition.value });
-    }
-
-    const results = await query.get();
-    return results && results.length > 0 ? results[0] : null;
-  }
+  
 
   // === PRIVATE HELPER METHODS ===
 
@@ -299,10 +322,6 @@ export class Entity {
     if (!this.initialized) {
       await this.initialize();
     }
-  }
-
-  private getTableName(): string {
-    return this.entityDefinition?.entity_table_name || this.entityName;
   }
 
   private async loadEntityDefinition(): Promise<EntityDefinition | null> {
@@ -344,10 +363,9 @@ export class Entity {
 
   private async loadPermissions(entityId: string, context: Context): Promise<PermissionDefinition[]> {
     const userRoles = context.user?.roles || ['public'];
-    // Use .db query builder for role filtering
     let query = this.db.select('*')
                     .from('system_permissions')
-                    // .where({ permission_entity_id: entityId, permission_status: 'active' });
+                    .where({ permission_entity_id: entityId, permission_status: 'active' });
     const permissions = await query.get();
 
     return permissions.map((permission: any) => ({
@@ -362,11 +380,10 @@ export class Entity {
     const workflows = await this.db
       .select('*')
       .from('system_workflows')
-      // .where({ workflow_entity_id: entityId, workflow_status: 'active' })
+      .where({ workflow_entity_id: entityId, workflow_status: 'active' })
+      .orderBy('workflow_weight', 'ASC')
       .get();
-
-    // Optionally sort in JS if needed
-    workflows.sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0));
+    
 
     return workflows.map((workflow: any) => ({
       ...workflow,
@@ -399,7 +416,7 @@ export class Entity {
     const views = await this.db
       .select('*')
       .from('system_views')
-      .where({ "system_views.view_entity_id": entityId })
+      .where({ "view_entity_id": entityId })
       .get();
 
     return views.map((view: any) => {
@@ -420,10 +437,6 @@ export class Entity {
           : view.view_sort,
       } as ViewDefinition;
 
-      // Backward compatibility: if legacy query_config exists, keep it parsed
-      if (view.query_config && typeof view.query_config === 'string') {
-        (normalized as any).view_query_config = safeJsonParse(view.query_config, {});
-      }
 
       return normalized;
     });
@@ -505,22 +518,6 @@ export class Entity {
   private async ensureTable(): Promise<void> {
     // No-op for now. Implement table creation logic in DB if needed.
     return;
-  }
-
-  private mapFieldTypeToSQL(fieldType: string): string {
-    const typeMap: Record<string, string> = {
-      string: 'VARCHAR(255)',
-      number: 'DECIMAL(10,2)',
-      integer: 'INTEGER',
-      boolean: 'BOOLEAN',
-      date: 'DATE',
-      datetime: 'DATETIME',
-      json: 'TEXT',
-      object: 'TEXT',
-      array: 'TEXT',
-      reference: 'VARCHAR(255)'
-    };
-    return typeMap[fieldType] || 'VARCHAR(255)';
   }
 
   static clearCache(entityName?: string, tenantId?: string): void {

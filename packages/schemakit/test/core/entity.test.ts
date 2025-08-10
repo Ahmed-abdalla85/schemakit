@@ -256,7 +256,7 @@ describe('Entity', () => {
       const result = await entity.getById(1);
 
       expect(result).toEqual(expectedRecord);
-      expect(mockDb.where).toHaveBeenCalledWith({ id: 1 });
+      expect(mockDb.where).toHaveBeenCalledWith({ app_users_id: 1 });
     });
 
     test('should update record', async () => {
