@@ -10,6 +10,8 @@
     "build": "pnpm -r --filter=./packages/* run build",
     "dev": "pnpm -r --parallel --filter=./packages/* run dev",
     "test": "pnpm -r --filter=./packages/* run test",
+    "e2e:elysia": "pnpm -w -F @mobtakronio/schemakit build && bun test ./examples/elysia-basic/e2e.smoke.test.ts",
+    "e2e:api": "pnpm -w -F @mobtakronio/schemakit build && bun test ./examples/api-basic/e2e.smoke.test.ts",
     "test:watch": "pnpm -r --parallel --filter=./packages/* run test:watch",
     "test:coverage": "pnpm -r --filter=./packages/* run test:coverage",
     "lint": "pnpm -r --filter=./packages/* run lint",

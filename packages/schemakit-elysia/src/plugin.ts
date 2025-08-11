@@ -61,10 +61,8 @@ export function schemaKitElysia(
             version: '1.0.0',
           },
           tags: [
-            {
-              name: 'Entities',
-              description: 'CRUD operations for dynamic entities',
-            },
+            { name: 'Entities', description: 'CRUD operations for dynamic entities' },
+            { name: 'Views', description: 'View execution endpoints for dynamic entities' },
           ],
         },
       })
@@ -77,29 +75,40 @@ export function schemaKitElysia(
       return config.errorHandler(error, entityName, operation);
     }
     
-    console.error(`SchemaKit Error [${entityName}:${operation}]:`, error);
-    return createErrorResponse(error);
+    if (config.logErrors) {
+      console.error(`SchemaKit Error [${entityName}:${operation}]:`, error);
+    }
+    const message = error?.message || 'Operation failed';
+    const status = message.includes('Missing tenant header') ? 400 : 500;
+    const body = createErrorResponse(message);
+    return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
   };
 
-  // Helper to get entity
-  const getEntity = async (entityName: string): Promise<Entity> => {
-    return await schemaKit.entity(entityName, config.tenantId);
+  const getHeaderTenant = (request: Request): string | null => {
+    const headers = request.headers;
+    return (headers.get('x-tenant-id') || headers.get('X-Tenant-Id')) || null;
   };
 
   // Helper to get context from request
   const getContext = async (request: Request): Promise<Context> => {
-    const context = extractContext(request, config.tenantId, config.contextProvider);
+    // Read tenant from headers if provided
+    const headers = request.headers;
+    const headerTenant = headers.get('x-tenant-id') || headers.get('X-Tenant-Id');
+    const tenant = headerTenant || config.tenantId;
+    const context = extractContext(request, tenant, config.contextProvider);
     return context instanceof Promise ? await context : context;
   };
 
   // Register CRUD routes for entities
   plugin.group(config.basePath, (app) => {
     
-    // List entities endpoint
-    app.get('/entities', async () => {
+    // List entities endpoint (requires tenant header)
+    app.get('/entities', async ({ request }) => {
       try {
-        // This would require a method to list all entities in SchemaKit
-        // For now, return a placeholder
+        const tenantFromHeader = request.headers.get('x-tenant-id') || request.headers.get('X-Tenant-Id');
+        if (!tenantFromHeader) {
+          throw new Error('Missing tenant header: x-tenant-id');
+        }
         return createSuccessResponse([], 'Available entities');
       } catch (error) {
         return handleError(error as Error, 'system', 'list-entities');
@@ -109,6 +118,10 @@ export function schemaKitElysia(
         tags: ['Entities'],
         summary: 'List all available entities',
         description: 'Get a list of all entities registered in SchemaKit',
+        headers: t.Object({
+          'x-tenant-id': t.String(),
+          'x-tenant-key': t.Optional(t.String()),
+        })
       },
     });
 
@@ -124,8 +137,12 @@ export function schemaKitElysia(
         }
 
         const result = await handleAsync(async () => {
-          const entity = await getEntity(entityName);
+          const tenantFromHeader = getHeaderTenant(request);
+          if (!tenantFromHeader) {
+            throw new Error('Missing tenant header: x-tenant-id');
+          }
           const context = await getContext(request);
+          const entity = await schemaKit.entity(entityName, tenantFromHeader);
           const { pagination, filters } = parseListQuery(query);
 
           // Get records with filters
@@ -151,11 +168,15 @@ export function schemaKitElysia(
         }
 
         return result.data;
-      }, {
+        }, {
         detail: {
           tags: ['Entities'],
           summary: 'List entity records',
           description: 'Get a paginated list of entity records with optional filtering',
+          headers: t.Object({
+            'x-tenant-id': t.String(),
+            'x-tenant-key': t.Optional(t.String()),
+          })
         },
         query: t.Object({
           page: t.Optional(t.Number({ minimum: 1 })),
@@ -175,8 +196,12 @@ export function schemaKitElysia(
         }
 
         const result = await handleAsync(async () => {
-          const entity = await getEntity(entityName);
+          const tenantFromHeader = getHeaderTenant(request);
+          if (!tenantFromHeader) {
+            throw new Error('Missing tenant header: x-tenant-id');
+          }
           const context = await getContext(request);
+          const entity = await schemaKit.entity(entityName, tenantFromHeader);
 
           const record = await entity.insert(body as Record<string, any>, context);
           return createSuccessResponse(record, 'Record created successfully');
@@ -187,11 +212,15 @@ export function schemaKitElysia(
         }
 
         return result.data;
-      }, {
+        }, {
         detail: {
           tags: ['Entities'],
           summary: 'Create entity record',
           description: 'Create a new entity record',
+          headers: t.Object({
+            'x-tenant-id': t.String(),
+            'x-tenant-key': t.Optional(t.String()),
+          })
         },
         body: t.Record(t.String(), t.Any()),
       });
@@ -205,8 +234,12 @@ export function schemaKitElysia(
         }
 
         const result = await handleAsync(async () => {
-          const entity = await getEntity(entityName);
+          const tenantFromHeader = getHeaderTenant(request);
+          if (!tenantFromHeader) {
+            throw new Error('Missing tenant header: x-tenant-id');
+          }
           const context = await getContext(request);
+          const entity = await schemaKit.entity(entityName, tenantFromHeader);
 
           const record = await entity.getById(id, context);
           if (!record) {
@@ -221,15 +254,72 @@ export function schemaKitElysia(
         }
 
         return result.data;
-      }, {
+        }, {
         detail: {
           tags: ['Entities'],
           summary: 'Get entity record by ID',
           description: 'Retrieve a specific entity record by its ID',
+          headers: t.Object({
+            'x-tenant-id': t.String(),
+            'x-tenant-key': t.Optional(t.String()),
+          })
         },
         params: t.Object({
           entityName: t.String(),
           id: t.Union([t.String(), t.Number()]),
+        }),
+      });
+
+      // GET /entity/:entityName/views/:viewName - Execute a view
+      entityApp.get('/:entityName/views/:viewName', async ({ params, query, request }) => {
+        const { entityName, viewName } = params as any;
+
+        if (!shouldIncludeEntity(entityName, config)) {
+          return createErrorResponse('Entity not accessible', 'Access denied');
+        }
+
+        const result = await handleAsync(async () => {
+          const tenantFromHeader = getHeaderTenant(request);
+          if (!tenantFromHeader) {
+            throw new Error('Missing tenant header: x-tenant-id');
+          }
+          const context = await getContext(request);
+          const entity = await schemaKit.entity(entityName, tenantFromHeader);
+          const { pagination, filters } = parseListQuery(query);
+          const stats = String((query as any).stats || '').toLowerCase() === 'true';
+
+          const viewResult = await entity.view(
+            viewName,
+            { filters, pagination, stats },
+            context
+          );
+
+          return createSuccessResponse(viewResult, 'View executed successfully');
+        }, entityName, 'view');
+
+        if (!result.success) {
+          return handleError(result.error, entityName, 'view');
+        }
+
+        return result.data;
+        }, {
+        detail: {
+          tags: ['Views'],
+          summary: 'Execute view',
+          description: 'Execute a named view for the entity with optional pagination and filters',
+          headers: t.Object({
+            'x-tenant-id': t.String(),
+            'x-tenant-key': t.Optional(t.String()),
+          })
+        },
+        params: t.Object({
+          entityName: t.String(),
+          viewName: t.String(),
+        }),
+        query: t.Object({
+          page: t.Optional(t.Number({ minimum: 1 })),
+          limit: t.Optional(t.Number({ minimum: 1, maximum: 100 })),
+          stats: t.Optional(t.Union([t.Literal('true'), t.Literal('false')])),
         }),
       });
 
@@ -242,8 +332,12 @@ export function schemaKitElysia(
         }
 
         const result = await handleAsync(async () => {
-          const entity = await getEntity(entityName);
+          const tenantFromHeader = getHeaderTenant(request);
+          if (!tenantFromHeader) {
+            throw new Error('Missing tenant header: x-tenant-id');
+          }
           const context = await getContext(request);
+          const entity = await schemaKit.entity(entityName, tenantFromHeader);
 
           const record = await entity.update(id, body as Record<string, any>, context);
           return createSuccessResponse(record, 'Record updated successfully');
@@ -254,11 +348,15 @@ export function schemaKitElysia(
         }
 
         return result.data;
-      }, {
+        }, {
         detail: {
           tags: ['Entities'],
           summary: 'Update entity record',
           description: 'Update an existing entity record',
+          headers: t.Object({
+            'x-tenant-id': t.String(),
+            'x-tenant-key': t.Optional(t.String()),
+          })
         },
         params: t.Object({
           entityName: t.String(),
@@ -276,8 +374,12 @@ export function schemaKitElysia(
         }
 
         const result = await handleAsync(async () => {
-          const entity = await getEntity(entityName);
+          const tenantFromHeader = getHeaderTenant(request);
+          if (!tenantFromHeader) {
+            throw new Error('Missing tenant header: x-tenant-id');
+          }
           const context = await getContext(request);
+          const entity = await schemaKit.entity(entityName, tenantFromHeader);
 
           const deleted = await entity.delete(id, context);
           if (!deleted) {
@@ -295,11 +397,15 @@ export function schemaKitElysia(
         }
 
         return result.data;
-      }, {
+        }, {
         detail: {
           tags: ['Entities'],
           summary: 'Delete entity record',
           description: 'Delete an entity record by its ID',
+          headers: t.Object({
+            'x-tenant-id': t.String(),
+            'x-tenant-key': t.Optional(t.String()),
+          })
         },
         params: t.Object({
           entityName: t.String(),

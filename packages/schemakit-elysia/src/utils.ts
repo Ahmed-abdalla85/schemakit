@@ -87,15 +87,17 @@ export function parseListQuery(query: Record<string, any>): {
 
   // Extract filters (exclude pagination and sort params)
   const excludeParams = new Set(['page', 'limit', 'sort', 'order', 'search']);
+  const validKey = /^[A-Za-z_][A-Za-z0-9_]*$/;
   for (const [key, value] of Object.entries(query)) {
-    if (!excludeParams.has(key) && value !== undefined && value !== '') {
-      filters[key] = value;
-    }
+    if (excludeParams.has(key)) continue;
+    if (value === undefined || value === '') continue;
+    if (!validKey.test(key)) continue; // ignore potentially malicious/invalid identifiers (e.g., ^(.*)$)
+    filters[key] = value;
   }
 
   // Handle search parameter
   if (query.search) {
-    filters._search = query.search;
+    filters._search = query.search; // reserved internal key, not a DB column
   }
 
   return {

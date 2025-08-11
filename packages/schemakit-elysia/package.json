@@ -1,6 +1,6 @@
 {
   "name": "@mobtakronio/schemakit-elysia",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "description": "Elysia adapter for SchemaKit with auto-generated REST endpoints",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -47,7 +47,8 @@
   "dependencies": {
     "@mobtakronio/schemakit": "workspace:*",
     "elysia": "^1.0.0",
-    "@elysiajs/swagger": "^1.0.0"
+    "@elysiajs/swagger": "^1.0.0",
+    "@mobtakronio/schemakit-api": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^18.19.119",

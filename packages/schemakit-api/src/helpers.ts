@@ -99,14 +99,17 @@ export class QueryHelpers {
 
     // Extract filters (exclude pagination and sort params)
     const excludeParams = new Set(['page', 'limit', 'sort', 'order', 'search']);
+    const validKey = /^[A-Za-z_][A-Za-z0-9_]*$/;
     for (const [key, value] of Object.entries(query)) {
-      if (!excludeParams.has(key) && value !== undefined && value !== '') {
-        filters[key] = value;
-      }
+      if (excludeParams.has(key)) continue;
+      if (value === undefined || value === '') continue;
+      if (!validKey.test(key)) continue; // skip potentially malicious/invalid identifiers
+      filters[key] = value;
     }
 
     // Handle search parameter
     if (query.search) {
+      // Reserved internal search key; not a DB column
       filters._search = query.search;
     }
 
@@ -116,6 +119,20 @@ export class QueryHelpers {
       sort,
     };
   }
+}
+
+/**
+ * Sanitize incoming payload keys to valid SQL identifiers
+ */
+export function sanitizePayloadKeys<T extends Record<string, any>>(payload: T): T {
+  if (!payload || typeof payload !== 'object') return payload;
+  const validKey = /^[A-Za-z_][A-Za-z0-9_]*$/;
+  const sanitized: Record<string, any> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (!validKey.test(key)) continue;
+    sanitized[key] = value;
+  }
+  return sanitized as T;
 }
 
 /**
@@ -135,8 +152,10 @@ export class ContextHelpers {
     }
 
     // Default context extraction
+    const headerTenant = (request.headers['x-tenant-id'] || request.headers['X-Tenant-Id']) as string | undefined;
+    const headerTenantKey = (request.headers['x-tenant-key'] || request.headers['X-Tenant-Key']) as string | undefined;
     const context: Context = {
-      tenantId,
+      tenantId: headerTenant || tenantId,
       user: {
         id: request.headers['x-user-id'] || 'anonymous',
         role: request.headers['x-user-role'] || 'user',
@@ -145,6 +164,9 @@ export class ContextHelpers {
         ip: request.headers['x-forwarded-for'] || request.headers['x-real-ip'] || 'unknown',
         userAgent: request.headers['user-agent'] || 'unknown',
       },
+      auth: {
+        tenantKey: headerTenantKey,
+      }
     };
 
     return context;

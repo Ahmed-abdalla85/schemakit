@@ -3,7 +3,7 @@ import { SchemaKit } from '@mobtakronio/schemakit';
 import { schemaKitElysia } from '@mobtakronio/schemakit-elysia';
 
 
-async function main() {
+export async function startServer() {
   // Get database type from environment or default to SQLite
   const dbType = process.env.DB_TYPE || 'sqlite';
   
@@ -110,7 +110,7 @@ async function main() {
 
    // Start server
   const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
-  app.listen(port);
+  const server = app.listen(port);
 
   console.log('');
   console.log('🚀 SchemaKit + Elysia Demo Server Started!');
@@ -126,95 +126,9 @@ async function main() {
   console.log(`curl -X POST http://localhost:${port}/api/entity/users \\`);
   console.log(`  -H "Content-Type: application/json" \\`);
   console.log(`  -d '{"name":"Alice","email":"alice@example.com","role":"admin"}'`);
+  return { app, port, stop: () => server.stop?.() };
 }
 
-async function setupExampleEntities(kit: SchemaKit) {
-  console.log('Setting up example entities...');
-  
-  try {
-    // Create Users entity
-    const users = await kit.entity('users', 'demo');
-    
-    // Define fields for users
-    await users.field('name', 'text', { required: true });
-    await users.field('email', 'text', { required: true, unique: true });
-    await users.field('role', 'text', { defaultValue: 'user' });
-    await users.field('is_active', 'boolean', { defaultValue: true });
-    await users.field('profile', 'json');
-
-    // Add some permissions
-    await users.permission('create', { role: ['admin', 'user'] });
-    await users.permission('read', { role: ['admin', 'user'] });
-    await users.permission('update', { role: ['admin'], own: true });
-    await users.permission('delete', { role: ['admin'] });
-
-    console.log('✅ Users entity configured');
-
-    // Create Posts entity
-    const posts = await kit.entity('posts', 'demo');
-    
-    await posts.field('title', 'text', { required: true });
-    await posts.field('content', 'text', { required: true });
-    await posts.field('author_id', 'text', { required: true });
-    await posts.field('status', 'text', { defaultValue: 'draft' });
-    await posts.field('published_at', 'datetime');
-    await posts.field('tags', 'json');
-
-    // Posts permissions
-    await posts.permission('create', { role: ['admin', 'user'] });
-    await posts.permission('read', { role: ['admin', 'user'] });
-    await posts.permission('update', { role: ['admin'], own: true });
-    await posts.permission('delete', { role: ['admin'] });
-
-    console.log('✅ Posts entity configured');
-
-    // Check if we need to insert sample data
-    const existingUsers = await users.find({});
-    if (existingUsers.length === 0) {
-      // Insert some sample data
-      await users.insert({
-        name: 'Demo Admin',
-        email: 'admin@example.com',
-        role: 'admin',
-        is_active: true,
-        profile: { bio: 'System administrator' }
-      });
-
-      await users.insert({
-        name: 'Demo User',
-        email: 'user@example.com',
-        role: 'user',
-        is_active: true,
-        profile: { bio: 'Regular user' }
-      });
-
-      await posts.insert({
-        title: 'Welcome to SchemaKit!',
-        content: 'This is a demo post created with SchemaKit and Elysia.',
-        author_id: 'demo-user',
-        status: 'published',
-        published_at: new Date().toISOString(),
-        tags: ['demo', 'schemakit', 'elysia'],
-      });
-
-      await posts.insert({
-        title: 'Dynamic Schema Power',
-        content: 'SchemaKit allows you to create and modify entities at runtime!',
-        author_id: 'demo-admin',
-        status: 'published',
-        published_at: new Date().toISOString(),
-        tags: ['features', 'dynamic', 'runtime'],
-      });
-
-      console.log('✅ Sample data inserted');
-    } else {
-      console.log('ℹ️  Sample data already exists');
-    }
-    
-  } catch (error) {
-    console.error('Error setting up entities:', error);
-  }
-}
 
 // Handle graceful shutdown
 process.on('SIGINT', async () => {
@@ -222,5 +136,7 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-// Start the application
-main().catch(console.error);
+// Start the application only when executed directly
+if (import.meta.main) {
+  startServer().catch(console.error);
+}

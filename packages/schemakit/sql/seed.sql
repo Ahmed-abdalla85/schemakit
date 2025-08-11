@@ -443,32 +443,39 @@ INSERT OR IGNORE INTO system_permissions (
 -- ========================================
 
 INSERT OR IGNORE INTO system_views (
-    view_id, view_entity_id, view_name, view_query_config, view_fields, 
-    view_is_default, view_created_by, view_is_public, view_metadata
+    view_id,
+    view_entity_id,
+    view_name,
+    view_fields,
+    view_filters,
+    view_sort,
+    view_title,
+    view_status,
+    view_created_by
 ) VALUES 
 -- Default user list view
 (
     'view_user_list',
     'entity_user_default',
     'list',
-    '{"filters": {}, "sorting": [{"field": "name", "direction": "asc"}], "pagination": {"default_limit": 20, "max_limit": 100}}',
     '["id", "name", "email", "created_at"]',
-    1,
-    'system',
-    1,
-    '{"description": "Default user listing view"}'
+    '{}',
+    '[{"field": "name", "direction": "asc"}]',
+    'User List',
+    'active',
+    'system'
 ),
 -- User detail view
 (
     'view_user_detail',
     'entity_user_default',
     'detail',
-    '{"filters": {}, "sorting": [], "pagination": {"default_limit": 1, "max_limit": 1}}',
     '["id", "name", "email", "created_at", "updated_at"]',
-    0,
-    'system',
-    1,
-    '{"description": "Detailed user view with all fields"}'
+    '{}',
+    '[]',
+    'User Detail',
+    'active',
+    'system'
 );
 
 -- ========================================
@@ -586,32 +593,39 @@ INSERT OR IGNORE INTO system_permissions (
 -- ========================================
 
 INSERT OR IGNORE INTO system_views (
-    view_id, view_entity_id, view_name, view_query_config, view_fields, 
-    view_is_default, view_created_by, view_is_public, view_metadata
+    view_id,
+    view_entity_id,
+    view_name,
+    view_fields,
+    view_filters,
+    view_sort,
+    view_title,
+    view_status,
+    view_created_by
 ) VALUES 
 -- System entities overview
 (
     'view_system_entities_list',
     'entity_system_entities',
     'list',
-    '{"filters": {}, "sorting": [{"field": "entity_name", "direction": "asc"}], "pagination": {"default_limit": 50, "max_limit": 200}}',
     '["entity_id", "entity_name", "entity_display_name", "entity_is_active", "entity_created_at"]',
-    1,
-    'system',
-    0,
-    '{"description": "System entities overview", "admin_only": true}'
+    '{}',
+    '[{"field": "entity_name", "direction": "asc"}]',
+    'System Entities',
+    'active',
+    'system'
 ),
 -- System fields overview
 (
     'view_system_fields_list',
     'entity_system_fields',
     'list',
-    '{"filters": {}, "sorting": [{"field": "field_entity_id", "direction": "asc"}, {"field": "field_order_index", "direction": "asc"}], "pagination": {"default_limit": 100, "max_limit": 500}}',
     '["field_id", "field_entity_id", "field_name", "field_type", "field_is_required", "field_is_active"]',
-    1,
-    'system',
-    0,
-    '{"description": "System fields overview", "admin_only": true}'
+    '{}',
+    '[{"field": "field_entity_id", "direction": "asc"}, {"field": "field_order_index", "direction": "asc"}]',
+    'System Fields',
+    'active',
+    'system'
 );
 
 -- ========================================

@@ -1,6 +1,6 @@
 {
   "name": "@mobtakronio/schemakit",
-  "version": "0.2.0",
+  "version": "0.2.4",
   "description": "Dynamic entity management system with runtime schema creation, validation, and CRUD operations for Node.js backends.",
   "main": "dist/index.mjs",
   "module": "dist/index.mjs",

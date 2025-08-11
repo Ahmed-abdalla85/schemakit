@@ -163,12 +163,8 @@ import { SchemaKit } from '@mobtakronio/schemakit';
 
 // Initialize with your preferred database
 const schemaKit = new SchemaKit({
-  adapter: {
-    type: 'postgres', // or 'sqlite', 'inmemory'
-    config: { 
-      url: process.env.DATABASE_URL 
-    }
-  }
+  adapter: 'postgres', // or 'sqlite', 'inmemory'
+  config: { url: process.env.DATABASE_URL }
 });
 
 // Get entity (auto-creates from meta-schema)

@@ -47,17 +47,27 @@ CREATE TABLE IF NOT EXISTS system_permissions (
     FOREIGN KEY (permission_entity_id) REFERENCES system_entities(entity_id) ON DELETE CASCADE
 );
 
--- System views table - stores view definitions
+-- Updated System views table - aligned with new schema
 CREATE TABLE IF NOT EXISTS system_views (
+    -- Identifiers and audit
     view_id TEXT PRIMARY KEY NOT NULL,
+    view_created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    view_updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    view_created_by TEXT,
+    view_modified_by TEXT,
+
+    -- View configuration
+    view_weight INTEGER DEFAULT 0,
+    view_status TEXT DEFAULT 'active',
+    view_slot INTEGER DEFAULT 0,
     view_entity_id TEXT NOT NULL,
     view_name TEXT NOT NULL,
-    view_query_config TEXT NOT NULL, -- JSON string
-    view_fields TEXT NOT NULL, -- JSON string array
-    view_is_default BOOLEAN NOT NULL DEFAULT 0,
-    view_created_by TEXT,
-    view_is_public BOOLEAN NOT NULL DEFAULT 0,
-    view_metadata TEXT, -- JSON string
+    view_fields TEXT,   -- JSON string array
+    view_filters TEXT,  -- JSON string object
+    view_joins TEXT,    -- JSON string array of joins
+    view_sort TEXT,     -- JSON string array of sort definitions
+    view_title TEXT,
+
     FOREIGN KEY (view_entity_id) REFERENCES system_entities(entity_id) ON DELETE CASCADE
 );
 

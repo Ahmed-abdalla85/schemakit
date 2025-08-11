@@ -21,6 +21,8 @@ export interface SchemaKitElysiaOptions {
   excludeEntities?: string[] | RegExp[];
   /** Enable CORS for API routes (default: true) */
   enableCors?: boolean;
+  /** Log errors to console (default: false) */
+  logErrors?: boolean;
   /** Custom error handler */
   errorHandler?: (error: Error, entityName?: string, operation?: string) => any;
 }

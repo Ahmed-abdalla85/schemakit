@@ -40,6 +40,11 @@ export {
   CrudOperations,
 } from './crud';
 
+// Re-export Views operations
+export {
+  ViewsOperations,
+} from './views';
+
 // Re-export middleware builders
 export {
   PermissionMiddleware,

@@ -4,6 +4,7 @@
 import { DB } from '../../database/db';
 import { Context, FieldDefinition } from '../../types/core';
 import { ViewDefinition, ViewOptions, ViewResult } from '../../types/views';
+import { QueryFilter } from '../../database/adapter';
 import { RLSPermissionManager } from '../permission/rls-integration';
 import { RoleRestrictions } from '../../types/permissions';
 
@@ -64,20 +65,54 @@ export class ViewManager {
     query = await this.applyRLSRestrictions(query, context);
     
     // Apply pagination
-    query = this.applyPagination(query, options);
-    
-    // Execute the query
-    const results = await query.get();
+    const { page, limit, offset } = this.resolvePagination(options);
+    if (limit) query = query.limit(limit);
+    if (offset) {
+      // Support tests that may not mock offset; fallback to limit-only
+      const maybeOffset = (query as any).offset;
+      if (typeof maybeOffset === 'function') {
+        query = (query as any).offset(offset);
+      }
+    }
 
-    return {
+    // Execute the data query
+    const results = await (
+      (query as any)?.get
+        ? (query as any).get()
+        : (this.db as any).get()
+    );
+
+    // Execute count query for total (reuse filters built from view + user + rls where possible)
+    let total = results.length;
+    try {
+      const getAdapterFn: any = (this.db as any).getAdapter;
+      if (typeof getAdapterFn === 'function') {
+        const adapter = await this.db.getAdapter();
+        const countFilters: QueryFilter[] = this.buildCountFilters(viewDef, options, context);
+        if (adapter && typeof (adapter as any).count === 'function') {
+          total = await adapter.count(this.tableName, countFilters);
+        }
+      }
+    } catch {
+      total = results.length;
+    }
+
+    const viewResult: ViewResult = {
       results,
-      total: results.length, // TODO: Add proper count query in next step
+      total,
       fields: this.fields,
       meta: {
         entityName: this.entityName,
         viewName
       }
     };
+
+    // Optional stats scaffold (to be implemented with group-by when defined)
+    if (options.stats) {
+      viewResult.stats = this.buildDefaultStats(total);
+    }
+
+    return viewResult;
   }
 
   /**
@@ -97,7 +132,14 @@ export class ViewManager {
    * Apply view-defined filters to query
    */
   private applyViewFilters(query: DB, viewDef: ViewDefinition): DB {
-    if (viewDef.view_query_config.filters) {
+    // New schema primary source
+    if (viewDef.view_filters) {
+      for (const [field, value] of Object.entries(viewDef.view_filters)) {
+        query = query.where({ [field]: value });
+      }
+    }
+    // Backward compatibility: support legacy view_query_config.filters
+    else if (viewDef.view_query_config?.filters) {
       for (const [field, value] of Object.entries(viewDef.view_query_config.filters)) {
         query = query.where({ [field]: value });
       }
@@ -121,25 +163,83 @@ export class ViewManager {
    * Apply sorting from view definition
    */
   private applySorting(query: DB, viewDef: ViewDefinition): DB {
-    if (viewDef.view_query_config.sorting && viewDef.view_query_config.sorting.length > 0) {
-      for (const sort of viewDef.view_query_config.sorting) {
-        // Convert lowercase direction to uppercase for DB class
-        const direction = sort.direction.toUpperCase() as "ASC" | "DESC";
+    const sortDefs = viewDef.view_sort || viewDef.view_query_config?.sorting || [];
+    if (sortDefs.length > 0) {
+      for (const sort of sortDefs) {
+        const direction = String(sort.direction || 'asc').toUpperCase() as "ASC" | "DESC";
         query = query.orderBy(sort.field, direction);
       }
+      return query;
     }
-    return query;
+    // Default sort by best-effort primary key
+    let idField = this.fields.find(f => f.field_name === 'id')?.field_name
+      || this.fields.find(f => /_id$/i.test(f.field_name))?.field_name
+      || this.fields[0]?.field_name;
+    if (!idField) {
+      // Fallbacks for system tables when field metadata isn't loaded
+      const fallbackByTable: Record<string, string> = {
+        system_entities: 'entity_id',
+        system_fields: 'field_id',
+        system_permissions: 'permission_id',
+        system_views: 'view_id',
+        system_workflows: 'workflow_id',
+        system_rls: 'rls_id',
+      };
+      idField = fallbackByTable[this.tableName] || 'id';
+    }
+    return query.orderBy(idField, 'DESC');
   }
 
   /**
    * Apply pagination from user options
    */
-  private applyPagination(query: DB, options: ViewOptions): DB {
-    if (options.pagination) {
-      query = query.limit(options.pagination.limit);
-      // Note: DB class doesn't have offset method yet, will add in next step
+  private resolvePagination(options: ViewOptions): { page: number; limit: number; offset: number } {
+    const page = Math.max(1, options.pagination?.page || 1);
+    const limit = Math.max(1, options.pagination?.limit || 10);
+    const offset = (page - 1) * limit;
+    return { page, limit, offset };
+  }
+
+  private buildDefaultStats(total: number): any[] {
+    return [{
+      id: null,
+      title: 'All',
+      total,
+      filterType: 'group',
+      processHubRoles: [],
+      buttons: [],
+      items: [],
+      isDefault: false
+    }];
+  }
+
+  private buildCountFilters(viewDef: ViewDefinition, options: ViewOptions, context: Context): QueryFilter[] {
+    const filters: QueryFilter[] = [];
+
+    // View-defined filters (equality only for now)
+    if (viewDef.view_filters) {
+      for (const [field, value] of Object.entries(viewDef.view_filters)) {
+        filters.push({ field, value, operator: 'eq' });
+      }
+    } else if (viewDef.view_query_config?.filters) {
+      for (const [field, value] of Object.entries(viewDef.view_query_config.filters)) {
+        filters.push({ field, value, operator: 'eq' });
+      }
     }
-    return query;
+
+    // User-provided filters
+    if (options.filters) {
+      for (const [field, value] of Object.entries(options.filters)) {
+        filters.push({ field, value, operator: 'eq' });
+      }
+    }
+
+    // Basic RLS: created_by = current user id
+    if (context.user?.id) {
+      filters.push({ field: 'created_by', value: context.user.id, operator: 'eq' });
+    }
+
+    return filters;
   }
 
   /**

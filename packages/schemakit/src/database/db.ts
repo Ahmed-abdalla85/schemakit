@@ -34,12 +34,14 @@ export class DB {
   private adapterConfig: { type: string; config: any };
   private tenantId: string;
   private multiTenancy: MultiTenancyConfig;
+  private _isQueryBuilder: boolean = false;
   private _select: string[] = [];
   private _from: string = "";
   private _where: WhereClause[] = [];
   private _orWhere: WhereClause[] = [];
   private _orderBy: { field: string; dir: "ASC" | "DESC" }[] = [];
   private _limit?: number;
+  private _offset?: number;
 
   constructor(opts: DBOptions) {
     this.tenantId = opts.tenantId;
@@ -127,34 +129,69 @@ export class DB {
     return data;
   }
 
+  /**
+   * Create a forked query builder to avoid mutating shared DB state across concurrent queries
+   */
+  private fork(): DB {
+    const qb: DB = Object.create(this);
+    qb._isQueryBuilder = true;
+    qb._select = [];
+    qb._from = "";
+    qb._where = [];
+    qb._orWhere = [];
+    qb._orderBy = [];
+    qb._limit = undefined;
+    qb._offset = undefined;
+    return qb;
+  }
+
+  private asBuilder(): DB {
+    return this._isQueryBuilder ? this : this.fork();
+  }
+
   select(fields: string | string[]): this {
-    this._select = Array.isArray(fields) ? fields : [fields];
-    return this;
+    const qb = this.asBuilder();
+    qb._select = Array.isArray(fields) ? fields : [fields];
+    return qb as this;
   }
 
   from(table: string): this {
-    this._from = table;
-    return this;
+    const qb = this.asBuilder();
+    qb._from = table;
+    return qb as this;
   }
 
   where(conditions: WhereClause): this {
-    this._where.push(conditions);
-    return this;
+    const qb = this.asBuilder();
+    qb._where.push(conditions);
+    return qb as this;
   }
 
   orWhere(conditions: WhereClause): this {
-    this._orWhere.push(conditions);
-    return this;
+    const qb = this.asBuilder();
+    qb._orWhere.push(conditions);
+    return qb as this;
   }
 
   orderBy(field: string, dir: "ASC" | "DESC" = "ASC"): this {
-    this._orderBy.push({ field, dir });
-    return this;
+    const qb = this.asBuilder();
+    qb._orderBy.push({ field, dir });
+    return qb as this;
   }
 
   limit(n: number): this {
-    this._limit = n;
-    return this;
+    const qb = this.asBuilder();
+    qb._limit = n;
+    return qb as this;
+  }
+
+  /**
+   * Set result offset for pagination
+   */
+  offset(n: number): this {
+    const qb = this.asBuilder();
+    qb._offset = n;
+    return qb as this;
   }
 
   /**
@@ -182,6 +219,9 @@ export class DB {
     }
     if (this._limit !== undefined) {
       options.limit = this._limit;
+    }
+    if (this._offset !== undefined) {
+      options.offset = this._offset;
     }
     if (this._select.length > 0) {
       options.select = this._select;
@@ -249,6 +289,7 @@ export class DB {
     this._orWhere = [];
     this._orderBy = [];
     this._limit = undefined;
+    this._offset = undefined;
     return this;
   }
 

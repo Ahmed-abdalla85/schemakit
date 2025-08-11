@@ -89,6 +89,8 @@ export class OpenAPIGenerator {
         summary: `List ${entityName} records`,
         description: `Get a paginated list of ${entityName} records`,
         parameters: [
+          { name: 'x-tenant-id', in: 'header', schema: { type: 'string' }, required: false, description: 'Tenant ID' },
+          { name: 'x-tenant-key', in: 'header', schema: { type: 'string' }, required: false, description: 'Tenant access key' },
           {
             name: 'page',
             in: 'query',
@@ -156,6 +158,8 @@ export class OpenAPIGenerator {
         tags: ['Entities'],
         summary: `Get ${entityName} record by ID`,
         parameters: [
+          { name: 'x-tenant-id', in: 'header', schema: { type: 'string' }, required: false, description: 'Tenant ID' },
+          { name: 'x-tenant-key', in: 'header', schema: { type: 'string' }, required: false, description: 'Tenant access key' },
           {
             name: 'id',
             in: 'path',
@@ -178,6 +182,8 @@ export class OpenAPIGenerator {
         tags: ['Entities'],
         summary: `Update ${entityName} record`,
         parameters: [
+          { name: 'x-tenant-id', in: 'header', schema: { type: 'string' }, required: false, description: 'Tenant ID' },
+          { name: 'x-tenant-key', in: 'header', schema: { type: 'string' }, required: false, description: 'Tenant access key' },
           {
             name: 'id',
             in: 'path',
@@ -208,6 +214,8 @@ export class OpenAPIGenerator {
         tags: ['Entities'],
         summary: `Delete ${entityName} record`,
         parameters: [
+          { name: 'x-tenant-id', in: 'header', schema: { type: 'string' }, required: false, description: 'Tenant ID' },
+          { name: 'x-tenant-key', in: 'header', schema: { type: 'string' }, required: false, description: 'Tenant access key' },
           {
             name: 'id',
             in: 'path',
@@ -218,6 +226,32 @@ export class OpenAPIGenerator {
         responses: {
           '200': {
             description: 'Record deleted successfully',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ApiResponse' },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    // Views endpoint
+    spec.paths[`${basePath}/views/{viewName}`] = {
+      get: {
+        tags: ['Views'],
+        summary: `Execute view for ${entityName}`,
+        parameters: [
+          { name: 'x-tenant-id', in: 'header', schema: { type: 'string' }, required: false, description: 'Tenant ID' },
+          { name: 'x-tenant-key', in: 'header', schema: { type: 'string' }, required: false, description: 'Tenant access key' },
+          { name: 'viewName', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100 } },
+          { name: 'stats', in: 'query', schema: { type: 'boolean' } },
+        ],
+        responses: {
+          '200': {
+            description: 'View executed successfully',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ApiResponse' },
