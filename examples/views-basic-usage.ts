@@ -3,7 +3,7 @@
  * Demonstrates basic view execution using already loaded Entity metadata
  */
 
-import { SchemaKit } from '../src/schemakit';
+import { SchemaKit } from '../packages/schemakit/src/schemakit';
 
 async function main() {
   console.log('🎯 SchemaKit Views Basic Usage - Step 1\n');

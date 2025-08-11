@@ -9,7 +9,7 @@
  * - Error handling
  */
 
-import { SchemaKit } from '../src/schemakit';
+import { SchemaKit } from '../packages/schemakit/src/schemakit';
 
 async function main() {
   console.log('🚀 SchemaKit Basic Usage Example\n');
