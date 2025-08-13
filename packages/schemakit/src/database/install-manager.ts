@@ -4,9 +4,11 @@
  */
 import { DatabaseAdapter, type ColumnDefinition } from '../database/adapter';
 import { SchemaKitError } from '../errors';
+import { generateId } from '../utils/id-generation';
 
 export class InstallManager {
   private databaseAdapter: DatabaseAdapter;
+  private tableSchemas: Record<string, ColumnDefinition[]> = {};
 
   constructor(databaseAdapter: DatabaseAdapter) {
     this.databaseAdapter = databaseAdapter;
@@ -32,6 +34,7 @@ export class InstallManager {
       { name: 'entity_tenant_id', type: 'string' },
       { name: 'entity_status', type: 'string', default: 'active' },
       { name: 'entity_weight', type: 'integer', default: 0 },
+      { name: 'entity_column_prefix', type: 'string' },
       { name: 'entity_created_at', type: 'datetime', notNull: true, default: "CURRENT_TIMESTAMP" },
       { name: 'entity_created_by', type: 'string' },
       { name: 'entity_modified_at', type: 'datetime', notNull: true, default: "CURRENT_TIMESTAMP" },
@@ -43,10 +46,11 @@ export class InstallManager {
       { name: 'entity_metadata', type: 'text' },
     ];
     await this.databaseAdapter.createTable('system_entities', entitiesColumns);
+    this.tableSchemas['system_entities'] = entitiesColumns;
 
     // system_fields
     const fieldsColumns: ColumnDefinition[] = [
-      { name: 'field_id', type: 'uuid', primaryKey: true, notNull: true },
+      { name: 'field_id', type: 'integer', primaryKey: true, notNull: true },
       { name: 'field_tenant_id', type: 'string' },
       { name: 'field_status', type: 'string', default: 'active' },
       { name: 'field_weight', type: 'integer', default: 0 },
@@ -63,11 +67,11 @@ export class InstallManager {
       { name: 'field_validation_rules', type: 'text' },
       { name: 'field_display_name', type: 'string', notNull: true },
       { name: 'field_description', type: 'text' },
-      { name: 'field_order_index', type: 'integer', notNull: true, default: 0 },
       { name: 'field_reference_entity', type: 'string' },
       { name: 'field_metadata', type: 'text' },
     ];
     await this.databaseAdapter.createTable('system_fields', fieldsColumns);
+    this.tableSchemas['system_fields'] = fieldsColumns;
 
     // system_permissions
     const permissionsColumns: ColumnDefinition[] = [
@@ -87,6 +91,7 @@ export class InstallManager {
       { name: 'permission_field_permissions', type: 'text' },
     ];
     await this.databaseAdapter.createTable('system_permissions', permissionsColumns);
+    this.tableSchemas['system_permissions'] = permissionsColumns;
 
     // system_views
     const viewsColumns: ColumnDefinition[] = [
@@ -108,6 +113,7 @@ export class InstallManager {
       { name: 'view_title', type: 'string' },
     ];
     await this.databaseAdapter.createTable('system_views', viewsColumns);
+    this.tableSchemas['system_views'] = viewsColumns;
 
     // system_workflows
     const workflowsColumns: ColumnDefinition[] = [
@@ -127,6 +133,7 @@ export class InstallManager {
       { name: 'workflow_metadata', type: 'text' },
     ];
     await this.databaseAdapter.createTable('system_workflows', workflowsColumns);
+    this.tableSchemas['system_workflows'] = workflowsColumns;
 
     // system_rls
     const rlsColumns: ColumnDefinition[] = [
@@ -144,20 +151,61 @@ export class InstallManager {
       { name: 'rls_config', type: 'text', notNull: true },
     ];
     await this.databaseAdapter.createTable('system_rls', rlsColumns);
+    this.tableSchemas['system_rls'] = rlsColumns;
   }
 
   /** Seed minimal system entities */
   private async seedSystemData(): Promise<void> {
-    const entities = [
-      { entity_id: 'system_entities', entity_name: 'system_entities', entity_table_name: 'system_entities', entity_display_name: 'System Entities', entity_is_active: true, entity_created_at: new Date().toISOString(), entity_updated_at: new Date().toISOString() },
-      { entity_id: 'system_fields', entity_name: 'system_fields', entity_table_name: 'system_fields', entity_display_name: 'System Fields', entity_is_active: true, entity_created_at: new Date().toISOString(), entity_updated_at: new Date().toISOString() },
-      { entity_id: 'system_permissions', entity_name: 'system_permissions', entity_table_name: 'system_permissions', entity_display_name: 'System Permissions', entity_is_active: true, entity_created_at: new Date().toISOString(), entity_updated_at: new Date().toISOString() },
-      { entity_id: 'system_views', entity_name: 'system_views', entity_table_name: 'system_views', entity_display_name: 'System Views', entity_is_active: true, entity_created_at: new Date().toISOString(), entity_updated_at: new Date().toISOString() },
-      { entity_id: 'system_workflows', entity_name: 'system_workflows', entity_table_name: 'system_workflows', entity_display_name: 'System Workflows', entity_is_active: true, entity_created_at: new Date().toISOString(), entity_updated_at: new Date().toISOString() },
-      { entity_id: 'system_rls', entity_name: 'system_rls', entity_table_name: 'system_rls', entity_display_name: 'System RLS', entity_is_active: true, entity_created_at: new Date().toISOString(), entity_updated_at: new Date().toISOString() },
+    const now = new Date().toISOString();
+    const systemEntityNames = [
+      { name: 'system_entities', display: 'System Entities', table: 'system_entities' },
+      { name: 'system_fields', display: 'System Fields', table: 'system_fields' },
+      { name: 'system_permissions', display: 'System Permissions', table: 'system_permissions' },
+      { name: 'system_views', display: 'System Views', table: 'system_views' },
+      { name: 'system_workflows', display: 'System Workflows', table: 'system_workflows' },
+      { name: 'system_rls', display: 'System RLS', table: 'system_rls' },
     ];
-    for (const rec of entities) {
-      await this.databaseAdapter.insert('system_entities', rec);
+    const entityIds = new Map<string, string>();
+    for (const e of systemEntityNames) {
+      const id = generateId();
+      entityIds.set(e.table, id);
+      await this.databaseAdapter.insert('system_entities', {
+        entity_id: id,
+        entity_name: e.name,
+        entity_table_name: e.table,
+        entity_display_name: e.display,
+        entity_status: 'active',
+        entity_weight: 0,
+        entity_created_at: now,
+        entity_modified_at: now,
+      } as any);
+    }
+
+    // Seed system_fields based on tableSchemas definitions
+    const toDisplay = (name: string) => name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    for (const [table, columns] of Object.entries(this.tableSchemas)) {
+      const entityId = entityIds.get(table) || generateId();
+      let order = 0;
+      for (const col of columns) {
+        const field = {
+          field_entity_id: entityId,
+          field_name: col.name,
+          field_type: col.type,
+          field_is_required: Boolean(col.notNull),
+          field_is_unique: Boolean(col.unique),
+          field_default_value: col.default ?? null,
+          field_validation_rules: null,
+          field_display_name: toDisplay(col.name),
+          field_description: null,
+          field_reference_entity: col.references?.table || null,
+          field_metadata: null,
+          field_status: 'active',
+          field_weight: order++,
+          field_created_at: now,
+          field_modified_at: now,
+        } as any;
+        await this.databaseAdapter.insert('system_fields', field);
+      }
     }
   }
 
