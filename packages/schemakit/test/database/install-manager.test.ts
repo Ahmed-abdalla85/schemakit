@@ -80,20 +80,9 @@ describe('InstallManager', () => {
       expect(systemEntityNames).toContain('system_fields');
     });
 
-    test('should throw error when schema files are missing', async () => {
+    test('install should be idempotent and not require SQL files anymore', async () => {
       await adapter.connect();
-
-      // Create install manager with adapter in a directory without sql files
-      const originalCwd = process.cwd();
-      try {
-        // Change to a directory that doesn't have sql/ folder
-        process.chdir('/');
-        
-        await expect(installManager.install()).rejects.toThrow(SchemaKitError);
-        await expect(installManager.install()).rejects.toThrow('schema.sql file not found');
-      } finally {
-        process.chdir(originalCwd);
-      }
+      await expect(installManager.install()).resolves.toBeUndefined();
     });
   });
 
@@ -140,26 +129,9 @@ describe('InstallManager', () => {
   });
 
   describe('Error Handling', () => {
-    test('should provide meaningful error messages', async () => {
+    test('install should succeed without external SQL files', async () => {
       await adapter.connect();
-
-      const originalCwd = process.cwd();
-      try {
-        // Change to directory without sql files
-        process.chdir('/');
-        
-        await expect(installManager.install()).rejects.toThrow(SchemaKitError);
-        
-        try {
-          await installManager.install();
-        } catch (error) {
-          expect(error).toBeInstanceOf(SchemaKitError);
-          expect((error as SchemaKitError).message).toContain('Failed to install database');
-          expect((error as SchemaKitError).cause).toBeDefined();
-        }
-      } finally {
-        process.chdir(originalCwd);
-      }
+      await expect(installManager.install()).resolves.toBeUndefined();
     });
 
     test('should handle database connection errors gracefully', async () => {

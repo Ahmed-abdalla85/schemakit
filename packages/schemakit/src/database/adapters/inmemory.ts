@@ -349,8 +349,9 @@ export class InMemoryAdapter extends DatabaseAdapter {
         }
 
         try {
-            // Use default tenant for now - DB class will handle tenant resolution
-            let records = this.getTableData('default', table);
+            const tenant = this.extractTenantFromTable(table);
+            const actualTable = this.extractActualTableName(table);
+            let records = this.getTableData(tenant, actualTable);
 
             // Apply filters
             if (filters.length > 0) {
@@ -403,9 +404,9 @@ export class InMemoryAdapter extends DatabaseAdapter {
         }
 
         try {
-            // Use default tenant - DB class will handle tenant resolution
-            const tenant = 'default';
-            this.ensureTableExists(tenant, table);
+            const tenant = this.extractTenantFromTable(table);
+            const actualTable = this.extractActualTableName(table);
+            this.ensureTableExists(tenant, actualTable);
             
             // Generate ID if not provided
             const id = data.id || this.generateId(table);
@@ -418,7 +419,7 @@ export class InMemoryAdapter extends DatabaseAdapter {
                 updated_at: data.updated_at || now
             };
 
-            const records = this.getTableData(tenant, table);
+            const records = this.getTableData(tenant, actualTable);
             records.push(record);
 
             return record;
@@ -439,8 +440,9 @@ export class InMemoryAdapter extends DatabaseAdapter {
         }
 
         try {
-            // Use default tenant - DB class will handle tenant resolution
-            const records = this.getTableData('default', table);
+            const tenant = this.extractTenantFromTable(table);
+            const actualTable = this.extractActualTableName(table);
+            const records = this.getTableData(tenant, actualTable);
             const idField = this.getIdField(table);
             const recordIndex = records.findIndex(r => r[idField] === id);
             
@@ -477,8 +479,9 @@ export class InMemoryAdapter extends DatabaseAdapter {
         }
 
         try {
-            // Use default tenant - DB class will handle tenant resolution
-            const records = this.getTableData('default', table);
+            const tenant = this.extractTenantFromTable(table);
+            const actualTable = this.extractActualTableName(table);
+            const records = this.getTableData(tenant, actualTable);
             const idField = this.getIdField(table);
             const recordIndex = records.findIndex(r => r[idField] === id);
             
@@ -504,8 +507,9 @@ export class InMemoryAdapter extends DatabaseAdapter {
         }
 
         try {
-            // Use default tenant - DB class will handle tenant resolution
-            let records = this.getTableData('default', table);
+            const tenant = this.extractTenantFromTable(table);
+            const actualTable = this.extractActualTableName(table);
+            let records = this.getTableData(tenant, actualTable);
 
             // Apply filters
             if (filters.length > 0) {
@@ -536,8 +540,9 @@ export class InMemoryAdapter extends DatabaseAdapter {
         }
 
         try {
-            // Use default tenant - DB class will handle tenant resolution
-            const records = this.getTableData('default', table);
+            const tenant = this.extractTenantFromTable(table);
+            const actualTable = this.extractActualTableName(table);
+            const records = this.getTableData(tenant, actualTable);
             const idField = this.getIdField(table);
             const record = records.find(r => r[idField] === id);
             
