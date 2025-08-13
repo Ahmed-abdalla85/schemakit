@@ -166,10 +166,10 @@ export class Entity {
       query = query.where({ [field]: value });
     }
 
-    // Apply RLS conditions
+    // Apply RLS conditions using equality fallbacks for now
     const rlsConditions = this.buildRLSConditions(contextWithTenant);
     for (const condition of rlsConditions) {
-      query = query.where({ [condition.field]: condition.value });
+      query = query.where({ [condition.field]: this.resolveRLSValue(condition.value, contextWithTenant) });
     }
 
     return await query.get();
@@ -188,10 +188,10 @@ export class Entity {
     const idField = this.getPrimaryKeyFieldName();
     let query = this.db.select('*').from(this.tableName).where({ [idField]: id });
 
-    // Apply RLS conditions
+    // Apply RLS conditions using equality fallbacks for now
     const rlsConditions = this.buildRLSConditions(contextWithTenant);
     for (const condition of rlsConditions) {
-      query = query.where({ [condition.field]: condition.value });
+      query = query.where({ [condition.field]: this.resolveRLSValue(condition.value, contextWithTenant) });
     }
 
     const results = await query.get();
@@ -496,6 +496,15 @@ export class Entity {
     }
     
     return conditions;
+  }
+
+  private resolveRLSValue(value: any, context: Context): any {
+    if (typeof value === 'string') {
+      // Replace simple context tokens like 'currentUser.id' or '$context.user.id'
+      if (value === 'currentUser.id' || value === '$context.user.id') return context.user?.id;
+      if (value === 'currentUser.department' || value === '$context.user.department') return (context as any).user?.department;
+    }
+    return value;
   }
 
   private async executeWorkflows(event: string, oldData: any, newData: any, context: Context): Promise<void> {
