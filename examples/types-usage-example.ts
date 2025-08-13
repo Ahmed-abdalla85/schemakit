@@ -10,12 +10,12 @@ import {
   ViewResult,
   RLSCondition,
   ValidationResult 
-} from '../src/types';
+} from '../packages/schemakit/src/types';
 
 // Option 2: Import from specific domain modules for clarity
-import { PermissionDefinition, RoleRestrictions } from '../src/types/permissions';
-import { PaginationOptions } from '../src/types/views';
-import { QueryFilter } from '../src/types/database';
+import { PermissionDefinition, RoleRestrictions } from '../packages/schemakit/src/types/permissions';
+import { PaginationOptions } from '../packages/schemakit/src/types/views';
+import { QueryFilter } from '../packages/schemakit/src/types/database';
 
 // Example usage with clean typing
 async function demonstrateTypedSchemaKit() {

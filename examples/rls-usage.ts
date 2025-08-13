@@ -3,8 +3,8 @@
  * Demonstrates how to use the new RLS system in SchemaKit
  */
 
-import { RLSPermissionManager, RoleRestrictions } from '../src/entities/permission';
-import { InMemoryAdapter } from '../src/database/adapters/inmemory';
+import { RLSPermissionManager, RoleRestrictions } from '../packages/schemakit/src/entities/permission';
+import { InMemoryAdapter } from '../packages/schemakit/src/database/adapters/inmemory';
 
 async function demonstrateRLS() {
   // Create permission manager with RLS capabilities
