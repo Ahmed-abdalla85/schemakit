@@ -1,5 +1,6 @@
 import { DB, type MultiTenancyConfig } from './database/db';
 import { Entity } from './entities/entity/entity';
+import { InstallManager } from './database/install-manager';
 import { SchemaKitError } from './errors';
 import type {
   ValidationAdapter,
@@ -71,6 +72,14 @@ export class SchemaKit {
     entity.setValidation(this.validationAdapter, (this.options as any)?.validation?.unknownFieldPolicy || 'strip');
     await entity.initialize();
     return entity;
+  }
+
+
+  async install(schema:string){
+    let adapter=await this.db.getAdapter();
+    const installManager = new InstallManager(adapter);
+    await installManager.install(schema);
+    console.log('SchemaKit installed successfully');
   }
 
 }

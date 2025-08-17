@@ -198,11 +198,23 @@ export class DB {
    * Helper to convert where/orWhere to QueryFilter[]
    */
   private buildFilters(): any[] {
-    // Emit { field, value, operator: '=' } for equality
+    // Build filters supporting both equality object clauses and structured filters
     const filters: any[] = [];
     for (const clause of this._where) {
+      if ((clause as any).field && (clause as any).operator) {
+        const { field, operator, value } = clause as any;
+        filters.push({ field, value, operator });
+        continue;
+      }
       for (const key in clause) {
-        filters.push({ field: key, value: clause[key], operator: '=' });
+        const value = (clause as any)[key];
+        if (Array.isArray(value)) {
+          filters.push({ field: key, value, operator: 'in' });
+        } else if (value === null) {
+          filters.push({ field: key, value, operator: 'isNull' });
+        } else {
+          filters.push({ field: key, value, operator: 'eq' });
+        }
       }
     }
     // OR logic not handled here; extend as needed

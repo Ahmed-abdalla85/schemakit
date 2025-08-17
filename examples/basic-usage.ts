@@ -14,6 +14,8 @@ import { SchemaKit } from '../packages/schemakit/src/schemakit';
 async function main() {
   console.log('🚀 SchemaKit Basic Usage Example\n');
 
+  
+
   let schemaKit: SchemaKit;
 
   try {
@@ -27,18 +29,19 @@ async function main() {
         user: 'postgres',
         password: 'postgrespassword',
         database: 'postgres'
-      }
+      },
+      multiTenancy: {
+        strategy: 'schema'
+      },
     });
-    
-    // Get entity instance (now async and auto-initialized)
+    await schemaKit.install('system')
     try {
-      const Entity = await schemaKit.entity('products','system');
-      // Try to create a new user (may fail due to missing configuration)
+      const Entity = await schemaKit.entity('system_entities','system');
       try {
         const Entities = await Entity.get();
-        const fieldRecord = await Entity.get({entity_name:"fields"});
-        console.log('   ✅ Users read', Entities);
-        console.log('   ✅ Users read', fieldRecord);
+        const fieldRecord = await Entity.get({entity_name:"system_fields"});
+        console.log('   ✅ Entities read', Entities);
+        console.log('   ✅ Filtering by entity_name', fieldRecord);
       } catch (createError) {
         console.log('   ℹ️  CRUD operations require entity configuration:', createError instanceof Error ? createError.message : createError);
         console.log('   ✅ No validation errors for auto-generated fields (id, created_at, updated_at)');
