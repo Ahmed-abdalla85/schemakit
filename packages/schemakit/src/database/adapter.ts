@@ -28,6 +28,7 @@ export interface ColumnDefinition {
   notNull?: boolean;
   unique?: boolean;
   default?: any;
+  autoIncrement?: boolean;
   references?: {
     table: string;
     column: string;
@@ -111,7 +112,7 @@ export abstract class DatabaseAdapter {
    * Check if a table exists
    * @param tableName Table name
    */
-  abstract tableExists(tableName: string): Promise<boolean>;
+  abstract tableExists(schema:string,tableName: string): Promise<boolean>;
 
   /**
    * Create a new table

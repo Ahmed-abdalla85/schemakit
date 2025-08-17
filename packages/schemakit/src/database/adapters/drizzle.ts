@@ -217,13 +217,13 @@ export class DrizzleAdapter extends DatabaseAdapter {
     }
   }
 
-  async tableExists(tableName: string): Promise<boolean> {
+  async tableExists(schema:string,tableName: string): Promise<boolean> {
     if (this.dbType === 'sqlite') {
-      const rows = await this.query<any>(`SELECT name FROM sqlite_master WHERE type='table' AND name=${this.valuePlaceholder(0)} LIMIT 1`, [tableName]);
+      const rows = await this.query<any>(`SELECT name FROM sqlite_master WHERE type='table' AND name=${this.valuePlaceholder(1)} LIMIT 1`, [tableName]);
       return rows.length > 0;
     }
     if (this.dbType === 'postgres') {
-      const rows = await this.query<any>(`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ${this.valuePlaceholder(0)}) as exists`, [tableName]);
+      const rows = await this.query<any>(`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = ${this.valuePlaceholder(0)} AND table_name = ${this.valuePlaceholder(1)}) as exists`, [schema,tableName]);
       return Boolean(rows[0]?.exists);
     }
     const rows = await this.query<any>(`SELECT EXISTS (SELECT * FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ${this.valuePlaceholder(0)}) as \`exists\``, [tableName]);
@@ -231,20 +231,48 @@ export class DrizzleAdapter extends DatabaseAdapter {
   }
 
   async createTable(tableName: string, columns: ColumnDefinition[]): Promise<void> {
-    const defs = columns.map(c => {
-      const parts: string[] = [SqlBuilder.quoteIdent(c.name, this.dbType), this.mapDataType(c.type)];
-      if (c.primaryKey) parts.push('PRIMARY KEY');
-      if (c.notNull) parts.push('NOT NULL');
-      if (c.unique) parts.push('UNIQUE');
+    const columnDefs: string[] = [];
+    const fkConstraints: string[] = [];
+  
+    for (const c of columns) {
+      const parts: string[] = [
+        SqlBuilder.quoteIdent(c.name, this.dbType),
+        this.mapDataType(c.type),
+      ];
+  
+      // Identity must come right after the type in Postgres
+      if (c.autoIncrement) parts.push('GENERATED ALWAYS AS IDENTITY');
+  
+      // Defaults can come before/after constraints; this is fine
       if (c.default !== undefined) parts.push('DEFAULT ' + this.formatDefault(c.default));
+  
+      // NOT NULL is implied by PRIMARY KEY; avoid duplicating
+      if (c.notNull && !c.primaryKey) parts.push('NOT NULL');
+  
+      if (c.unique) parts.push('UNIQUE');
+      if (c.primaryKey) parts.push('PRIMARY KEY');
+  
+      columnDefs.push(parts.join(' '));
+  
+      // Add FK as a table-level constraint after all columns
       if (c.references) {
-        const ref = c.references;
-        parts.push(`REFERENCES ${SqlBuilder.quoteIdent(ref.table, this.dbType)}(${SqlBuilder.quoteIdent(ref.column, this.dbType)})`);
-        if (ref.onDelete) parts.push(`ON DELETE ${ref.onDelete}`);
+        const ref = c.references as any;
+        const fkParts = [
+          `FOREIGN KEY (${SqlBuilder.quoteIdent(c.name, this.dbType)})`,
+          `REFERENCES ${SqlBuilder.quoteIdent(ref.table, this.dbType)}(${SqlBuilder.quoteIdent(ref.column, this.dbType)})`,
+        ];
+        if (ref.onDelete) fkParts.push(`ON DELETE ${ref.onDelete}`);
+        if (ref.onUpdate) fkParts.push(`ON UPDATE ${ref.onUpdate}`);
+        fkConstraints.push(fkParts.join(' '));
       }
-      return parts.join(' ');
-    }).join(', ');
-    await this.execute(`CREATE TABLE IF NOT EXISTS ${SqlBuilder.quoteIdent(tableName, this.dbType)} (${defs})`);
+    }
+  
+    const allDefs = fkConstraints.length
+      ? `${columnDefs.join(', ')}, ${fkConstraints.join(', ')}`
+      : columnDefs.join(', ');
+  
+    const sql = `CREATE TABLE IF NOT EXISTS ${SqlBuilder.quoteIdent(tableName, this.dbType)} (${allDefs})`;
+    await this.execute(sql);
   }
 
   async getTableColumns(tableName: string): Promise<ColumnDefinition[]> {
