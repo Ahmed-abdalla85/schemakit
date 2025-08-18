@@ -76,7 +76,7 @@ system_views       -> Query configurations
 ```typescript
 EntityBuilder      -> Dynamic entity creation from meta-schema
 PermissionManager  -> Business authorization with exposed/hidden filters
-ValidationManager  -> Runtime data validation
+Validation (Adapter)  -> Runtime data validation
 RLS Integration    -> Row-level security patterns
 ViewManager        -> Planned: Query configuration management
 WorkflowManager    -> Planned: Lifecycle event automation

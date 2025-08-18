@@ -18,9 +18,8 @@ export { WorkflowManager } from './entities/workflow';
 export { QueryBuilder } from './entities/query';
 export { PaginationManager } from './entities/query';
 
-// Legacy validation exports kept for backward compatibility
-export { ValidationManager } from './entities/validation';
-export { TypeValidators } from './entities/validation';
+// Validation
+export { SimpleValidationAdapter } from './validation/adapters/simple';
 
 // Workflows (organized)
 export { WorkflowActions } from './entities/workflow';
