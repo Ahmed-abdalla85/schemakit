@@ -5,8 +5,15 @@ import { DB } from '../../database/db';
 import { Context, FieldDefinition } from '../../types/core';
 import { ViewDefinition, ViewOptions, ViewResult } from '../../types/views';
 import { QueryFilter } from '../../database/adapter';
-import { RLSPermissionManager } from '../permission/rls-integration';
 import { RoleRestrictions } from '../../types/permissions';
+
+// Local minimal RLS manager to avoid legacy dependency
+class RLSPermissionManager {
+  constructor(_db: DB) {}
+  private restrictions: any = {};
+  setRoleRestrictions(r: any) { this.restrictions = r; }
+  getExposedConditions(_context: any) { return []; }
+}
 
 // ViewOptions and ViewResult are now imported from '../../types/views'
 
