@@ -6,7 +6,7 @@ import { PermissionDefinition, RLSDefinition } from '../../types/permissions';
 import { ViewDefinition } from '../../types/views';
 import { WorkflowDefinition } from '../../types/workflows';
 import { SchemaKitError } from '../../errors';
-import { buildCreateRow, buildUpdateRow, getPrimaryKeyFieldName } from '../system-fields';
+import { buildCreateRow, buildUpdateRow, getPrimaryKeyColumn } from '../system-fields';
 import { safeJsonParse } from '../../utils/json-helpers';
 import { ViewManager } from '../views/view-manager';
 import { ViewOptions, ViewResult } from '../../types/views';
@@ -47,7 +47,7 @@ export class Entity {
    */
   private getPrimaryKeyFieldName(): string {
     const prefix = this.entityDefinition?.entity_column_prefix || this.tableName;
-    return getPrimaryKeyFieldName(prefix);
+    return getPrimaryKeyColumn(prefix);
   }
 
   private constructor(entityName: string, tenantId: string, db: DB) {

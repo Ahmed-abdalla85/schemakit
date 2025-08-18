@@ -1,7 +1,7 @@
 import { generateId } from '../utils/id-generation';
 import { getCurrentTimestamp } from '../utils/date-helpers';
 
-export function getPrimaryKeyFieldName(prefix: string): string {
+export function getPrimaryKeyColumn(prefix: string): string {
   return `${prefix}_id`;
 }
 
@@ -10,7 +10,7 @@ export function buildCreateRow(
   columnPrefix: string,
   context: { user?: { id?: string | number } }
 ): Record<string, any> {
-  const pkField = getPrimaryKeyFieldName(columnPrefix);
+  const pkField = getPrimaryKeyColumn(columnPrefix);
   const id = input.id || (input as any)[pkField] || generateId();
   const now = getCurrentTimestamp();
   return {
@@ -31,7 +31,7 @@ export function buildUpdateRow(
   columnPrefix: string,
   context: { user?: { id?: string | number } }
 ): Record<string, any> {
-  const pkField = getPrimaryKeyFieldName(columnPrefix);
+  const pkField = getPrimaryKeyColumn(columnPrefix);
   const now = getCurrentTimestamp();
   const row: Record<string, any> = {
     ...input,
