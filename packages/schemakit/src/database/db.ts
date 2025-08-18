@@ -1,13 +1,13 @@
 type WhereClause = Record<string, any>;
 
-interface DBOptions {
+export interface DBOptions {
   adapter: string;
   tenantId: string;
   config?: any; // Adapter config (connection, etc)
   multiTenancy?: MultiTenancyConfig;
 }
 
-interface MultiTenancyConfig {
+export interface MultiTenancyConfig {
   strategy: 'schema' | 'table-prefix' | 'column' | 'none';
   // For column-based multi-tenancy
   columnName?: string;
@@ -24,8 +24,8 @@ interface Adapter {
 
 // Adapter imports
 import { DatabaseAdapter, DatabaseAdapterConfig } from './adapter';
-import { InMemoryAdapter } from './adapters/inmemory';
 import { DatabaseError } from '../errors';
+import { DEFAULT_TENANT_ID } from './constants';
 
 type AdapterInstance = DatabaseAdapter;
 
@@ -44,7 +44,7 @@ export class DB {
   private _offset?: number;
 
   constructor(opts: DBOptions) {
-    this.tenantId = opts.tenantId;
+    this.tenantId = opts.tenantId || DEFAULT_TENANT_ID;
     this.adapterConfig = {
       type: opts.adapter,
       config: opts.config || {}
@@ -105,7 +105,7 @@ export class DB {
    * Add tenant filter based on multi-tenancy strategy
    */
   private addTenantFilter(filters: any[]): any[] {
-    if (this.multiTenancy.strategy === 'column' && this.tenantId !== 'default') {
+    if (this.multiTenancy.strategy === 'column' && this.tenantId !== DEFAULT_TENANT_ID) {
       const columnName = this.multiTenancy.columnName || 'tenant_id';
       return [
         ...filters,
@@ -119,7 +119,7 @@ export class DB {
    * Add tenant data to insert/update operations
    */
   private addTenantData(data: Record<string, any>): Record<string, any> {
-    if (this.multiTenancy.strategy === 'column' && this.tenantId !== 'default') {
+    if (this.multiTenancy.strategy === 'column' && this.tenantId !== DEFAULT_TENANT_ID) {
       const columnName = this.multiTenancy.columnName || 'tenant_id';
       return {
         ...data,

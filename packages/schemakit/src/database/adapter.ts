@@ -205,10 +205,6 @@ export abstract class DatabaseAdapter {
         // Use DrizzleAdapter for all SQL databases
         const { DrizzleAdapter } = await import('./adapters/drizzle');
         return new DrizzleAdapter({ ...config, type: type as any });
-      case 'inmemory':
-        // Import InMemoryAdapter using dynamic import
-        const { InMemoryAdapter } = await import('./adapters/inmemory');
-        return new InMemoryAdapter(config);
       default:
         throw new DatabaseError('create', { 
             cause: new Error(`Unsupported adapter type: ${type}`) 
@@ -229,10 +225,6 @@ export abstract class DatabaseAdapter {
         // Use require for synchronous loading
         const { DrizzleAdapter } = require('./adapters/drizzle');
         return new DrizzleAdapter({ ...config, type: type as any });
-      case 'inmemory':
-        // Use require for synchronous loading
-        const { InMemoryAdapter } = require('./adapters/inmemory');
-        return new InMemoryAdapter(config);
       default:
         throw new DatabaseError('create', { 
             cause: new Error(`Unsupported adapter type: ${type}`) 

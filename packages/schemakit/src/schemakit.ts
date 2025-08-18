@@ -1,4 +1,5 @@
 import { DB, type MultiTenancyConfig } from './database/db';
+import { DEFAULT_TENANT_ID } from './database/constants';
 import { Entity } from './entities/entity/entity';
 import { InstallManager } from './database/install-manager';
 import { SchemaKitError } from './errors';
@@ -31,7 +32,7 @@ export class SchemaKit {
   constructor(options: SchemaKitInitOptions = {}) {
     this.options = options;
     
-    let adapterType: string = 'inmemory';
+    let adapterType: string = 'sqlite';
     let adapterConfig: any = {};
     if (typeof (options as any).adapter === 'string') {
       adapterType = (options as any).adapter;
@@ -39,7 +40,7 @@ export class SchemaKit {
     }
     
     // Validate adapter type early to surface configuration errors synchronously
-    const supportedAdapters = new Set(['inmemory', 'sqlite', 'postgres', 'mysql']);
+    const supportedAdapters = new Set(['sqlite', 'postgres', 'mysql']);
     if (!supportedAdapters.has(adapterType)) {
       throw new SchemaKitError(`Unsupported adapter type: ${adapterType}`);
     }
@@ -50,7 +51,7 @@ export class SchemaKit {
     // Allow tenantId in config, but fallback to 'system'
     this.db = new DB({
       adapter: adapterType,
-      tenantId: adapterConfig.tenantId || 'system',
+      tenantId: adapterConfig.tenantId || DEFAULT_TENANT_ID,
       config: adapterConfig,
       multiTenancy
     });
@@ -65,7 +66,7 @@ export class SchemaKit {
    * @param name Entity name
    * @param tenantId Tenant identifier (defaults to 'public')
    */
-  async entity(name: string, tenantId = 'public'): Promise<Entity> {
+  async entity(name: string, tenantId = DEFAULT_TENANT_ID): Promise<Entity> {
     const entity = Entity.create(name, tenantId, this.db);
     
     // Configure validation on the entity and initialize
