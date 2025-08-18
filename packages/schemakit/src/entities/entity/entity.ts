@@ -9,6 +9,9 @@ import { SchemaKitError } from '../../errors';
 import { buildCreateRow, buildUpdateRow, getPrimaryKeyColumn } from '../system-fields';
 import { safeJsonParse } from '../../utils/json-helpers';
 import { ViewManager } from '../views/view-manager';
+import { MetadataLoader } from '../metadata-loader';
+import { PermissionGuard } from '../permission-guard';
+import { EntityRepository } from '../entity-repository';
 import { ViewOptions, ViewResult } from '../../types/views';
 import type { ValidationAdapter, CompiledSchema, UnknownFieldPolicy } from '../../validation/adapter';
 
@@ -34,6 +37,9 @@ export class Entity {
   private entityDefinition: EntityDefinition | null = null;
   private tableName: string = '';
   public viewManager: ViewManager | null = null;
+  private metadataLoader: MetadataLoader;
+  private permissionGuard: PermissionGuard | null = null;
+  private repository: EntityRepository | null = null;
   static create(entityName: string, tenantId: string, db: DB): Entity {
     const cacheKey = `${tenantId}:${entityName}`;
     if (Entity.cache.has(cacheKey)) return Entity.cache.get(cacheKey)!;
@@ -54,6 +60,7 @@ export class Entity {
     this.entityName = entityName;
     this.tenantId = tenantId;
     this.db = db;
+    this.metadataLoader = new MetadataLoader(db);
   }
 
   get isInitialized(): boolean { return this.initialized; }
@@ -85,17 +92,17 @@ export class Entity {
    
     try {
       // Load entity definition first
-      this.entityDefinition = await this.loadEntityDefinition();
+      this.entityDefinition = await this.metadataLoader.loadEntityDefinition(this.entityName);
       if (!this.entityDefinition) {
         throw new Error(`Entity '${this.entityName}' not found`);
       }
 
       // Load metadata sequentially to keep deterministic mock expectations
-      const fields = await this.loadFields(this.entityDefinition.entity_id);
-      const permissions = await this.loadPermissions(this.entityDefinition.entity_id, contextWithTenant);
-      const workflows = await this.loadWorkflows(this.entityDefinition.entity_id);
-      const views = await this.loadViews(this.entityDefinition.entity_id);
-      const rls = await this.loadRLS(this.entityDefinition.entity_id);
+      const fields = await this.metadataLoader.loadFields(this.entityDefinition.entity_id);
+      const permissions = await this.metadataLoader.loadPermissions(this.entityDefinition.entity_id);
+      const workflows = await this.metadataLoader.loadWorkflows(this.entityDefinition.entity_id);
+      const views = await this.metadataLoader.loadViews(this.entityDefinition.entity_id);
+      const rls = await this.metadataLoader.loadRLS(this.entityDefinition.entity_id);
       this.fields = fields;
       this.permissions = permissions;
       this.workflow = workflows;
@@ -103,6 +110,8 @@ export class Entity {
       this.views = views;
       this.tableName = this.entityDefinition.entity_table_name || this.entityName;
       await this.ensureTable();
+      this.repository = new EntityRepository(this.db, this.tableName);
+      this.permissionGuard = new PermissionGuard(() => this.permissions, () => this.rls);
       // Build validation schema if adapter is configured
       if (this.validationAdapter) {
         const entityId = this.entityDefinition.entity_id || `${this.tenantId}:${this.entityName}`;
@@ -155,7 +164,7 @@ export class Entity {
     await this.ensureInitialized();
     const contextWithTenant = { ...context, tenantId: this.tenantId };
 
-    await this.checkPermission('read', contextWithTenant);
+    await this.permissionGuard!.check('read', contextWithTenant);
 
     let query = this.db.select('*').from(this.tableName);
 
@@ -165,9 +174,9 @@ export class Entity {
     }
 
     // Apply RLS conditions using equality fallbacks for now
-    const rlsConditions = this.buildRLSConditions(contextWithTenant);
+    const rlsConditions = this.permissionGuard!.buildRLSConditions(contextWithTenant);
     for (const condition of rlsConditions) {
-      query = query.where({ [condition.field]: this.resolveRLSValue(condition.value, contextWithTenant) });
+      query = query.where({ [condition.field]: this.permissionGuard!.resolveRLSValue(condition.value, contextWithTenant) });
     }
 
     return await query.get();
@@ -181,15 +190,15 @@ export class Entity {
     await this.ensureInitialized();
     const contextWithTenant = { ...context, tenantId: this.tenantId };
 
-    await this.checkPermission('read', contextWithTenant);
+    await this.permissionGuard!.check('read', contextWithTenant);
 
     const idField = this.getPrimaryKeyFieldName();
     let query = this.db.select('*').from(this.tableName).where({ [idField]: id });
 
     // Apply RLS conditions using equality fallbacks for now
-    const rlsConditions = this.buildRLSConditions(contextWithTenant);
+    const rlsConditions = this.permissionGuard!.buildRLSConditions(contextWithTenant);
     for (const condition of rlsConditions) {
-      query = query.where({ [condition.field]: this.resolveRLSValue(condition.value, contextWithTenant) });
+      query = query.where({ [condition.field]: this.permissionGuard!.resolveRLSValue(condition.value, contextWithTenant) });
     }
 
     const results = await query.get();
@@ -203,7 +212,7 @@ export class Entity {
     await this.ensureInitialized();
     const contextWithTenant = { ...context, tenantId: this.tenantId };
 
-    await this.checkPermission('create', contextWithTenant);
+    await this.permissionGuard!.check('create', contextWithTenant);
     
     // Adapter-based validation/sanitization first (if configured). Skip internal validateData when adapter is present
     if (this.validationAdapter && this.compiledSchema) {
@@ -221,7 +230,7 @@ export class Entity {
     const enrichedData = buildCreateRow(data, columnPrefix, contextWithTenant);
 
     // Use DB insert
-    await this.db.insert(this.tableName, enrichedData);
+    await this.repository!.insert(enrichedData);
 
     await this.executeWorkflows('create', null, enrichedData, contextWithTenant);
     return enrichedData;
@@ -236,7 +245,7 @@ export class Entity {
     await this.ensureInitialized();
     const contextWithTenant = { ...context, tenantId: this.tenantId };
 
-    await this.checkPermission('update', contextWithTenant);
+    await this.permissionGuard!.check('update', contextWithTenant);
     
     // Adapter-based validation/sanitization first (if configured). Skip internal validateData when adapter is present
     if (this.validationAdapter && this.compiledSchema) {
@@ -261,7 +270,7 @@ export class Entity {
 
     // Use DB update (filter by id)
     const idField = this.getPrimaryKeyFieldName();
-    await this.db.where({ [idField]: id }).update(this.tableName, updateData);
+    await this.repository!.update(idField, id, updateData);
 
     const newData = { ...oldData, ...updateData };
     await this.executeWorkflows('update', oldData, newData, contextWithTenant);
@@ -275,7 +284,7 @@ export class Entity {
     await this.ensureInitialized();
     const contextWithTenant = { ...context, tenantId: this.tenantId };
 
-    await this.checkPermission('delete', contextWithTenant);
+    await this.permissionGuard!.check('delete', contextWithTenant);
 
     // Get old data for workflow
     const oldData = await this.getById(id, contextWithTenant);
@@ -285,7 +294,7 @@ export class Entity {
 
     // Use DB delete (filter by id)
     const idField = this.getPrimaryKeyFieldName();
-    await this.db.where({ [idField]: id }).delete(this.tableName);
+    await this.repository!.delete(idField, id);
 
     await this.executeWorkflows('delete', oldData, null, contextWithTenant);
     return true;
@@ -301,135 +310,6 @@ export class Entity {
     }
   }
 
-  private async loadEntityDefinition(): Promise<EntityDefinition | null> {
-    const results = await this.db
-      .select('*')
-      .from('system_entities')
-      .where({ entity_name: this.entityName })
-      .get();
-
-    // For compatibility, treat results as array (mock returns object)
-    const entities = Array.isArray(results) ? results : [results];
-
-    if (!entities.length || !entities[0]) return null;
-
-    const entity = entities[0];
-    if (entity.metadata && typeof entity.metadata === 'string') {
-      entity.metadata = safeJsonParse(entity.metadata, {});
-    }
-    return entity;
-  }
-
-  private async loadFields(entityId: string): Promise<FieldDefinition[]> {
-    const fields = await this.db
-      .select('*')
-      .from('system_fields')
-      .where({ field_entity_id: entityId })
-      .get();
-
-    return fields.map((field: any) => ({
-      ...field,
-      metadata: field.metadata && typeof field.metadata === 'string' 
-        ? safeJsonParse(field.metadata, {}) 
-        : field.metadata,
-      validation_rules: field.validation_rules && typeof field.validation_rules === 'string'
-        ? safeJsonParse(field.validation_rules, {})
-        : field.validation_rules
-    }));
-  }
-
-  private async loadPermissions(entityId: string, context: Context): Promise<PermissionDefinition[]> {
-    const userRoles = context.user?.roles || ['public'];
-    let query = this.db.select('*')
-                    .from('system_permissions')
-                    .where({ permission_entity_id: entityId, permission_status: 'active' });
-    const permissions = await query.get();
-
-    return permissions.map((permission: any) => ({
-      ...permission,
-      conditions: permission.conditions && typeof permission.conditions === 'string'
-        ? safeJsonParse(permission.conditions, {})
-        : permission.conditions
-    }));
-  }
-
-  private async loadWorkflows(entityId: string): Promise<WorkflowDefinition[]> {
-    const workflows = await this.db
-      .select('*')
-      .from('system_workflows')
-      .where({ workflow_entity_id: entityId, workflow_status: 'active' })
-      .get();
-    
-
-    return workflows.map((workflow: any) => ({
-      ...workflow,
-      conditions: workflow.conditions && typeof workflow.conditions === 'string'
-        ? safeJsonParse(workflow.conditions, {})
-        : workflow.conditions,
-      actions: workflow.actions && typeof workflow.actions === 'string'
-        ? safeJsonParse(workflow.actions, [])
-        : workflow.actions
-    }));
-  }
-
-  private async loadRLS(entityId: string): Promise<RLSDefinition[]> {
-    try {
-      let query = this.db.select('*').from('system_rls').where({ rls_entity_id: entityId, rls_is_active: true });
-      const rlsRules = await query.get();
-      const list = Array.isArray(rlsRules) ? rlsRules : [];
-      return list.map((rule: any) => ({
-        ...rule,
-        rls_config: rule.rls_config && typeof rule.rls_config === 'string'
-          ? safeJsonParse(rule.rls_config, { relationbetweenconditions: 'and', conditions: [] })
-          : rule.rls_config
-      }));
-    } catch (_err) {
-      return [];
-    }
-  }
-
-  private async loadViews(entityId: string): Promise<ViewDefinition[]> {
-    const views = await this.db
-      .select('*')
-      .from('system_views')
-      .where({ "view_entity_id": entityId })
-      .get();
-
-    return views.map((view: any) => {
-      const normalized: ViewDefinition = {
-        ...view,
-        // Normalize JSON-like string fields to objects/arrays
-        view_fields: typeof view.view_fields === 'string' 
-          ? safeJsonParse(view.view_fields, []) 
-          : view.view_fields,
-        view_filters: typeof view.view_filters === 'string' 
-          ? safeJsonParse(view.view_filters, {}) 
-          : view.view_filters,
-        view_joins: typeof view.view_joins === 'string' 
-          ? safeJsonParse(view.view_joins, []) 
-          : view.view_joins,
-        view_sort: typeof view.view_sort === 'string' 
-          ? safeJsonParse(view.view_sort, []) 
-          : view.view_sort,
-      } as ViewDefinition;
-
-
-      return normalized;
-    });
-  }
-
-  private async checkPermission(action: string, context: Context): Promise<void> {
-    const userRoles = context.user?.roles || ['public'];
-    const hasPermission = this.permissions.some(p => 
-            userRoles.includes(p.permission_role) &&
-      p.permission_action === action &&
-      p.permission_is_allowed
-    );
-
-    // if (!hasPermission) {
-    //   throw new SchemaKitError(`Permission denied: ${action} on ${this.entityName}`);
-    // }
-  }
 
   private validateData(data: Record<string, any>, action: 'create' | 'update'): void {
     const errors: string[] = [];
