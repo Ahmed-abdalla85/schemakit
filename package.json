@@ -4,7 +4,8 @@
   "description": "SchemaKit monorepo with framework adapters",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "examples/*"
   ],
   "scripts": {
     "build": "pnpm -r --filter=./packages/* run build",
