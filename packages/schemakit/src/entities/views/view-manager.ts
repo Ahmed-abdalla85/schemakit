@@ -10,9 +10,18 @@ import { RoleRestrictions } from '../../types/permissions';
 // Local minimal RLS manager to avoid legacy dependency
 class RLSPermissionManager {
   constructor(_db: DB) {}
-  private restrictions: any = {};
-  setRoleRestrictions(r: any) { this.restrictions = r; }
-  getExposedConditions(_context: any) { return []; }
+  private restrictions: Record<string, any[]> = {};
+  setRoleRestrictions(r: Record<string, any[]>) { this.restrictions = r; }
+  getExposedConditions(context: { user?: { roles?: string[] } }): any[] {
+    const roles = context.user?.roles || [];
+    for (const role of roles) {
+      const group = this.restrictions[role]?.[0];
+      if (group?.conditions) {
+        return group.conditions.filter((c: any) => c.exposed);
+      }
+    }
+    return [];
+  }
 }
 
 // ViewOptions and ViewResult are now imported from '../../types/views'
