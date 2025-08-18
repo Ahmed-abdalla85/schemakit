@@ -405,4 +405,4 @@ export class DB {
 }
 
 // Export types
-export type { DBOptions, MultiTenancyConfig };
+// Types are exported via the module's interface declarations above

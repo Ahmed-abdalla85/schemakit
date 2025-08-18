@@ -6,8 +6,7 @@ import { PermissionDefinition, RLSDefinition } from '../../types/permissions';
 import { ViewDefinition } from '../../types/views';
 import { WorkflowDefinition } from '../../types/workflows';
 import { SchemaKitError } from '../../errors';
-import { generateId } from '../../utils/id-generation';
-import { getCurrentTimestamp } from '../../utils/date-helpers';
+import { buildCreateRow, buildUpdateRow, getPrimaryKeyFieldNameFromTable } from '../system/system-fields';
 import { safeJsonParse } from '../../utils/json-helpers';
 import { ViewManager } from '../views/view-manager';
 import { ViewOptions, ViewResult } from '../../types/views';
@@ -47,7 +46,7 @@ export class Entity {
    * Determine the primary key field name for this entity's table
    */
   private getPrimaryKeyFieldName(): string {
-    return `${this.tableName}_id`;
+    return getPrimaryKeyFieldNameFromTable(this.tableName);
   }
 
   private constructor(entityName: string, tenantId: string, db: DB) {
@@ -217,19 +216,7 @@ export class Entity {
     }
 
     // Add system fields and ensure both generic 'id' and '{table}_id' are set
-    const pkField = this.getPrimaryKeyFieldName();
-    const generatedId = data.id || (data as any)[pkField] || generateId();
-    const enrichedData: Record<string, any> = {
-      ...data,
-      id: generatedId,
-      [pkField]: generatedId,
-      created_at: getCurrentTimestamp(),
-      updated_at: getCurrentTimestamp(),
-      ...(contextWithTenant.user?.id && {
-        created_by: contextWithTenant.user.id,
-        updated_by: contextWithTenant.user.id
-      })
-    };
+    const enrichedData = buildCreateRow(data, this.tableName, contextWithTenant);
 
     // Use DB insert
     await this.db.insert(this.tableName, enrichedData);
@@ -267,14 +254,7 @@ export class Entity {
     }
 
     // Prepare update data
-    const updateData: Record<string, any> = {
-      ...data,
-      updated_at: getCurrentTimestamp(),
-      ...(contextWithTenant.user?.id && { updated_by: contextWithTenant.user.id })
-    };
-    // Do not allow changing primary key
-    delete updateData.id;
-    delete (updateData as any)[this.getPrimaryKeyFieldName()];
+    const updateData: Record<string, any> = buildUpdateRow(data, this.tableName, contextWithTenant);
 
     // Use DB update (filter by id)
     const idField = this.getPrimaryKeyFieldName();
