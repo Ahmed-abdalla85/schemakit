@@ -1,14 +1,17 @@
 import { createSchemaKitClient } from '@mobtakronio/schemakit-client';
 
-export default defineNuxtPlugin((nuxtApp) => {
+export default defineNuxtPlugin(() => {
+  console.log('SchemaKit plugin loading...');
+  
   const config = useRuntimeConfig();
+  console.log('Config:', config.public);
 
   const client = createSchemaKitClient({
     baseUrl: config.public.apiBaseUrl,
     tenantId: config.public.tenantId,
     headers: () => {
       try {
-        const cookie = process.server ? useRequestHeaders(['cookie']).cookie : document.cookie;
+        const cookie = document.cookie;
         return cookie ? { cookie } : {};
       } catch {
         return {};
@@ -16,5 +19,11 @@ export default defineNuxtPlugin((nuxtApp) => {
     }
   });
 
-  return { provide: { schemakit: client } };
+  console.log('SchemaKit client created:', client);
+  
+  return {
+    provide: {
+      schemakit: client
+    }
+  };
 });

@@ -1,6 +1,9 @@
 import { Elysia } from 'elysia';
 import { SchemaKit } from '@mobtakronio/schemakit';
 import { schemaKitElysia } from '@mobtakronio/schemakit-elysia';
+import cors from '@elysiajs/cors';
+
+ 
 
 
 export async function startServer() {
@@ -31,7 +34,12 @@ export async function startServer() {
   // Create Elysia app
   const app = new Elysia();
   // Add SchemaKit REST API
-  app.use(
+  app.use(cors({
+    origin: '*',
+    methods:  '*',
+    allowedHeaders:  '*',
+  }));
+  app.use( 
     schemaKitElysia(kit, {
       basePath: '/api',
       enableDocs: true,

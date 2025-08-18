@@ -13,6 +13,7 @@
   "dependencies": {
     "@mobtakronio/schemakit": "link:../../packages/schemakit",
     "@mobtakronio/schemakit-elysia": "link:../../packages/schemakit-elysia",
+    "@elysiajs/cors": "latest",
     "elysia": "^1.0.0",
     "drizzle-orm": "^0.29.0",
     "better-sqlite3": "^9.0.0",
