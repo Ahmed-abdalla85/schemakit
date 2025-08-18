@@ -1,0 +1,47 @@
+{
+  "name": "@mobtakronio/schemakit-client",
+  "version": "0.1.0",
+  "description": "Framework-agnostic REST client for SchemaKit backends (plug-and-play, SSR-ready)",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "echo 'No tests yet - placeholder package'",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "schemakit",
+    "client",
+    "rest",
+    "framework-agnostic",
+    "ssr",
+    "react",
+    "vue",
+    "nextjs",
+    "nuxt"
+  ],
+  "author": "MobtakronIO",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@mobtakronio/schemakit-api": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.119",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.50.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.8.3"
+  }
+}
