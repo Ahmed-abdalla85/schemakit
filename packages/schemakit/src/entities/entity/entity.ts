@@ -6,7 +6,7 @@ import { PermissionDefinition, RLSDefinition } from '../../types/permissions';
 import { ViewDefinition } from '../../types/views';
 import { WorkflowDefinition } from '../../types/workflows';
 import { SchemaKitError } from '../../errors';
-import { buildCreateRow, buildUpdateRow, getPrimaryKeyFieldNameFromTable } from '../system/system-fields';
+import { buildCreateRow, buildUpdateRow, getPrimaryKeyFieldName } from '../system-fields';
 import { safeJsonParse } from '../../utils/json-helpers';
 import { ViewManager } from '../views/view-manager';
 import { ViewOptions, ViewResult } from '../../types/views';
@@ -46,7 +46,8 @@ export class Entity {
    * Determine the primary key field name for this entity's table
    */
   private getPrimaryKeyFieldName(): string {
-    return getPrimaryKeyFieldNameFromTable(this.tableName);
+    const prefix = this.entityDefinition?.entity_column_prefix || this.tableName;
+    return getPrimaryKeyFieldName(prefix);
   }
 
   private constructor(entityName: string, tenantId: string, db: DB) {
@@ -216,7 +217,8 @@ export class Entity {
     }
 
     // Add system fields and ensure both generic 'id' and '{table}_id' are set
-    const enrichedData = buildCreateRow(data, this.tableName, contextWithTenant);
+    const columnPrefix = this.entityDefinition?.entity_column_prefix || this.tableName;
+    const enrichedData = buildCreateRow(data, columnPrefix, contextWithTenant);
 
     // Use DB insert
     await this.db.insert(this.tableName, enrichedData);
@@ -254,7 +256,8 @@ export class Entity {
     }
 
     // Prepare update data
-    const updateData: Record<string, any> = buildUpdateRow(data, this.tableName, contextWithTenant);
+    const columnPrefix = this.entityDefinition?.entity_column_prefix || this.tableName;
+    const updateData: Record<string, any> = buildUpdateRow(data, columnPrefix, contextWithTenant);
 
     // Use DB update (filter by id)
     const idField = this.getPrimaryKeyFieldName();

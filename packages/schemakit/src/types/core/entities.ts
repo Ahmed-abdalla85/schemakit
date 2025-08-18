@@ -39,6 +39,8 @@ export interface EntityDefinition {
   entity_name: string;
   /** Actual database table name (e.g., 'app_users') */
   entity_table_name: string;
+  /** Column prefix used for system fields and primary key (e.g., 'user') */
+  entity_column_prefix?: string;
   /** Human-readable display name */
   entity_display_name: string;
   /** Description of what this entity represents */

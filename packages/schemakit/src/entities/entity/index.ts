@@ -4,3 +4,4 @@
  */
 
 export { Entity } from './entity';
+export * from '../system-fields';

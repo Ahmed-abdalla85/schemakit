@@ -8,7 +8,8 @@
 export { SchemaKit } from './schemakit';
 // Legacy managers (organized by entities) - for backward compatibility
 export { Entity } from './entities/entity';
-export { ValidationManager } from './entities/validation';
+// Validation
+export { SimpleValidationAdapter } from './validation/adapters/simple';
 export { PermissionManager } from './entities/permission';
 export { WorkflowManager } from './entities/workflow';
 // EntityBuilder has been removed - use EntityManager.entity() instead
@@ -17,7 +18,8 @@ export { WorkflowManager } from './entities/workflow';
 export { QueryBuilder } from './entities/query';
 export { PaginationManager } from './entities/query';
 
-// Validators (organized)
+// Legacy validation exports kept for backward compatibility
+export { ValidationManager } from './entities/validation';
 export { TypeValidators } from './entities/validation';
 
 // Workflows (organized)
