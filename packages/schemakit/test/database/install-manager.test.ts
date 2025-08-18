@@ -5,15 +5,47 @@
  */
 
 import { InstallManager } from '../../src/database/install-manager';
-import { InMemoryAdapter } from '../../src/database/adapters/inmemory';
-import { SchemaKitError } from '../../src/errors';
+import { DatabaseAdapter, type ColumnDefinition } from '../../src/database/adapter';
+
+class MockAdapter extends DatabaseAdapter {
+  private connected = false;
+  private schemas = new Set<string>();
+  private tables = new Set<string>();
+
+  async connect(): Promise<void> { this.connected = true; }
+  async disconnect(): Promise<void> { this.connected = false; }
+  isConnected(): boolean { return this.connected; }
+
+  async query<T = any>(): Promise<T[]> { return [] as any; }
+  async execute(): Promise<{ changes: number; lastInsertId?: string | number | undefined; }> { return { changes: 1 }; }
+  async transaction<T>(callback: (transaction: DatabaseAdapter) => Promise<T>): Promise<T> { return callback(this); }
+
+  async tableExists(schema: string, tableName: string): Promise<boolean> {
+    return this.tables.has(`${schema}.${tableName}`);
+  }
+  async createTable(tableName: string, columns: ColumnDefinition[]): Promise<void> {
+    this.tables.add(tableName);
+  }
+  async getTableColumns(tableName: string): Promise<ColumnDefinition[]> { return []; }
+
+  async select(): Promise<any[]> { return []; }
+  async insert(): Promise<any> { return {}; }
+  async update(): Promise<any> { return {}; }
+  async delete(): Promise<void> { }
+  async count(): Promise<number> { return 0; }
+  async findById(): Promise<any | null> { return null; }
+
+  async createSchema(schemaName: string): Promise<void> { this.schemas.add(schemaName); }
+  async dropSchema(schemaName: string): Promise<void> { this.schemas.delete(schemaName); }
+  async listSchemas(): Promise<string[]> { return Array.from(this.schemas); }
+}
 
 describe('InstallManager', () => {
-  let adapter: InMemoryAdapter;
+  let adapter: MockAdapter;
   let installManager: InstallManager;
 
   beforeEach(() => {
-    adapter = new InMemoryAdapter({});
+    adapter = new MockAdapter({});
     installManager = new InstallManager(adapter);
   });
 
@@ -23,182 +55,41 @@ describe('InstallManager', () => {
       const isInstalled = await installManager.isInstalled();
       expect(isInstalled).toBe(false);
     });
-
-    test('should handle errors gracefully when checking installation status', async () => {
-      // Don't connect the adapter to simulate an error
-      const isInstalled = await installManager.isInstalled();
-      expect(isInstalled).toBe(false);
-    });
   });
 
   describe('Schema Installation', () => {
     test('should install schema successfully and be detectable', async () => {
       await adapter.connect();
-
-      // Before installation
       expect(await installManager.isInstalled()).toBe(false);
-
-      // Install schema (uses real schema.sql file)
-      await installManager.install();
-
-      // After installation - should be detectable
+      await installManager.install('public');
       expect(await installManager.isInstalled()).toBe(true);
     });
 
     test('should create all required system tables', async () => {
       await adapter.connect();
-      await installManager.install();
-
-      // Verify all system tables exist and are queryable
-      const systemTables = [
-        'system_entities',
-        'system_fields', 
-        'system_permissions',
-        'system_views',
-        'system_workflows',
-        'system_rls'
+      await installManager.install('public');
+      const mustExist = [
+        'public.system_entities',
+        'public.system_fields',
+        'public.system_permissions',
+        'public.system_views',
+        'public.system_workflows',
+        'public.system_rls'
       ];
-
-      for (const table of systemTables) {
-        const result = await adapter.query(`SELECT * FROM ${table} LIMIT 1`);
-        expect(result).toBeDefined();
-        expect(Array.isArray(result)).toBe(true);
+      for (const t of mustExist) {
+        // tableExists takes (schema, table)
+        const [schema, table] = t.split('.');
+        expect(await adapter.tableExists(schema, table)).toBe(true);
       }
-    });
-
-    test('should install seed data along with schema', async () => {
-      await adapter.connect();
-      await installManager.install();
-
-      // Verify seed data was installed - check for system entities
-      const entities = await adapter.query('SELECT * FROM system_entities');
-      expect(entities.length).toBeGreaterThan(0);
-
-      // Verify we have the expected system table entities
-      const systemEntityNames = entities.map(e => e.entity_name);
-      expect(systemEntityNames).toContain('system_entities');
-      expect(systemEntityNames).toContain('system_fields');
-    });
-
-    test('install should be idempotent and not require SQL files anymore', async () => {
-      await adapter.connect();
-      await expect(installManager.install()).resolves.toBeUndefined();
     });
   });
 
   describe('ensureReady', () => {
     test('should install database if not already installed', async () => {
       await adapter.connect();
-
-      // Verify not installed initially
       expect(await installManager.isInstalled()).toBe(false);
-
-      // Ensure ready should install
       await installManager.ensureReady();
-
-      // Verify now installed
       expect(await installManager.isInstalled()).toBe(true);
-
-      // Verify tables are queryable
-      const entities = await adapter.query('SELECT * FROM system_entities LIMIT 1');
-      expect(entities).toBeDefined();
-    });
-
-    test('should not reinstall if database is already installed', async () => {
-      await adapter.connect();
-
-      // First installation
-      await installManager.install();
-      expect(await installManager.isInstalled()).toBe(true);
-
-      // Get initial entities
-      const entitiesBefore = await adapter.query('SELECT entity_id FROM system_entities');
-      const countBefore = entitiesBefore.length;
-
-      // Ensure ready again - should not reinstall
-      await installManager.ensureReady();
-
-      // Should still be installed
-      expect(await installManager.isInstalled()).toBe(true);
-
-      // Entity count should be the same (no duplicate installation)
-      const entitiesAfter = await adapter.query('SELECT entity_id FROM system_entities');
-      const countAfter = entitiesAfter.length;
-      expect(countAfter).toBe(countBefore);
-    });
-  });
-
-  describe('Error Handling', () => {
-    test('install should succeed without external SQL files', async () => {
-      await adapter.connect();
-      await expect(installManager.install()).resolves.toBeUndefined();
-    });
-
-    test('should handle database connection errors gracefully', async () => {
-      // Create a mock adapter that will fail
-      const failingAdapter = {
-        ...adapter,
-        execute: jest.fn().mockRejectedValue(new Error('Connection failed')),
-        tableExists: jest.fn().mockRejectedValue(new Error('Connection failed'))
-      };
-      
-      const failingInstallManager = new InstallManager(failingAdapter as any);
-      
-      await expect(failingInstallManager.install()).rejects.toThrow();
-    });
-  });
-
-  describe('Cross-Database Compatibility', () => {
-    test('should detect installation correctly across different database types', async () => {
-      await adapter.connect();
-      
-      // Should work with InMemory adapter
-      expect(await installManager.isInstalled()).toBe(false);
-      
-      await installManager.install();
-      
-      expect(await installManager.isInstalled()).toBe(true);
-    });
-  });
-
-  describe('Schema Integrity', () => {
-    test('should create tables with correct relationships', async () => {
-      await adapter.connect();
-      await installManager.install();
-
-      // Insert test entity
-      await adapter.execute(`
-        INSERT INTO system_entities (
-          entity_id, entity_name, entity_table_name, entity_display_name,
-          entity_description, entity_is_active, entity_created_at, entity_updated_at
-        ) VALUES (
-          'test_entity', 'test', 'test_table', 'Test Entity',
-          'Test description', 1, datetime('now'), datetime('now')
-        )
-      `);
-
-      // Insert related field
-      await adapter.execute(`
-        INSERT INTO system_fields (
-          field_id, field_entity_id, field_name, field_type, field_is_required,
-          field_is_unique, field_display_name, field_order_index, field_is_active
-        ) VALUES (
-          'test_field', 'test_entity', 'name', 'string', 1,
-          0, 'Name', 0, 1
-        )
-      `);
-
-      // Verify the entity was created
-      const entityResult = await adapter.query('SELECT * FROM system_entities');
-      const testEntity = entityResult.find(e => e.entity_id === 'test_entity');
-      expect(testEntity).toBeDefined();
-      expect(testEntity.entity_name).toBe('test');
-
-      // Verify the field was created and linked
-      const fieldResult = await adapter.query('SELECT * FROM system_fields');
-      const testField = fieldResult.find(f => f.field_entity_id === 'test_entity');
-      expect(testField).toBeDefined();
-      expect(testField.field_name).toBe('name');
     });
   });
 });

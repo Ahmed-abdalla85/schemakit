@@ -19,7 +19,7 @@ describe('Entity', () => {
     
     // Setup mock DB
     mockDb = new DB({
-      adapter: 'inmemory',
+      adapter: 'sqlite',
       tenantId: 'test',
       config: {}
     }) as jest.Mocked<DB>;

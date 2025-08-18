@@ -215,6 +215,8 @@ export class InstallManager {
       return;
     }
     try {
+      // Ensure schema exists for adapters that support schemas (postgres/mysql)
+      await this.databaseAdapter.createSchema(this.schema);
       await this.createSystemTables();
       await this.seedSystemData();
     } catch (error) {

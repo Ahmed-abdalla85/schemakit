@@ -1,5 +1,4 @@
 import { DB, type MultiTenancyConfig } from './database/db';
-import { DEFAULT_TENANT_ID } from './database/constants';
 import { Entity } from './entities/entity/entity';
 import { InstallManager } from './database/install-manager';
 import { SchemaKitError } from './errors';
@@ -8,6 +7,7 @@ import type {
   UnknownFieldPolicy,
 } from './validation/adapter';
 import { SimpleValidationAdapter } from './validation/adapters/simple';
+import { DEFAULT_TENANT_ID } from './database/constants';
 
 // Minimal, string-only adapter options
 type SchemaKitInitOptions = {
@@ -48,7 +48,7 @@ export class SchemaKit {
     // Extract multi-tenancy config
     const multiTenancy = (options as any).multiTenancy;
     
-    // Allow tenantId in config, but fallback to 'system'
+    // Allow tenantId in config, but fallback to 'public'
     this.db = new DB({
       adapter: adapterType,
       tenantId: adapterConfig.tenantId || DEFAULT_TENANT_ID,

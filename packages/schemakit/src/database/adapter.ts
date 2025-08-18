@@ -194,7 +194,7 @@ export abstract class DatabaseAdapter {
 
   /**
    * Create a database adapter instance
-   * @param type Adapter type ('sqlite', 'postgres', or 'inmemory')
+   * @param type Adapter type ('sqlite', 'postgres')
    * @param config Configuration options
    */
   static async create(type = 'sqlite', config: DatabaseAdapterConfig = {}): Promise<DatabaseAdapter> {
@@ -214,7 +214,7 @@ export abstract class DatabaseAdapter {
   
   /**
    * Create a database adapter instance synchronously (for backward compatibility)
-   * @param type Adapter type ('sqlite', 'postgres', or 'inmemory')
+   * @param type Adapter type ('sqlite', 'postgres')
    * @param config Configuration options
    */
   static createSync(type = 'sqlite', config: DatabaseAdapterConfig = {}): DatabaseAdapter {

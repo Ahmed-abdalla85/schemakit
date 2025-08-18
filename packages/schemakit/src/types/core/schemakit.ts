@@ -31,7 +31,7 @@
 export interface SchemaKitOptions {
   /** Database adapter configuration */
   adapter?: {
-    /** Adapter type: 'postgres', 'sqlite', 'inmemory' */
+    /** Adapter type: 'postgres', 'sqlite' */
     type?: string;
     /** Adapter-specific configuration options */
     config?: Record<string, any>;
