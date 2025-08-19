@@ -149,7 +149,9 @@ export class Entity {
     await this.permissionGuard!.check('create', contextWithTenant);
     const resCreate = this.validationAdapter!.validate('create', this.compiledSchema!, data);
     if (!resCreate.ok) {
-      throw new SchemaKitError('Validation failed', { code: 'VALIDATION_FAILED', context: (resCreate as any).errors });
+      const issues = (resCreate as any).errors || [];
+      const details = issues.map((i: any) => `${i.path}: ${i.message}`).join('; ');
+      throw new SchemaKitError(`Validation failed${details ? `: ${details}` : ''}`, { code: 'VALIDATION_FAILED', context: issues });
     }
     data = { ...data, ...(resCreate as any).data } as Record<string, any>;
     const columnPrefix = (this.entityDefinition as any)?.entity_column_prefix || this.tableName;
@@ -165,7 +167,9 @@ export class Entity {
     await this.permissionGuard!.check('update', contextWithTenant);
     const resUpdate = this.validationAdapter!.validate('update', this.compiledSchema!, data);
     if (!resUpdate.ok) {
-      throw new SchemaKitError('Validation failed', { code: 'VALIDATION_FAILED', context: (resUpdate as any).errors });
+      const issues = (resUpdate as any).errors || [];
+      const details = issues.map((i: any) => `${i.path}: ${i.message}`).join('; ');
+      throw new SchemaKitError(`Validation failed${details ? `: ${details}` : ''}`, { code: 'VALIDATION_FAILED', context: issues });
     }
     data = { ...data, ...(resUpdate as any).data } as Record<string, any>;
     const oldData = await this.getById(id, contextWithTenant);
