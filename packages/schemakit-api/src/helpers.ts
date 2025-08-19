@@ -37,12 +37,23 @@ export class ResponseHelpers {
    */
   static error(error: string | Error, message?: string): ApiResponse {
     const errorMessage = error instanceof Error ? error.message : error;
-    return {
+    const response: any = {
       success: false,
       error: errorMessage,
       message: message || 'Operation failed',
       timestamp: new Date().toISOString(),
     };
+    // Surface underlying database error and rich context when available
+    if (error && typeof error === 'object') {
+      const err: any = error;
+      if (err.cause) {
+        response.cause = err.cause instanceof Error ? err.cause.message : err.cause;
+      }
+      if (err.context) {
+        response.context = err.context;
+      }
+    }
+    return response as ApiResponse;
   }
 
   /**

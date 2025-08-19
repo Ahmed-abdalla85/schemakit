@@ -30,12 +30,18 @@ export function createErrorResponse(
   message?: string
 ): ApiResponse {
   const errorMessage = error instanceof Error ? error.message : error;
-  return {
+  const body: any = {
     success: false,
     error: errorMessage,
     message: message || 'Operation failed',
     timestamp: new Date().toISOString(),
   };
+  if (error && typeof error === 'object') {
+    const err: any = error;
+    if (err.cause) body.cause = err.cause instanceof Error ? err.cause.message : err.cause;
+    if (err.context) body.context = err.context;
+  }
+  return body as ApiResponse;
 }
 
 /**
