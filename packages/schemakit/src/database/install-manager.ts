@@ -190,11 +190,12 @@ export class InstallManager {
           field_entity_id: entityId,
           field_name: col.name,
           field_type: col.type,
-          field_is_required: Boolean(col.notNull),
+          field_is_required: Boolean(col.notNull && !col.autoIncrement && !col.primaryKey),
           field_is_unique: Boolean(col.unique),
           field_default_value: col.default ?? null,
           field_display_name: toDisplay(col.name),
           field_reference_entity: col.references?.table || null,
+          field_is_primary_key: Boolean(col.primaryKey),
           field_status: 'active',
           field_weight: order++,
           field_created_at: now,
@@ -215,6 +216,8 @@ export class InstallManager {
       return;
     }
     try {
+      // Ensure schema exists for adapters that support schemas (postgres/mysql)
+      await this.databaseAdapter.createSchema(this.schema);
       await this.createSystemTables();
       await this.seedSystemData();
     } catch (error) {

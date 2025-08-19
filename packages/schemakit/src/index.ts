@@ -6,22 +6,16 @@
 
 // Core SchemaKit class (optimized)
 export { SchemaKit } from './schemakit';
-// Legacy managers (organized by entities) - for backward compatibility
+// Public Entity class
 export { Entity } from './entities/entity';
-export { ValidationManager } from './entities/validation';
-export { PermissionManager } from './entities/permission';
-export { WorkflowManager } from './entities/workflow';
 // EntityBuilder has been removed - use EntityManager.entity() instead
 
-// Query components (organized)
-export { QueryBuilder } from './entities/query';
-export { PaginationManager } from './entities/query';
+// Query components (removed legacy exports)
 
-// Validators (organized)
-export { TypeValidators } from './entities/validation';
+// Validation
+export { SimpleValidationAdapter } from './validation/adapters/simple';
 
-// Workflows (organized)
-export { WorkflowActions } from './entities/workflow';
+// Workflows (removed legacy exports)
 
 // Core utilities
 

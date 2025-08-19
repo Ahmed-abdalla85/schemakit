@@ -3,17 +3,5 @@
  * Organized entity-related functionality by domain
  */
 
-// Entity Management
+// Export only the public Entity
 export * from './entity';
-
-// Validation
-export * from './validation';
-
-// Permissions
-export * from './permission';
-
-// Workflows
-export * from './workflow';
-
-// Query Operations
-export * from './query';

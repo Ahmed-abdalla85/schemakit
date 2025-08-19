@@ -5,7 +5,7 @@
 
 import { SchemaKit } from '../../src/schemakit';
 import { SchemaKitError } from '../../src/errors';
-import { Entity } from '../../src/entities/entity/entity';
+import { Entity } from '../../src/entities/entity';
 
 // Mock Entity initialization to prevent database loading
 jest.spyOn(Entity.prototype, 'initialize').mockImplementation(async function(this: Entity) {
@@ -31,7 +31,7 @@ describe('SchemaKit Core', () => {
       expect(schemaKit).toBeInstanceOf(SchemaKit);
     });
 
-    test('should initialize with inmemory adapter by default', () => {
+    test('should initialize with sqlite adapter by default', () => {
       const schemaKit = new SchemaKit();
       expect(schemaKit).toBeInstanceOf(SchemaKit);
     });
@@ -56,7 +56,7 @@ describe('SchemaKit Core', () => {
     let schemaKit: SchemaKit;
 
     beforeEach(() => {
-      schemaKit = new SchemaKit({ adapter: 'inmemory' });
+      schemaKit = new SchemaKit({ adapter: 'sqlite' });
     });
 
     test('should create entity instance', async () => {
@@ -82,7 +82,7 @@ describe('SchemaKit Core', () => {
     let schemaKit: SchemaKit;
 
     beforeEach(() => {
-      schemaKit = new SchemaKit({ adapter: 'inmemory' });
+      schemaKit = new SchemaKit({ adapter: 'sqlite' });
     });
 
     test('should provide cache statistics', async () => {

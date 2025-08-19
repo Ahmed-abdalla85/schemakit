@@ -40,7 +40,7 @@ export interface BuiltQuery {
  * Resolve table name for multi-tenant support
  * @param table Base table name
  * @param tenantId Tenant identifier
- * @param databaseType Database type ('postgres', 'sqlite', 'inmemory')
+ * @param databaseType Database type ('postgres', 'sqlite')
  * @returns Qualified table name
  */
 export function resolveTableName(table: string, tenantId = 'default', databaseType = 'sqlite'): string {
@@ -53,8 +53,7 @@ export function resolveTableName(table: string, tenantId = 'default', databaseTy
       // PostgreSQL: schema.table format
       return `${tenantId}.${table}`;
     case 'sqlite':
-    case 'inmemory':
-      // SQLite/InMemory: tenant_table format
+      // SQLite: tenant_table format
       return `${tenantId}_${table}`;
     default:
       return table;

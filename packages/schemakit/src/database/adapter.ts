@@ -150,14 +150,14 @@ export abstract class DatabaseAdapter {
    * @param id Record ID
    * @param data Data to update
    */
-  abstract update(table: string, id: string, data: Record<string, any>): Promise<any>;
+  abstract update(table: string, idField: string, id: string | number, data: Record<string, any>): Promise<any>;
 
   /**
    * Delete a record from a table
    * @param table Table name
    * @param id Record ID
    */
-  abstract delete(table: string, id: string): Promise<void>;
+  abstract delete(table: string, idField: string, id: string | number): Promise<void>;
 
   /**
    * Count records in a table
@@ -194,7 +194,7 @@ export abstract class DatabaseAdapter {
 
   /**
    * Create a database adapter instance
-   * @param type Adapter type ('sqlite', 'postgres', or 'inmemory')
+   * @param type Adapter type ('sqlite', 'postgres')
    * @param config Configuration options
    */
   static async create(type = 'sqlite', config: DatabaseAdapterConfig = {}): Promise<DatabaseAdapter> {
@@ -203,12 +203,8 @@ export abstract class DatabaseAdapter {
       case 'postgres':
       case 'mysql':
         // Use DrizzleAdapter for all SQL databases
-        const { DrizzleAdapter } = await import('./adapters/drizzle');
-        return new DrizzleAdapter({ ...config, type: type as any });
-      case 'inmemory':
-        // Import InMemoryAdapter using dynamic import
-        const { InMemoryAdapter } = await import('./adapters/inmemory');
-        return new InMemoryAdapter(config);
+        const module: any = await import('./adapters/drizzle');
+        return new module.DrizzleAdapter({ ...config, type: type as any });
       default:
         throw new DatabaseError('create', { 
             cause: new Error(`Unsupported adapter type: ${type}`) 
@@ -218,7 +214,7 @@ export abstract class DatabaseAdapter {
   
   /**
    * Create a database adapter instance synchronously (for backward compatibility)
-   * @param type Adapter type ('sqlite', 'postgres', or 'inmemory')
+   * @param type Adapter type ('sqlite', 'postgres')
    * @param config Configuration options
    */
   static createSync(type = 'sqlite', config: DatabaseAdapterConfig = {}): DatabaseAdapter {
@@ -227,12 +223,8 @@ export abstract class DatabaseAdapter {
       case 'postgres': 
       case 'mysql':
         // Use require for synchronous loading
-        const { DrizzleAdapter } = require('./adapters/drizzle');
-        return new DrizzleAdapter({ ...config, type: type as any });
-      case 'inmemory':
-        // Use require for synchronous loading
-        const { InMemoryAdapter } = require('./adapters/inmemory');
-        return new InMemoryAdapter(config);
+        const module: any = require('./adapters/drizzle');
+        return new module.DrizzleAdapter({ ...config, type: type as any });
       default:
         throw new DatabaseError('create', { 
             cause: new Error(`Unsupported adapter type: ${type}`) 

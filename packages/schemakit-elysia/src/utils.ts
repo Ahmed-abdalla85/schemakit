@@ -30,12 +30,34 @@ export function createErrorResponse(
   message?: string
 ): ApiResponse {
   const errorMessage = error instanceof Error ? error.message : error;
-  return {
+  const body: any = {
     success: false,
     error: errorMessage,
     message: message || 'Operation failed',
     timestamp: new Date().toISOString(),
   };
+  if (error && typeof error === 'object') {
+    const err: any = error;
+    const causeMessages: string[] = [];
+    let cursor: any = err;
+    let lastContext: any = undefined;
+    while (cursor && typeof cursor === 'object') {
+      if (cursor.context && !lastContext) lastContext = cursor.context;
+      if (cursor.cause) {
+        const m = cursor.cause instanceof Error ? cursor.cause.message : String(cursor.cause);
+        causeMessages.push(m);
+        cursor = cursor.cause;
+      } else {
+        break;
+      }
+    }
+    if (causeMessages.length > 0) {
+      body.cause = causeMessages[causeMessages.length - 1];
+      body.causeChain = causeMessages;
+    }
+    if (err.context || lastContext) body.context = err.context || lastContext;
+  }
+  return body as ApiResponse;
 }
 
 /**

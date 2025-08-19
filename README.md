@@ -76,7 +76,7 @@ system_views       -> Query configurations
 ```typescript
 EntityBuilder      -> Dynamic entity creation from meta-schema
 PermissionManager  -> Business authorization with exposed/hidden filters
-ValidationManager  -> Runtime data validation
+Validation (Adapter)  -> Runtime data validation
 RLS Integration    -> Row-level security patterns
 ViewManager        -> Planned: Query configuration management
 WorkflowManager    -> Planned: Lifecycle event automation
@@ -86,7 +86,6 @@ WorkflowManager    -> Planned: Lifecycle event automation
 ```typescript
 PostgresAdapter   -> Native PostgreSQL implementation
 SQLiteAdapter     -> File-based development
-InMemoryAdapter   -> Testing and development
 DrizzleAdapter    -> Planned: Leverage Drizzle ORM optimizations
 TypeORMAdapter    -> Planned: Enterprise features
 ```
@@ -163,7 +162,7 @@ import { SchemaKit } from '@mobtakronio/schemakit';
 
 // Initialize with your preferred database
 const schemaKit = new SchemaKit({
-  adapter: 'postgres', // or 'sqlite', 'inmemory'
+  adapter: 'postgres', // or 'sqlite', 'mysql'
   config: { url: process.env.DATABASE_URL }
 });
 
@@ -405,16 +404,6 @@ const kit = new SchemaKit({
 
 // Initialize the adapter
 await kit.init();
-```
-
-### In-Memory Adapter
-
-Perfect for testing and development:
-
-```typescript
-const kit = new SchemaKit({
-  adapter: 'inmemory'
-});
 ```
 
 ### Custom Adapters

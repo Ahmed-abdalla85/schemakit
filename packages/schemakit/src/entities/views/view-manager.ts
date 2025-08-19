@@ -5,8 +5,24 @@ import { DB } from '../../database/db';
 import { Context, FieldDefinition } from '../../types/core';
 import { ViewDefinition, ViewOptions, ViewResult } from '../../types/views';
 import { QueryFilter } from '../../database/adapter';
-import { RLSPermissionManager } from '../permission/rls-integration';
 import { RoleRestrictions } from '../../types/permissions';
+
+// Local minimal RLS manager to avoid legacy dependency
+class RLSPermissionManager {
+  constructor(_db: DB) {}
+  private restrictions: Record<string, any[]> = {};
+  setRoleRestrictions(r: Record<string, any[]>) { this.restrictions = r; }
+  getExposedConditions(context: { user?: { roles?: string[] } }): any[] {
+    const roles = context.user?.roles || [];
+    for (const role of roles) {
+      const group = this.restrictions[role]?.[0];
+      if (group?.conditions) {
+        return group.conditions.filter((c: any) => c.exposed);
+      }
+    }
+    return [];
+  }
+}
 
 // ViewOptions and ViewResult are now imported from '../../types/views'
 

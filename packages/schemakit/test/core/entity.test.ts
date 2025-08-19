@@ -3,7 +3,7 @@
  * Tests for core entity functionality, CRUD operations, and metadata loading
  */
 
-import { Entity } from '../../src/entities/entity/entity';
+import { Entity } from '../../src/entities/entity';
 import { DB } from '../../src/database/db';
 import { SchemaKitError } from '../../src/errors';
 
@@ -19,7 +19,7 @@ describe('Entity', () => {
     
     // Setup mock DB
     mockDb = new DB({
-      adapter: 'inmemory',
+      adapter: 'sqlite',
       tenantId: 'test',
       config: {}
     }) as jest.Mocked<DB>;
@@ -212,7 +212,10 @@ describe('Entity', () => {
         entity_updated_at: '2024-01-01T00:00:00Z'
       }]);
       // 2. loadFields  
-      mockDb.get.mockResolvedValueOnce([]); 
+      mockDb.get.mockResolvedValueOnce([ 
+        { field_id: 'f1', field_entity_id: 'ent_001', field_name: 'name', field_type: 'string', field_is_required: false },
+        { field_id: 'f2', field_entity_id: 'ent_001', field_name: 'email', field_type: 'string', field_is_required: false }
+      ]); 
       // 3. loadPermissions
       mockDb.get.mockResolvedValueOnce([]); 
       // 4. loadWorkflows
@@ -226,6 +229,8 @@ describe('Entity', () => {
     test('should insert new record', async () => {
       const insertData = { name: 'John Doe', email: 'john@example.com' };
 
+      // Mock DB returning the inserted row to satisfy expectation
+      (mockDb.insert as any).mockResolvedValueOnce({ id: 1, ...insertData });
       const result = await entity.insert(insertData);
       
       expect(result.name).toBe('John Doe');

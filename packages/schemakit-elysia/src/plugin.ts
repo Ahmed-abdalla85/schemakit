@@ -80,7 +80,8 @@ export function schemaKitElysia(
     }
     const message = error?.message || 'Operation failed';
     const status = message.includes('Missing tenant header') ? 400 : 500;
-    const body = createErrorResponse(message);
+    // Pass the full error object so createErrorResponse can include cause/context
+    const body = createErrorResponse(error);
     return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
   };
 

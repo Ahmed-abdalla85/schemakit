@@ -4,12 +4,12 @@
  */
 
 import { RLSPermissionManager, RoleRestrictions } from '../packages/schemakit/src/entities/permission';
-import { InMemoryAdapter } from '../packages/schemakit/src/database/adapters/inmemory';
+import { SchemaKit } from '../packages/schemakit/src/schemakit';
 
 async function demonstrateRLS() {
+  const kit = new SchemaKit({ adapter: 'sqlite' });
   // Create permission manager with RLS capabilities
-  const adapter = new InMemoryAdapter({});
-  const permissionManager = new RLSPermissionManager(adapter);
+  const permissionManager = new RLSPermissionManager(kit.adapter);
 
   // Define role-based restrictions
   const restrictions: RoleRestrictions = {

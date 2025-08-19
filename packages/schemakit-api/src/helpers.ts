@@ -37,12 +37,38 @@ export class ResponseHelpers {
    */
   static error(error: string | Error, message?: string): ApiResponse {
     const errorMessage = error instanceof Error ? error.message : error;
-    return {
+    const response: any = {
       success: false,
       error: errorMessage,
       message: message || 'Operation failed',
       timestamp: new Date().toISOString(),
     };
+    // Surface underlying database error and rich context when available
+    if (error && typeof error === 'object') {
+      const err: any = error;
+      // Unwrap nested causes to the deepest driver error
+      const causeMessages: string[] = [];
+      let cursor: any = err;
+      let lastContext: any = undefined;
+      while (cursor && typeof cursor === 'object') {
+        if (cursor.context && !lastContext) lastContext = cursor.context;
+        if (cursor.cause) {
+          const m = cursor.cause instanceof Error ? cursor.cause.message : String(cursor.cause);
+          causeMessages.push(m);
+          cursor = cursor.cause;
+        } else {
+          break;
+        }
+      }
+      if (causeMessages.length > 0) {
+        response.cause = causeMessages[causeMessages.length - 1];
+        response.causeChain = causeMessages;
+      }
+      if (err.context || lastContext) {
+        response.context = err.context || lastContext;
+      }
+    }
+    return response as ApiResponse;
   }
 
   /**
