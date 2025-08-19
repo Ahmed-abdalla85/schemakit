@@ -277,8 +277,9 @@ export class DB {
     // You may want to extend for update by ID
     const filters = this.buildFilters();
     // Assume first filter is the ID if present
-    const id = filters[0]?.value;
-    const idField = Object.keys(filters[0] || {})[0] || 'id';
+    const first = filters[0] as any;
+    const id = first?.value;
+    const idField = (first?.field as string) || 'id';
     const res = await this.adapter!.update(resolvedTable, idField, id, dataWithTenant);
     this.reset();
     return res;
@@ -289,8 +290,9 @@ export class DB {
     const resolvedTable = this.resolveTableName(table);
     
     const filters = this.buildFilters();
-    const id = filters[0]?.value;
-    const idField = Object.keys(filters[0] || {})[0] || 'id';
+    const first = filters[0] as any;
+    const id = first?.value;
+    const idField = (first?.field as string) || 'id';
     const res = await this.adapter!.delete(resolvedTable, idField, id);
     this.reset();
     return res;
