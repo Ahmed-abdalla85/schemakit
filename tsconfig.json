@@ -17,7 +17,8 @@
   "references": [
     { "path": "./packages/schemakit" },
     { "path": "./packages/schemakit-api" },
-    { "path": "./packages/schemakit-elysia" }
+    { "path": "./packages/schemakit-elysia" },
+    { "path": "./packages/schemakit-client" }
   ],
   "exclude": ["node_modules", "dist", "build", "coverage"]
 }
