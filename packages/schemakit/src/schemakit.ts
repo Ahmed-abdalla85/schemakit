@@ -67,7 +67,9 @@ export class SchemaKit {
    * @param tenantId Tenant identifier (defaults to 'public')
    */
   async entity(name: string, tenantId = DEFAULT_TENANT_ID): Promise<Entity> {
-    const entity = Entity.create(name, tenantId, this.db);
+    // Scope DB to the requested tenant to ensure correct schema/table resolution
+    const dbForTenant = this.db.withTenant(tenantId);
+    const entity = Entity.create(name, tenantId, dbForTenant);
     
     // Configure validation on the entity and initialize
     entity.setValidation(this.validationAdapter, (this.options as any)?.validation?.unknownFieldPolicy || 'strip');
