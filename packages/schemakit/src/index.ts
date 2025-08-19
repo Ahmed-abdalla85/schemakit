@@ -8,8 +8,6 @@
 export { SchemaKit } from './schemakit';
 // Public Entity class
 export { Entity } from './entities/entity';
-// Validation
-export { SimpleValidationAdapter } from './validation/adapters/simple';
 // EntityBuilder has been removed - use EntityManager.entity() instead
 
 // Query components (removed legacy exports)
