@@ -99,12 +99,12 @@ export const SqlBuilder = {
     const sql = `INSERT INTO ${quotedTable} (${quoted.join(', ')}) VALUES (${phs.join(', ')})`;
     return { sql, params };
   },
-  buildUpdate(table: string, id: string | number, data: Record<string, any>, dbType: DbType) {
+  buildUpdate(table: string, id: string | number, data: Record<string, any>, dbType: DbType, idFieldName: string = 'id') {
     const quotedTable = SqlBuilder.quoteIdent(table, dbType);
     const fields = Object.keys(data);
     const sets = fields.map((f, i) => `${SqlBuilder.quoteIdent(f, dbType)} = ${SqlBuilder.placeholder(i, dbType)}`);
     const idPlaceholder = SqlBuilder.placeholder(fields.length, dbType);
-    const sql = `UPDATE ${quotedTable} SET ${sets.join(', ')} WHERE ${SqlBuilder.quoteIdent('id', dbType)} = ${idPlaceholder}`;
+    const sql = `UPDATE ${quotedTable} SET ${sets.join(', ')} WHERE ${SqlBuilder.quoteIdent(idFieldName, dbType)} = ${idPlaceholder}`;
     const params = [...Object.values(data), id];
     return { sql, params };
   },
@@ -300,8 +300,8 @@ export class DrizzleAdapter extends DatabaseAdapter {
     return { id: res.lastInsertId, ...data };
   }
 
-  async update(table: string, id: string, data: Record<string, any>): Promise<any> {
-    const { sql, params } = SqlBuilder.buildUpdate(table, id, this.dbType === 'postgres' ? data : data, this.dbType);
+  async update(table: string, idField: string, id: string | number, data: Record<string, any>): Promise<any> {
+    const { sql, params } = SqlBuilder.buildUpdate(table, id, this.dbType === 'postgres' ? data : data, this.dbType, idField);
     const res = await this.execute(sql, params);
     if (res.changes === 0) throw new Error(`No record found with id: ${id}`);
     return { id, ...data };

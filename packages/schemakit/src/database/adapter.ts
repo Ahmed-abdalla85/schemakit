@@ -150,14 +150,14 @@ export abstract class DatabaseAdapter {
    * @param id Record ID
    * @param data Data to update
    */
-  abstract update(table: string, id: string, data: Record<string, any>): Promise<any>;
+  abstract update(table: string, idField: string, id: string | number, data: Record<string, any>): Promise<any>;
 
   /**
    * Delete a record from a table
    * @param table Table name
    * @param id Record ID
    */
-  abstract delete(table: string, id: string): Promise<void>;
+  abstract delete(table: string, idField: string, id: string | number): Promise<void>;
 
   /**
    * Count records in a table
