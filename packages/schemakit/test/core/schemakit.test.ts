@@ -5,7 +5,7 @@
 
 import { SchemaKit } from '../../src/schemakit';
 import { SchemaKitError } from '../../src/errors';
-import { Entity } from '../../src/entities/entity/entity';
+import { Entity } from '../../src/entities/entity';
 
 // Mock Entity initialization to prevent database loading
 jest.spyOn(Entity.prototype, 'initialize').mockImplementation(async function(this: Entity) {

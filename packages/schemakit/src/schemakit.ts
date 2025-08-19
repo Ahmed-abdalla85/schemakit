@@ -1,5 +1,5 @@
 import { DB, type MultiTenancyConfig } from './database/db';
-import { Entity } from './entities/entity/entity';
+import { Entity } from './entities/entity';
 import { InstallManager } from './database/install-manager';
 import { SchemaKitError } from './errors';
 import type {

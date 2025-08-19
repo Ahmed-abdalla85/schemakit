@@ -3,7 +3,7 @@
  * Tests for core entity functionality, CRUD operations, and metadata loading
  */
 
-import { Entity } from '../../src/entities/entity/entity';
+import { Entity } from '../../src/entities/entity';
 import { DB } from '../../src/database/db';
 import { SchemaKitError } from '../../src/errors';
 
