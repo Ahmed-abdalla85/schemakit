@@ -226,6 +226,8 @@ describe('Entity', () => {
     test('should insert new record', async () => {
       const insertData = { name: 'John Doe', email: 'john@example.com' };
 
+      // Mock DB returning the inserted row to satisfy expectation
+      (mockDb.insert as any).mockResolvedValueOnce({ id: 1, ...insertData });
       const result = await entity.insert(insertData);
       
       expect(result.name).toBe('John Doe');

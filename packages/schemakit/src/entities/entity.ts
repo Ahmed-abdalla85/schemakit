@@ -156,9 +156,9 @@ export class Entity {
     data = { ...data, ...(resCreate as any).data } as Record<string, any>;
     const columnPrefix = this.getColumnPrefix();
     const enrichedData = buildCreateRow(data, columnPrefix, contextWithTenant, this.tableName);
-    await this.repository!.insert(enrichedData);
-    await this.executeWorkflows('create', null, enrichedData, contextWithTenant);
-    return enrichedData;
+    const inserted = await this.repository!.insert(enrichedData);
+    await this.executeWorkflows('create', null, inserted, contextWithTenant);
+    return inserted;
   }
 
   async update(id: string | number, data: Record<string, any>, context: Context = {}): Promise<Record<string, any>> {
