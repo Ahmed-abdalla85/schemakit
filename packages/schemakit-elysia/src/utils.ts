@@ -38,8 +38,24 @@ export function createErrorResponse(
   };
   if (error && typeof error === 'object') {
     const err: any = error;
-    if (err.cause) body.cause = err.cause instanceof Error ? err.cause.message : err.cause;
-    if (err.context) body.context = err.context;
+    const causeMessages: string[] = [];
+    let cursor: any = err;
+    let lastContext: any = undefined;
+    while (cursor && typeof cursor === 'object') {
+      if (cursor.context && !lastContext) lastContext = cursor.context;
+      if (cursor.cause) {
+        const m = cursor.cause instanceof Error ? cursor.cause.message : String(cursor.cause);
+        causeMessages.push(m);
+        cursor = cursor.cause;
+      } else {
+        break;
+      }
+    }
+    if (causeMessages.length > 0) {
+      body.cause = causeMessages[causeMessages.length - 1];
+      body.causeChain = causeMessages;
+    }
+    if (err.context || lastContext) body.context = err.context || lastContext;
   }
   return body as ApiResponse;
 }

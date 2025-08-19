@@ -46,11 +46,26 @@ export class ResponseHelpers {
     // Surface underlying database error and rich context when available
     if (error && typeof error === 'object') {
       const err: any = error;
-      if (err.cause) {
-        response.cause = err.cause instanceof Error ? err.cause.message : err.cause;
+      // Unwrap nested causes to the deepest driver error
+      const causeMessages: string[] = [];
+      let cursor: any = err;
+      let lastContext: any = undefined;
+      while (cursor && typeof cursor === 'object') {
+        if (cursor.context && !lastContext) lastContext = cursor.context;
+        if (cursor.cause) {
+          const m = cursor.cause instanceof Error ? cursor.cause.message : String(cursor.cause);
+          causeMessages.push(m);
+          cursor = cursor.cause;
+        } else {
+          break;
+        }
       }
-      if (err.context) {
-        response.context = err.context;
+      if (causeMessages.length > 0) {
+        response.cause = causeMessages[causeMessages.length - 1];
+        response.causeChain = causeMessages;
+      }
+      if (err.context || lastContext) {
+        response.context = err.context || lastContext;
       }
     }
     return response as ApiResponse;
