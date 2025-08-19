@@ -212,7 +212,10 @@ describe('Entity', () => {
         entity_updated_at: '2024-01-01T00:00:00Z'
       }]);
       // 2. loadFields  
-      mockDb.get.mockResolvedValueOnce([]); 
+      mockDb.get.mockResolvedValueOnce([ 
+        { field_id: 'f1', field_entity_id: 'ent_001', field_name: 'name', field_type: 'string', field_is_required: false },
+        { field_id: 'f2', field_entity_id: 'ent_001', field_name: 'email', field_type: 'string', field_is_required: false }
+      ]); 
       // 3. loadPermissions
       mockDb.get.mockResolvedValueOnce([]); 
       // 4. loadWorkflows

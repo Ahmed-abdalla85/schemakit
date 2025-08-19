@@ -153,7 +153,7 @@ export class Entity {
       const details = issues.map((i: any) => `${i.path}: ${i.message}`).join('; ');
       throw new SchemaKitError(`Validation failed${details ? `: ${details}` : ''}`, { code: 'VALIDATION_FAILED', context: issues });
     }
-    data = { ...data, ...(resCreate as any).data } as Record<string, any>;
+    data = (resCreate as any).data as Record<string, any>;
     const columnPrefix = this.getColumnPrefix();
     const enrichedData = buildCreateRow(data, columnPrefix, contextWithTenant, this.tableName);
     const inserted = await this.repository!.insert(enrichedData);
@@ -171,7 +171,7 @@ export class Entity {
       const details = issues.map((i: any) => `${i.path}: ${i.message}`).join('; ');
       throw new SchemaKitError(`Validation failed${details ? `: ${details}` : ''}`, { code: 'VALIDATION_FAILED', context: issues });
     }
-    data = { ...data, ...(resUpdate as any).data } as Record<string, any>;
+    data = (resUpdate as any).data as Record<string, any>;
     const oldData = await this.getById(id, contextWithTenant);
     if (!oldData) throw new SchemaKitError(`Record not found: ${this.entityName} with ID ${id}`);
     const columnPrefix = (this.entityDefinition as any)?.entity_column_prefix || this.tableName;
