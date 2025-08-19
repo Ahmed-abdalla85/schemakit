@@ -4,7 +4,7 @@
 
 > ⚠️ **BETA VERSION** - Active development. Not recommended for production use yet.
 
-> 🎉 **NEW in v0.1.5**: Now part of a monorepo with framework adapters! Check out [`@mobtakronio/schemakit-elysia`](../schemakit-elysia/) for auto-generated REST APIs.
+> 🎉 **NEW in v0.2.6**: Cleaner multi-tenancy (default tenant: `public`), removed in-memory adapter, improved error details with cause/context, and Postgres inserts now return the full inserted row via `RETURNING *`.
 
 **SchemaKit is a runtime schema engine** that lets you build secure, multi-tenant backend applications where entities, permissions, and workflows are defined as data rather than code. Build business applications that can evolve without code deployments.
 
@@ -84,10 +84,7 @@ WorkflowManager    -> Planned: Lifecycle event automation
 
 ### 3. **Adapter Layer** (Database Abstraction)
 ```typescript
-PostgresAdapter   -> Native PostgreSQL implementation
-SQLiteAdapter     -> File-based development
-DrizzleAdapter    -> Planned: Leverage Drizzle ORM optimizations
-TypeORMAdapter    -> Planned: Enterprise features
+DrizzleAdapter    -> Unified adapter for Postgres, SQLite, MySQL (via Drizzle drivers)
 ```
 
 ### 4. **Interface Layer** (Future: Low-Code Tools)
@@ -339,7 +336,7 @@ MIT © [MobtakronIO](https://github.com/MobtakronIO)
 
 ## 🗄️ Database Adapters
 
-SchemaKit uses a flexible adapter pattern to support multiple databases. By default, it includes an in-memory adapter for testing and development.
+SchemaKit uses a flexible adapter pattern to support multiple databases.
 
 ### Using Drizzle ORM (Recommended)
 
@@ -398,24 +395,19 @@ const kit = new SchemaKit({
 const kit = new SchemaKit({
   adapter: 'sqlite',
   config: {
-    filename: './database.sqlite' // or ':memory:' for in-memory
+    filename: './database.sqlite'
   }
 });
 
-// Initialize the adapter
+// Initialize the adapter (optional; lazy by default)
 await kit.init();
 ```
 
-### In-Memory Adapter
+### Notes
 
-Perfect for testing and development:
-
-```typescript
-const kit = new SchemaKit({
-  adapter: 'sqlite'
-});
-```
+- The previous in-memory adapter was removed to reduce complexity.
+- For testing, prefer SQLite with `better-sqlite3` or Postgres.
 
 ### Custom Adapters
 
-You can create custom adapters by extending the `DatabaseAdapter` class. See the [adapter documentation](./docs/adapters.md) for details.
+You can create custom adapters by extending the `DatabaseAdapter` class. See the adapter documentation for details.

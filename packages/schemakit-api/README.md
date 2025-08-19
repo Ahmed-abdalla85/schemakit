@@ -17,7 +17,7 @@ import { ResponseHelpers } from '@mobtakronio/schemakit-api';
 // Success response
 const response = ResponseHelpers.success(data, 'Operation completed');
 
-// Error response
+// Error response (includes cause/context when provided by SchemaKit)
 const error = ResponseHelpers.error(new Error('Something went wrong'));
 
 // Paginated response
@@ -30,7 +30,7 @@ Framework-agnostic business logic:
 ```typescript
 import { CrudOperations } from '@mobtakronio/schemakit-api';
 
-// Create record
+// Create record (returns full inserted row on Postgres)
 const result = await CrudOperations.createRecord(entity, data, context);
 
 // List records with pagination

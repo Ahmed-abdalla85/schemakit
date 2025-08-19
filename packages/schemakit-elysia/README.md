@@ -205,12 +205,12 @@ app.use(schemaKitElysia(kit, {
 
 ## Error Handling
 
-The adapter provides consistent error responses:
+The adapter provides consistent error responses and now surfaces nested causes and SQL context from SchemaKit:
 
 ```json
 {
   "success": false,
-  "error": "User not found",
+  "error": "Database operation 'execute' failed: ...",
   "message": "Operation failed",
   "timestamp": "2024-01-01T12:00:00.000Z"
 }
