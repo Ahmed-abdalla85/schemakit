@@ -154,8 +154,8 @@ export class Entity {
       throw new SchemaKitError(`Validation failed${details ? `: ${details}` : ''}`, { code: 'VALIDATION_FAILED', context: issues });
     }
     data = { ...data, ...(resCreate as any).data } as Record<string, any>;
-    const columnPrefix = (this.entityDefinition as any)?.entity_column_prefix || this.tableName;
-    const enrichedData = buildCreateRow(data, columnPrefix, contextWithTenant);
+    const columnPrefix = this.getColumnPrefix();
+    const enrichedData = buildCreateRow(data, columnPrefix, contextWithTenant, this.tableName);
     await this.repository!.insert(enrichedData);
     await this.executeWorkflows('create', null, enrichedData, contextWithTenant);
     return enrichedData;

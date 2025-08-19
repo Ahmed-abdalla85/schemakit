@@ -8,21 +8,32 @@ export function getPrimaryKeyColumn(prefix: string): string {
 export function buildCreateRow(
   input: Record<string, any>,
   columnPrefix: string,
-  context: { user?: { id?: string | number } }
+  context: { user?: { id?: string | number } },
+  tableName?: string
 ): Record<string, any> {
   const pkField = getPrimaryKeyColumn(columnPrefix);
   const id = input.id || (input as any)[pkField] || generateId();
   const now = getCurrentTimestamp();
-  return {
+  const isSystemTable = typeof tableName === 'string' && tableName.startsWith('system_');
+  const base: Record<string, any> = {
     ...input,
-    id,
-    [pkField]: id,
     [`${columnPrefix}_created_at`]: now,
     [`${columnPrefix}_modified_at`]: now,
     ...(context.user?.id && {
       [`${columnPrefix}_created_by`]: context.user.id,
       [`${columnPrefix}_modified_by`]: context.user.id,
     }),
+  };
+  if (isSystemTable) {
+    // Rely on database auto-increment PK; do not set generic or prefixed id
+    delete (base as any).id;
+    delete (base as any)[pkField];
+    return base;
+  }
+  return {
+    ...base,
+    id,
+    [pkField]: id,
   };
 }
 
