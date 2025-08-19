@@ -203,8 +203,8 @@ export abstract class DatabaseAdapter {
       case 'postgres':
       case 'mysql':
         // Use DrizzleAdapter for all SQL databases
-        const { DrizzleAdapter } = await import('./adapters/drizzle');
-        return new DrizzleAdapter({ ...config, type: type as any });
+        const module: any = await import('./adapters/drizzle');
+        return new module.DrizzleAdapter({ ...config, type: type as any });
       default:
         throw new DatabaseError('create', { 
             cause: new Error(`Unsupported adapter type: ${type}`) 
@@ -223,8 +223,8 @@ export abstract class DatabaseAdapter {
       case 'postgres': 
       case 'mysql':
         // Use require for synchronous loading
-        const { DrizzleAdapter } = require('./adapters/drizzle');
-        return new DrizzleAdapter({ ...config, type: type as any });
+        const module: any = require('./adapters/drizzle');
+        return new module.DrizzleAdapter({ ...config, type: type as any });
       default:
         throw new DatabaseError('create', { 
             cause: new Error(`Unsupported adapter type: ${type}`) 
