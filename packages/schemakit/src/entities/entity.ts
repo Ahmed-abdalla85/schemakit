@@ -191,7 +191,23 @@ export class Entity {
     return true;
   }
 
-  private getColumnPrefix(): string { return (this.entityDefinition as any)?.entity_column_prefix || this.tableName; }
+  private getColumnPrefix(): string {
+    const raw: string | undefined = (this.entityDefinition as any)?.entity_column_prefix;
+    const sanitize = (p: string) => p.replace(/_+$/g, '');
+    if (typeof raw === 'string' && raw.trim().length > 0) {
+      return sanitize(raw.trim());
+    }
+    const systemPrefixMap: Record<string, string> = {
+      system_entities: 'entity',
+      system_fields: 'field',
+      system_permissions: 'permission',
+      system_views: 'view',
+      system_workflows: 'workflow',
+      system_rls: 'rls',
+    };
+    const mapped = systemPrefixMap[this.tableName];
+    return mapped ? mapped : this.tableName;
+  }
   private getPrimaryKeyFieldName(): string { return getPrimaryKeyColumn(this.getColumnPrefix()); }
 
   private async ensureInitialized(): Promise<void> {
